@@ -1,243 +1,320 @@
 # Quiz Service Backend
 
 This repository is the backend-only foundation for the internship quiz platform.
-For Sprint 1, `main` intentionally contains only the shared backend scaffold and team conventions so each module owner can branch safely without stepping on another task.
+The backend stack is now locked to `NestJS + PostgreSQL + Prisma`.
 
-## Backend Stack
+For Sprint 1, `main` must stay a shared foundation branch only. It should contain the project structure, tooling, conventions, and minimal app shell, but not anyone's feature implementation.
 
-- Python 3.11
-- FastAPI
-- SQLAlchemy 2.0 (async style)
-- PostgreSQL
-- Alembic
-- pytest
-- SMTP integration for email delivery
+## Locked Technical Direction
 
-## Sprint 1 Coordination
+- Framework: `NestJS`
+- Runtime: `Node.js 22+`
+- Language: `TypeScript`
+- Database: `PostgreSQL`
+- ORM / schema / migrations: `Prisma`
+- Testing: `Jest` + `Supertest`
+- Local infra: `Docker Compose`
+- Email dev helper: `MailHog`
 
-### Current rule for `main`
+## Main Branch Contract
 
-Safe on `main`:
+### Safe on `main`
 
-- shared documentation and repo conventions
-- dependency and tooling setup
-- a minimal FastAPI application shell
-- generic config and database plumbing
-- empty package scaffolding for owned modules
-- local development helpers such as `docker-compose.yml` and `Makefile`
+- shared backend repo structure
+- NestJS application bootstrap
+- shared config and environment validation
+- shared Prisma service and schema location
+- empty module folders for team ownership
+- shared docs and API contract area
+- local dev tooling such as `docker-compose.yml`, `.env.example`, and `Makefile`
+- a minimal health endpoint
 
-Keep off `main` until owners implement them on feature branches:
+### Must stay off `main`
 
-- notification service logic, templates, and models
-- integrity and cheating-event models
-- user, quiz, question, and attempt models
-- real Alembic migration setup and version files
-- feature routers and cross-module wiring
-- anything that belongs to a Sprint 1 owner deliverable
+- real feature controllers, services, DTOs, guards, or business logic
+- Prisma models for users, quizzes, questions, attempts, notifications, or integrity logs
+- Prisma migrations and generated shared data contracts owned by `L3`
+- Auth, Quiz, Student, Attempts, Analytics, or Notify implementation work
+- cross-module integration wiring that belongs to Sprint 1 feature owners
 
-### Ownership and dependencies
+## Sprint 1 Dependency Rules
 
-- `L3` owns migration bootstrap and schema versioning for Sprint 1. Treat it as the main technical blocker for data-model work.
+- `L3` is the biggest technical blocker because Prisma schema design and migrations affect the whole backend.
 - `L5` defines the attempt contract that `L6` analytics depends on.
-- `L7` owns notifications and integrity work, but full wiring into Auth and Quiz is a later integration step.
-- `L4` can move in parallel only after `L1` and `L2` contracts are stable enough to consume.
+- `L7` owns notifications and integrity logging, but full integration into other modules should not be forced onto `main`.
+- `L4` can move in parallel, but it still depends on stable backend contracts from `L1` and `L2`.
 
-### Recommended branch flow
+## Recommended Team Workflow
 
-1. Merge this shared scaffold into `main`.
-2. Have each module owner branch from `main`.
-3. Nominate the `L3` owner as migration integrator for Alembic baseline and version ordering.
-4. Document every shared contract change in the PR description or docs before merge.
-5. Use a temporary integration branch later only if several unfinished modules need to be tested together.
+1. Keep this scaffold on `main`.
+2. Every owner branches from `main`.
+3. Nominate the `L3` owner as the Prisma migration integrator.
+4. Any PR that changes a shared contract must document that contract in `docs/api/` or in the PR description.
+5. If multiple unfinished branches must be tested together later, create a temporary integration branch instead of bloating `main`.
 
-## Project Layout
+## Canonical Project Layout
 
 ```text
 .
+├── .editorconfig
+├── .env.example
 ├── .gitignore
+├── .nvmrc
+├── .prettierrc
 ├── README.md
-├── app/
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── router.py
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── config.py
-│   │   └── db.py
-│   ├── integrity/
-│   │   └── __init__.py
-│   ├── notifications/
-│   │   └── __init__.py
-│   ├── __init__.py
-│   └── main.py
+├── docker-compose.yml
+├── eslint.config.mjs
+├── Makefile
+├── nest-cli.json
+├── package-lock.json
+├── package.json
+├── prisma.config.ts
+├── prisma/
+│   └── schema.prisma
 ├── docs/
 │   └── api/
 │       └── .gitkeep
-├── tests/
-│   └── test_health.py
-├── .env.example
-├── docker-compose.yml
-├── Makefile
-└── pyproject.toml
+├── src/
+│   ├── app.module.ts
+│   ├── main.ts
+│   ├── common/
+│   │   ├── config/
+│   │   │   ├── configuration.ts
+│   │   │   └── env.validation.ts
+│   │   └── prisma/
+│   │       ├── prisma.module.ts
+│   │       └── prisma.service.ts
+│   ├── health/
+│   │   ├── health.controller.ts
+│   │   └── health.module.ts
+│   └── modules/
+│       ├── README.md
+│       ├── analytics/
+│       ├── attempts/
+│       ├── auth/
+│       ├── integrity/
+│       ├── notifications/
+│       ├── questions/
+│       ├── quiz/
+│       └── student/
+├── test/
+│   ├── health.e2e-spec.ts
+│   └── jest-e2e.json
+├── tsconfig.build.json
+└── tsconfig.json
 ```
-
-`migrations/` is intentionally not bootstrapped on `main` yet. That work should land from the `L3` branch together with the team's migration policy.
 
 ## File And Folder Roles
 
-This section explains what each current file and folder is for, and what should be placed there later.
+This section is the source of truth for what goes where.
 
 ### Root files
 
-- `README.md`: the shared guide for the backend repo. It explains scope, branch rules, layout, and local setup.
-- `.gitignore`: keeps local-only or generated files out of git, such as `.env`, virtual environments, caches, and test artifacts.
-- `pyproject.toml`: the Python project definition. This is where shared dependencies, optional dev dependencies, and tool configuration live.
-- `.env.example`: the example environment file. Add new shared environment variables here when the team agrees on them.
-- `docker-compose.yml`: local infrastructure for development. Right now it starts PostgreSQL for backend work.
-- `Makefile`: common shortcuts for install, lint, test, run, and local database commands.
+- `README.md`: the team contract for structure, ownership boundaries, and local setup.
+- `.gitignore`: ignores local-only files and build output.
+- `.env.example`: the shared list of backend environment variables.
+- `.nvmrc`: recommended Node version for the team.
+- `.editorconfig`: shared editor whitespace rules.
+- `.prettierrc`: shared formatting rules for TypeScript code.
+- `package.json`: dependency list, scripts, engines, and package metadata.
+- `package-lock.json`: npm lockfile so the team installs the same dependency graph.
+- `nest-cli.json`: tells Nest CLI where the source root is and how to build.
+- `prisma.config.ts`: root Prisma CLI configuration for schema path, migrations path, and datasource URL loading.
+- `tsconfig.json`: TypeScript compiler rules for development and tests.
+- `tsconfig.build.json`: build-specific TS config for production output.
+- `eslint.config.mjs`: shared lint rules for the TypeScript codebase.
+- `docker-compose.yml`: local services for development, currently PostgreSQL and MailHog.
+- `Makefile`: optional shortcuts around the most common npm and docker commands.
 
-### `app/`
+### `prisma/`
 
-`app/` is the backend source-code root. Application code should live here, not at the repo root.
+`prisma/` is the only canonical place for Prisma schema and migrations.
 
-- `app/__init__.py`: marks `app/` as a Python package.
-- `app/main.py`: the FastAPI application entrypoint. It creates the app instance and mounts shared routers.
+- `prisma/schema.prisma`: the Prisma schema file. On `main`, it only defines the datasource and generator. It must not define the team data models yet.
+- `src/generated/prisma/`: generated Prisma client output after `npm run prisma:generate`. This is intentionally ignored from git.
 
-### `app/api/`
+What belongs here later:
 
-`app/api/` is for HTTP routing and API-layer composition.
+- shared Prisma models
+- `prisma/migrations/` once `L3` lands the migration baseline
+- Prisma seed or helper files if the team later agrees on them
 
-- `app/api/__init__.py`: marks the API package.
-- `app/api/router.py`: the shared router aggregator. On `main`, this should stay minimal and only contain safe shared endpoints like `/health`. Feature-specific routes should be added by module owners on their branches.
+What does not belong here:
 
-Put here later:
+- Nest controllers or business logic
+- module-specific service code
 
-- shared router registration
-- safe cross-project API composition
-- non-business endpoints such as health/readiness checks
+### `src/`
 
-Do not put here on `main`:
+`src/` is the NestJS application source root. All backend runtime code belongs here.
 
-- Auth, Quiz, Student, Analytics, or Notify feature endpoints
-- cross-module integration behavior
+- `src/main.ts`: Nest bootstrap file. It starts the app, sets the API prefix, enables validation, and applies shared infrastructure behavior.
+- `src/app.module.ts`: root Nest module that wires together shared infrastructure and safe bootstrap modules.
 
-### `app/core/`
+### `src/common/`
 
-`app/core/` is for framework-level plumbing used by multiple modules.
+`src/common/` is for framework-wide infrastructure shared by many modules.
 
-- `app/core/__init__.py`: marks the core package.
-- `app/core/config.py`: central app settings loaded from environment variables.
-- `app/core/db.py`: shared async SQLAlchemy engine and session factory setup.
+#### `src/common/config/`
 
-Put here later:
+- `configuration.ts`: central configuration mapping from environment variables into a typed nested config object.
+- `env.validation.ts`: shared validation rules for required environment variables.
 
-- shared settings
-- shared database/session helpers
-- framework-wide infrastructure used by many modules
+Put here:
+
+- global config
+- shared infrastructure helpers
+- code that multiple feature modules will use
 
 Do not put here:
 
-- feature-specific business rules
-- module models or email logic
+- feature-specific business logic
+- module DTOs
+- notification templates
 
-### `app/notifications/`
+#### `src/common/prisma/`
 
-`app/notifications/` is reserved for the `L7` Notify module that you own.
+- `prisma.module.ts`: global Nest module that exposes Prisma to other modules.
+- `prisma.service.ts`: shared Prisma client wrapper.
 
-- `app/notifications/__init__.py`: placeholder package file only for now.
+Put here:
 
-This folder is where these task-owned files will later belong on your feature branch, not on `main`:
+- Prisma client setup
+- shared database access helpers
+- cross-project DB infrastructure
 
-- `app/notifications/service.py`
-- `app/notifications/templates.py`
-- `app/notifications/models.py`
+Do not put here:
 
-Put here later:
+- feature queries mixed with business rules
+- module-specific repository logic that belongs to one owner
 
-- email sending service code
-- reusable email templates
-- notification-related models and helpers
-- internal notification APIs once your branch owns that work
+### `src/health/`
 
-### `app/integrity/`
+`src/health/` is the only safe runtime feature on `main`.
 
-`app/integrity/` is reserved for integrity and cheating-event logging.
+- `health.module.ts`: small Nest module for health checks.
+- `health.controller.ts`: minimal endpoint used to confirm the scaffold boots.
 
-- `app/integrity/__init__.py`: placeholder package file only for now.
+Current safe endpoint:
 
-This folder is where `app/integrity/models.py` will later belong on your feature branch, not on `main`.
+- `GET /api/health`
 
-Put here later:
+### `src/modules/`
 
-- cheating or integrity log models
-- integrity-related services or validators, if the team keeps that logic separate
+`src/modules/` is the team ownership area. Each Sprint owner should work in their own domain folder here.
+
+- `src/modules/README.md`: module layout guide and recommended internal conventions.
+- `src/modules/auth/`: reserved for `L1` Auth.
+- `src/modules/quiz/`: reserved for `L2` Quiz.
+- `src/modules/questions/`: reserved for `L3` Questions and schema-related question code.
+- `src/modules/student/`: reserved for `L4` Student flow backend logic.
+- `src/modules/attempts/`: reserved for `L5` Attempts and solving contract code.
+- `src/modules/analytics/`: reserved for `L6` Analytics backend code.
+- `src/modules/notifications/`: reserved for `L7` Notify email and notification module.
+- `src/modules/integrity/`: reserved for integrity and cheating-event logic, currently aligned with `L7`.
+
+Recommended internal layout inside each module once work begins:
+
+- `controllers/`
+- `services/`
+- `dto/`
+- `entities/` or `mappers/`
+- `guards/`, `decorators/`, `strategies/` only when needed
 
 ### `docs/` and `docs/api/`
 
-`docs/` is for backend documentation that should live with the codebase.
+`docs/` holds backend documentation that should live beside the code.
 
-- `docs/api/`: shared API documentation area.
-- `docs/api/.gitkeep`: keeps the directory tracked while it is still empty.
-
-Put here later:
-
-- shared API templates
-- request/response contracts
-- endpoint behavior notes agreed between module owners
-
-### `tests/`
-
-`tests/` is the automated test root.
-
-- `tests/test_health.py`: a minimal smoke test proving the scaffold boots and the shared health endpoint works.
+- `docs/api/`: shared API contract area for request shapes, response shapes, and shared endpoint agreements.
+- `docs/api/.gitkeep`: keeps the folder tracked before docs are added.
 
 Put here later:
 
-- unit tests for shared infrastructure
-- module tests on each owner branch
-- integration tests once cross-module behavior exists
+- shared contract docs
+- endpoint notes
+- integration assumptions between modules
 
-### Reserved but intentionally absent
+### `test/`
 
-- `migrations/`: intentionally missing on `main`. The `L3` owner should introduce Alembic bootstrap and version files from their branch because migration setup is a Sprint 1 dependency for the team.
+`test/` is the root for end-to-end and system-level tests.
+
+- `test/jest-e2e.json`: Jest configuration for e2e tests.
+- `test/health.e2e-spec.ts`: smoke test for the safe health endpoint.
+
+Recommended rule:
+
+- unit tests can live close to their module files as `*.spec.ts`
+- e2e or whole-app tests should live in `test/`
 
 ### Reference-only local material
 
-- `misc/`: planning and mentor reference documents used for coordination. This folder is ignored by git and is not part of the backend application runtime.
+- `misc/`: planning and mentor reference files. It is ignored by git and is not part of application runtime.
 
 ## Placement Rules
 
-Use these quick rules when deciding where something belongs:
+Use these rules when deciding where new code belongs:
 
-- If it is application startup, router wiring, settings, or DB plumbing, it likely belongs in `app/main.py`, `app/api/`, or `app/core/`.
-- If it sends emails or defines notification templates/models, it belongs in `app/notifications/`.
-- If it logs cheating or integrity-related events, it belongs in `app/integrity/`.
-- If it is an API contract or endpoint documentation, it belongs in `docs/api/`.
-- If it is a test, it belongs in `tests/`.
-- If it is a database migration, it belongs in `migrations/`, but that folder should first be introduced by the `L3` branch rather than directly on `main`.
+- If it boots Nest, configures the app, or registers shared infrastructure, it belongs in `src/main.ts`, `src/app.module.ts`, or `src/common/`.
+- If it is a database schema or migration, it belongs in `prisma/`.
+- If it is a feature owned by one intern, it belongs in that intern's folder under `src/modules/`.
+- If it is an API contract or interface agreement, it belongs in `docs/api/`.
+- If it is a whole-app smoke or e2e test, it belongs in `test/`.
+
+## Legacy Structure Policy
+
+The old Python/FastAPI layout is deprecated and should not be recreated.
+
+- Do not add `app/` back.
+- Do not add `tests/` as a Python-style root.
+- Do not add `pyproject.toml`, FastAPI files, SQLAlchemy files, or Alembic files.
+- All backend runtime code now belongs under `src/`.
+- All database schema and migrations now belong under `prisma/`.
+
+## Prisma Rules For The Team
+
+- `main` only contains the Prisma location and datasource/generator setup.
+- `L3` should introduce the first shared Prisma models and the migration baseline.
+- No one should create ad-hoc schema changes directly on `main`.
+- Once Prisma modeling starts, every schema change should go through `prisma/schema.prisma` and a Prisma migration.
 
 ## Local Development
 
-1. Create a virtual environment:
-   `python -m venv .venv`
-2. Activate it:
-   `source .venv/bin/activate`
-3. Install dependencies:
-   `pip install -e ".[dev]"`
-4. Copy environment variables:
+1. Use the recommended Node version:
+   `nvm use`
+2. Install dependencies:
+   `npm install`
+3. Copy environment variables:
    `cp .env.example .env`
-5. Start PostgreSQL:
-   `docker compose up -d postgres`
-6. Run the API:
-   `uvicorn app.main:app --reload`
+4. Start local services:
+   `docker compose up -d postgres mailhog`
+5. Generate the Prisma client:
+   `npm run prisma:generate`
+6. Start the backend:
+   `npm run start:dev`
 
 Health check:
 
-- `GET /health`
+- `GET /api/health`
 
-## Notes For Module Owners
+Mail testing:
 
-- `app/notifications/` is reserved for the `L7` Notify implementation.
-- `app/integrity/` is reserved for integrity logging models and related code.
-- `docs/api/` is reserved for shared API contract docs and templates.
-- Frontend work should stay out of this repository.
+- MailHog UI: `http://localhost:8025`
+
+## Common Commands
+
+- `npm run start:dev`
+- `npm run build`
+- `npm run lint`
+- `npm run test`
+- `npm run prisma:generate`
+- `npm run prisma:format`
+- `make db-up`
+- `make db-down`
+
+## Final Team Rules
+
+- This repo is backend-only. Do not place frontend code here.
+- `main` is for shared structure and conventions, not unfinished feature logic.
+- Keep modules isolated under `src/modules/`.
+- Keep shared infra under `src/common/`.
+- Keep schema and migrations under `prisma/`.

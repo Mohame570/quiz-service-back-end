@@ -1,28 +1,39 @@
-PYTHON ?= python3
-VENV ?= .venv
-PIP := $(VENV)/bin/pip
-PYTEST := $(VENV)/bin/pytest
-RUFF := $(VENV)/bin/ruff
-UVICORN := $(VENV)/bin/uvicorn
+NPM ?= npm
 
-.PHONY: install run test lint db-up db-down
+.PHONY: install dev build start lint format test test-e2e db-up db-down prisma-generate prisma-format
 
 install:
-	$(PYTHON) -m venv $(VENV)
-	$(PIP) install --upgrade pip
-	$(PIP) install -e ".[dev]"
+	$(NPM) install
 
-run:
-	$(UVICORN) app.main:app --host 0.0.0.0 --port 8000 --reload
+dev:
+	$(NPM) run start:dev
 
-test:
-	$(PYTEST)
+build:
+	$(NPM) run build
+
+start:
+	$(NPM) run start
 
 lint:
-	$(RUFF) check .
+	$(NPM) run lint
+
+format:
+	$(NPM) run format
+
+test:
+	$(NPM) run test
+
+test-e2e:
+	$(NPM) run test:e2e
 
 db-up:
-	docker compose up -d postgres
+	docker compose up -d postgres mailhog
 
 db-down:
 	docker compose down
+
+prisma-generate:
+	$(NPM) run prisma:generate
+
+prisma-format:
+	$(NPM) run prisma:format

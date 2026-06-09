@@ -1,0 +1,12 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Intentionally empty on main:
+// L3 owns the initial shared data model and Prisma migrations.
