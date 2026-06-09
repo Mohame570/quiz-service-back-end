@@ -5,6 +5,8 @@ The backend stack is now locked to `NestJS + PostgreSQL + Prisma`.
 
 For Sprint 1, `main` must stay a shared foundation branch only. It should contain the project structure, tooling, conventions, and minimal app shell, but not anyone's feature implementation.
 
+For the day-to-day feature workflow, branch naming, PR rules, and documentation process, see `CONTRIBUTING.md`.
+
 ## Locked Technical Direction
 
 - Framework: `NestJS`
