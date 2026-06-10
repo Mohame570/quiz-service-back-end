@@ -6,8 +6,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AttemptStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { AttemptStatus, Prisma } from '../../../generated/prisma/client';
 import { SaveAnswerItemDto } from '../dto/save-answers.dto';
 import {
   AttemptAnswerResponseDto,
@@ -121,39 +121,49 @@ export class AttemptsService {
 
     const now = new Date();
 
-    // Bulk-upsert any answers included with the submit payload
-    const answerUpserts = items.map((item) =>
-      this.prisma.attemptAnswer.upsert({
-        where: {
-          attemptId_questionId: {
-            attemptId: id,
-            questionId: item.questionId,
-          },
-        },
-        create: {
-          attemptId: id,
-          questionId: item.questionId,
-          selectedOptionId: item.selectedOptionId ?? null,
-          answeredAt: now,
-        },
-        update: {
-          selectedOptionId: item.selectedOptionId ?? null,
-          answeredAt: now,
-        },
-      }),
-    );
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (items.length > 0) {
+        await Promise.all(
+          items.map((item) =>
+            tx.attemptAnswer.upsert({
+              where: {
+                attemptId_questionId: {
+                  attemptId: id,
+                  questionId: item.questionId,
+                },
+              },
+              create: {
+                attemptId: id,
+                questionId: item.questionId,
+                selectedOptionId: item.selectedOptionId ?? null,
+                answeredAt: now,
+              },
+              update: {
+                selectedOptionId: item.selectedOptionId ?? null,
+                answeredAt: now,
+              },
+            }),
+          ),
+        );
+      }
 
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.attempt.update({
+      await tx.attempt.update({
         where: { id },
         data: {
           status: AttemptStatus.SUBMITTED,
           submittedAt: now,
         },
+      });
+
+      return tx.attempt.findUnique({
+        where: { id },
         include: { answers: true },
-      }),
-      ...answerUpserts,
-    ]);
+      });
+    });
+
+    if (!updated) {
+      throw new NotFoundException('Attempt not found.');
+    }
 
     return this.toResponseDto(updated);
   }
