@@ -8,5 +8,25 @@ datasource db {
   provider = "postgresql"
 }
 
-// Intentionally empty on main:
-// L3 owns the initial shared data model and Prisma migrations.
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Quiz {
+  id              String     @id @default(cuid())
+  title           String
+  description     String?
+  status          QuizStatus @default(DRAFT)
+  durationMinutes Int?
+  passingScore    Int?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdById     String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status])
+  @@index([createdById])
+  @@index([startsAt, endsAt])
+}
