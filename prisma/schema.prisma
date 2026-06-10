@@ -74,6 +74,7 @@ model AttemptAnswer {
   @@unique([attemptId, questionId])
   @@index([attemptId])
   @@map("attempt_answers")
+}
 enum EmailDeliveryStatus {
   PENDING
   SENT
