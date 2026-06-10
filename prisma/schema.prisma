@@ -64,3 +64,48 @@ model CheatingEventLog {
   @@index([eventType, occurredAt])
   @@map("cheating_event_logs")
 }
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  quizzes   Quiz[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Quiz {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  creatorId   String
+  creator     User       @relation(fields: [creatorId], references: [id])
+  questions   Question[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([creatorId])
+  @@map("quizzes")
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  quizId        String
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type          QuestionType
+  text          String
+  options       String[]
+  correctAnswer String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([quizId])
+  @@map("questions")
+}
