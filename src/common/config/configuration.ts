@@ -20,4 +20,8 @@ export default () => ({
     password: process.env.SMTP_PASSWORD ?? '',
     fromEmail: process.env.SMTP_FROM_EMAIL ?? 'no-reply@example.com',
   },
+  jwt: {
+    secret: process.env.JWT_SECRET ?? 'change-me-in-production',
+    accessTokenExpiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRES_IN ?? '1h',
+  },
 });

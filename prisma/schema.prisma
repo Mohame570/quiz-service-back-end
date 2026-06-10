@@ -8,5 +8,22 @@ datasource db {
   provider = "postgresql"
 }
 
-// Intentionally empty on main:
-// L3 owns the initial shared data model and Prisma migrations.
+// Auth baseline model (L1).
+enum UserRole {
+  STUDENT
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(STUDENT)
+  emailVerified     Boolean  @default(false) @map("email_verified")
+  verificationToken String?  @map("verification_token")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}

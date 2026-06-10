@@ -16,4 +16,6 @@ export const envValidationSchema = Joi.object({
   SMTP_USERNAME: Joi.string().allow('').default(''),
   SMTP_PASSWORD: Joi.string().allow('').default(''),
   SMTP_FROM_EMAIL: Joi.string().email().default('no-reply@example.com'),
+  JWT_SECRET: Joi.string().min(16).default('change-me-in-production'),
+  JWT_ACCESS_TOKEN_EXPIRES_IN: Joi.string().default('1h'),
 });
