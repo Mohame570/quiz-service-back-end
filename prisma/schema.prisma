@@ -1,33 +1,12 @@
-// prisma/schema.prisma
-// -----------------------------------------------------------------------
-// L5 Sprint 1 — Attempt data model
-//
-// COORDINATION NOTE:
-//   This file shows only the L5-owned additions.
-//   Do NOT paste this directly over the shared schema.prisma on main.
-//   Instead, L3 (migration integrator) should merge these model blocks
-//   into the team's shared schema after the baseline is established.
-//
-//   Depends on:
-//     - User model (L1) for studentId relation
-//     - Quiz model (L2) for quizId relation
-//     - Question / Option models (L3) for AttemptAnswer relations
-//   Until those models exist, foreign-key relations are stored as plain
-//   String UUIDs and the @@index directives are still valid.
-// -----------------------------------------------------------------------
+datasource db {
+  provider = "postgresql"
+}
 
-// datasource and generator blocks already live in the shared schema —
-// do not duplicate them.  They are shown here for local reference only.
-
-// datasource db {
-//   provider = "postgresql"
-//   url      = env("DATABASE_URL")
-// }
-
-// generator client {
-//   provider        = "prisma-client-js"
-//   output          = "../src/generated/prisma"
-// }
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
 
 // -----------------------------------------------------------------------
 // Enums
