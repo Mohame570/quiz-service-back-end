@@ -133,6 +133,8 @@ model Quiz {
   startsAt        DateTime?
   endsAt          DateTime?
   createdById     String?
+  creator         User?      @relation(fields: [createdById], references: [id])
+  questions       Question[]
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
@@ -169,20 +171,6 @@ model User {
   updatedAt DateTime @updatedAt
 
   @@map("users")
-}
-
-model Quiz {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  creatorId   String
-  creator     User       @relation(fields: [creatorId], references: [id])
-  questions   Question[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  @@index([creatorId])
-  @@map("quizzes")
 }
 
 model Question {
