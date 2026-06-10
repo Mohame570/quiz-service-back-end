@@ -6,6 +6,10 @@ import { envValidationSchema } from './common/config/env.validation';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { QuizModule } from './modules/quiz/quiz.module';
+import { AttemptsModule } from './modules/attempts/attempts.module';
+import { IntegrityModule } from './modules/integrity/integrity.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { QuestionsModule } from './modules/questions/questions.module';
 
 @Module({
   imports: [
@@ -18,6 +22,10 @@ import { QuizModule } from './modules/quiz/quiz.module';
     PrismaModule,
     HealthModule,
     QuizModule,
+    AttemptsModule,
+    NotificationsModule,
+    IntegrityModule,
+    QuestionsModule,
   ],
 })
 export class AppModule {}
