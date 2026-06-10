@@ -11,6 +11,7 @@ import { AttemptsModule } from './modules/attempts/attempts.module';
 import { IntegrityModule } from './modules/integrity/integrity.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { QuestionsModule } from './modules/questions/questions.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { QuestionsModule } from './modules/questions/questions.module';
     NotificationsModule,
     IntegrityModule,
     QuestionsModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
