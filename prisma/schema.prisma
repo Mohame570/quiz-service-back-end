@@ -27,3 +27,104 @@ model User {
 
   @@map("users")
 }
+enum EmailDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  RETRYING
+}
+
+enum NotificationTemplateKey {
+  VERIFICATION
+  QUIZ_INVITATION
+}
+
+enum CheatingEventType {
+  TAB_HIDDEN
+  WINDOW_BLUR
+  WINDOW_FOCUS
+  FULLSCREEN_EXIT
+  COPY_PASTE
+  OTHER
+}
+
+model EmailDeliveryLog {
+  id                String                  @id @default(cuid())
+  recipientEmail    String
+  subject           String
+  templateKey       NotificationTemplateKey
+  status            EmailDeliveryStatus     @default(PENDING)
+  correlationId     String?
+  errorMessage      String?
+  attemptCount      Int                     @default(0)
+  providerMessageId String?
+  metadata          Json?
+  lastAttemptAt     DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@index([status, createdAt])
+  @@index([templateKey, recipientEmail])
+  @@index([correlationId])
+  @@map("email_delivery_logs")
+}
+
+model CheatingEventLog {
+  id          String            @id @default(cuid())
+  attemptId   String
+  eventType   CheatingEventType
+  description String?
+  metadata    Json?
+  occurredAt  DateTime          @default(now())
+  createdAt   DateTime          @default(now())
+
+  @@index([attemptId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@map("cheating_event_logs")
+}
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  quizzes   Quiz[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Quiz {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  creatorId   String
+  creator     User       @relation(fields: [creatorId], references: [id])
+  questions   Question[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([creatorId])
+  @@map("quizzes")
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  quizId        String
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type          QuestionType
+  text          String
+  options       String[]
+  correctAnswer String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([quizId])
+  @@map("questions")
+}
