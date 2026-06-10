@@ -11,7 +11,7 @@ import {
 
 export class SaveAnswerItemDto {
   @IsUUID(4, { message: 'questionId must be a valid UUID v4.' })
-  questionId: string;
+  questionId!: string;
 
   /// null / omitted means the student skipped this question.
   @IsOptional()
@@ -24,5 +24,5 @@ export class SaveAnswersDto {
   @ArrayNotEmpty({ message: 'answers array must not be empty.' })
   @ValidateNested({ each: true })
   @Type(() => SaveAnswerItemDto)
-  answers: SaveAnswerItemDto[];
+  answers!: SaveAnswerItemDto[];
 }
