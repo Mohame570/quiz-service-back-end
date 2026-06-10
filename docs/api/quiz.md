@@ -1,8 +1,19 @@
 # Quiz Admin API Contract
 
-## Overview
+## Contract Name
 
-Admin endpoints for managing quizzes. These endpoints provide CRUD operations for quiz creation, modification, and retrieval. No authentication is enforced at this stage; the `/api/admin/` namespace preserves the intent for future admin authorization.
+- owner module: quiz
+- sprint: internship-round-1
+- status: active
+- last updated: 2026-06-10
+
+## Purpose
+
+Admin endpoints for managing quizzes. These endpoints provide CRUD operations for quiz creation, modification, and retrieval. The `/api/admin/` namespace preserves the intent for future admin authorization.
+
+## Interface Type
+
+- HTTP endpoint
 
 ---
 
@@ -200,7 +211,19 @@ status: optional, case-insensitive
 
 ---
 
-## Shared Infrastructure & Dependencies
+## Auth Or Access Rules
+
+- **Current state:** No authentication is enforced.
+- **Future state:** Once Auth module is available, admin access will be guarded with role-based authorization via decorators.
+
+## Side Effects
+
+- **Create:** A new quiz record is created in the database.
+- **Update:** Only provided fields are updated; omitted fields remain unchanged.
+- **Delete:** Quiz record is permanently removed (hard delete).
+- **Get/List:** Read-only operations with no side effects.
+
+## Dependencies
 
 - **PrismaService:** All database operations use the shared `PrismaService` from `src/common/prisma/`.
 - **ValidationPipe:** NestJS global `ValidationPipe` validates all request payloads using class-validator decorators.
@@ -208,9 +231,7 @@ status: optional, case-insensitive
 
 **Future Dependencies:**
 
-- **Auth Module (L1):** Once available, the Auth module will own authorization checks for admin access. Routes will remain under `/api/admin/` with guard decorators added.
-
----
+- **Auth Module (L1):** Once available, the Auth module will own authorization checks for admin access.
 
 ## Important Notes
 
@@ -218,8 +239,6 @@ status: optional, case-insensitive
 - **No Relations Yet:** The `createdById` field is a plain optional string; no User model or foreign key constraint exists.
 - **Hard Delete:** Delete operations permanently remove the record. There is no soft delete or archival in this phase.
 - **No Transactions:** Individual operations are not wrapped in Prisma transactions at this stage.
-
----
 
 ## Open Questions
 
