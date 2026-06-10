@@ -13,7 +13,7 @@ export enum CreateQuizStatusEnum {
 
 export class CreateQuizDto {
   @IsString()
-  title: string;
+  title!: string;
 
   @IsOptional()
   @IsString()
