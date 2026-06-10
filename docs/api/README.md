@@ -2,6 +2,8 @@
 
 Use `docs/api/` to document shared backend contracts before or alongside implementation.
 
+Start new contract docs from `docs/api/_template.md`.
+
 Recommended approach:
 
 - one file per module contract area, such as `auth.md`, `quiz.md`, `attempts.md`, or `notifications.md`

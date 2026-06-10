@@ -1,4 +1,5 @@
 misc/*
+docs/sprint-deliverable/
 
 .env
 .env.local
