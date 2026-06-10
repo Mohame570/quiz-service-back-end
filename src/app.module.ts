@@ -6,6 +6,9 @@ import { envValidationSchema } from './common/config/env.validation';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AttemptsModule } from './modules/attempts/attempts.module';
+import { IntegrityModule } from './modules/integrity/integrity.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { QuestionsModule } from './modules/questions/questions.module';
 
 @Module({
   imports: [
@@ -18,6 +21,9 @@ import { AttemptsModule } from './modules/attempts/attempts.module';
     PrismaModule,
     HealthModule,
     AttemptsModule,
+    NotificationsModule,
+    IntegrityModule,
+    QuestionsModule,
   ],
 })
 export class AppModule {}
