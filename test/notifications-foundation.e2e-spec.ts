@@ -22,6 +22,7 @@ describe('Notifications foundation', () => {
       prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
     );
 
+    // TODO: replace email address with a real one
     const result = await service.queueVerificationEmail({
       recipientEmail: 'student@example.com',
       recipientName: 'Student',
@@ -60,6 +61,7 @@ describe('Notifications foundation', () => {
       prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
     );
 
+    // TODO: replace email address with a real one
     const result = await service.queueQuizInvitationEmail({
       recipientEmail: 'student@example.com',
       quizTitle: 'Sprint 1 Quiz',
