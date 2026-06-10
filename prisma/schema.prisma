@@ -1,13 +1,79 @@
+datasource db {
+  provider = "postgresql"
+}
+
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
   moduleFormat = "cjs"
 }
 
-datasource db {
-  provider = "postgresql"
+// -----------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  TIMED_OUT
+  ABANDONED
 }
 
+// -----------------------------------------------------------------------
+// Attempt
+// -----------------------------------------------------------------------
+
+model Attempt {
+  id          String        @id @default(uuid()) @db.Uuid
+  quizId      String        @db.Uuid
+  studentId   String        @db.Uuid
+
+  /// Wall-clock time when the student started the attempt.
+  startedAt   DateTime      @default(now())
+
+  /// Set when the attempt is finalised; null while in-progress.
+  submittedAt DateTime?
+
+  status      AttemptStatus @default(IN_PROGRESS)
+
+  /// Populated by the scoring service after submission.
+  score       Int?
+  maxScore    Int?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  answers     AttemptAnswer[]
+
+  @@index([studentId])
+  @@index([quizId])
+  @@index([studentId, quizId])
+  @@map("attempts")
+}
+
+// -----------------------------------------------------------------------
+// AttemptAnswer
+// -----------------------------------------------------------------------
+
+model AttemptAnswer {
+  id               String   @id @default(uuid()) @db.Uuid
+  attemptId        String   @db.Uuid
+  questionId       String   @db.Uuid
+
+  /// The option the student chose; null means the question was skipped.
+  selectedOptionId String?  @db.Uuid
+
+  /// Populated by the scoring service; null until graded.
+  isCorrect        Boolean?
+
+  /// Updated on every upsert so the solving module can track last save.
+  answeredAt       DateTime @default(now())
+
+  attempt          Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@map("attempt_answers")
 enum EmailDeliveryStatus {
   PENDING
   SENT
