@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateQuizDto, CreateQuizStatusEnum } from '../dto/create-quiz.dto';
-import { UpdateQuizDto, UpdateQuizStatusEnum } from '../dto/update-quiz.dto';
-import { QuizQueryDto, QuizQueryStatusEnum } from '../dto/quiz-query.dto';
+import { CreateQuizDto } from '../dto/create-quiz.dto';
+import { UpdateQuizDto } from '../dto/update-quiz.dto';
+import { QuizQueryDto } from '../dto/quiz-query.dto';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { Quiz, QuizStatus } from '../../../generated/prisma/client';
 

@@ -4,7 +4,9 @@ import {
   IsEnum,
   IsInt,
   IsDateString,
+  IsNotEmpty,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export enum UpdateQuizStatusEnum {
   DRAFT = 'draft',
@@ -14,6 +16,7 @@ export enum UpdateQuizStatusEnum {
 export class UpdateQuizDto {
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   title?: string;
 
   @IsOptional()
@@ -21,6 +24,9 @@ export class UpdateQuizDto {
   description?: string;
 
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
   @IsEnum(UpdateQuizStatusEnum)
   status?: UpdateQuizStatusEnum;
 
