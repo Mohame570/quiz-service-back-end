@@ -67,10 +67,12 @@ Start a new quiz attempt.
   "status": "IN_PROGRESS",
   "score": null,
   "maxScore": null,
+  "createdAt": "2026-06-01T10:00:00.000Z",
+  "updatedAt": "2026-06-01T10:00:00.000Z",
   "answers": []
 }
 ```
-**Errors:** `400` invalid body, `422` validation failure
+**Errors:** `400` invalid body or validation failure
 
 ---
 
@@ -125,7 +127,7 @@ Scoring (`score`, `isCorrect`) is handled by the scoring service in Sprint 2.
   "answers": []
 }
 ```
-**Response 200:** full `Attempt` with updated status and `submittedAt`  
+**Response 200:** full `Attempt` with updated status, `submittedAt`, and persisted `answers`  
 **Errors:** `404` not found, `403` forbidden, `409` already submitted
 
 ---
