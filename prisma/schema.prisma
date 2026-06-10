@@ -1,12 +1,98 @@
-generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  moduleFormat = "cjs"
+// prisma/schema.prisma
+// -----------------------------------------------------------------------
+// L5 Sprint 1 — Attempt data model
+//
+// COORDINATION NOTE:
+//   This file shows only the L5-owned additions.
+//   Do NOT paste this directly over the shared schema.prisma on main.
+//   Instead, L3 (migration integrator) should merge these model blocks
+//   into the team's shared schema after the baseline is established.
+//
+//   Depends on:
+//     - User model (L1) for studentId relation
+//     - Quiz model (L2) for quizId relation
+//     - Question / Option models (L3) for AttemptAnswer relations
+//   Until those models exist, foreign-key relations are stored as plain
+//   String UUIDs and the @@index directives are still valid.
+// -----------------------------------------------------------------------
+
+// datasource and generator blocks already live in the shared schema —
+// do not duplicate them.  They are shown here for local reference only.
+
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+// }
+
+// generator client {
+//   provider        = "prisma-client-js"
+//   output          = "../src/generated/prisma"
+// }
+
+// -----------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  TIMED_OUT
+  ABANDONED
 }
 
-datasource db {
-  provider = "postgresql"
+// -----------------------------------------------------------------------
+// Attempt
+// -----------------------------------------------------------------------
+
+model Attempt {
+  id          String        @id @default(uuid()) @db.Uuid
+  quizId      String        @db.Uuid
+  studentId   String        @db.Uuid
+
+  /// Wall-clock time when the student started the attempt.
+  startedAt   DateTime      @default(now())
+
+  /// Set when the attempt is finalised; null while in-progress.
+  submittedAt DateTime?
+
+  status      AttemptStatus @default(IN_PROGRESS)
+
+  /// Populated by the scoring service after submission.
+  score       Int?
+  maxScore    Int?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  answers     AttemptAnswer[]
+
+  @@index([studentId])
+  @@index([quizId])
+  @@index([studentId, quizId])
+  @@map("attempts")
 }
 
-// Intentionally empty on main:
-// L3 owns the initial shared data model and Prisma migrations.
+// -----------------------------------------------------------------------
+// AttemptAnswer
+// -----------------------------------------------------------------------
+
+model AttemptAnswer {
+  id               String   @id @default(uuid()) @db.Uuid
+  attemptId        String   @db.Uuid
+  questionId       String   @db.Uuid
+
+  /// The option the student chose; null means the question was skipped.
+  selectedOptionId String?  @db.Uuid
+
+  /// Populated by the scoring service; null until graded.
+  isCorrect        Boolean?
+
+  /// Updated on every upsert so the solving module can track last save.
+  answeredAt       DateTime @default(now())
+
+  attempt          Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@map("attempt_answers")
+}
