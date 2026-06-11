@@ -48,7 +48,7 @@ export class AuthService {
         name: dto.name,
         email: dto.email,
         passwordHash,
-        role: dto.role,
+        role: 'STUDENT',
         emailVerified: false,
         verificationToken,        
       },
@@ -139,6 +139,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      emailVerified: user.emailVerified,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

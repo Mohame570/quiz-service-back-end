@@ -4,6 +4,7 @@ export type SafeUser = {
   id: string;
   email: string;
   role: UserRole;
+  emailVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
