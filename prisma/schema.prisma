@@ -1,32 +1,84 @@
+datasource db {
+  provider = "postgresql"
+}
+
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
   moduleFormat = "cjs"
 }
 
-datasource db {
-  provider = "postgresql"
+// -----------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  TIMED_OUT
+  ABANDONED
 }
 
-// Auth baseline model (L1).
 enum UserRole {
   STUDENT
   ADMIN
 }
 
-model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         UserRole @default(STUDENT)
-  emailVerified     Boolean  @default(false) @map("email_verified")
-  verificationToken String?  @map("verification_token")
-  quizzes      Quiz[]
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+// -----------------------------------------------------------------------
+// Attempt
+// -----------------------------------------------------------------------
 
-  @@map("users")
+model Attempt {
+  id          String        @id @default(uuid()) @db.Uuid
+  quizId      String        @db.Uuid
+  studentId   String        @db.Uuid
+
+  /// Wall-clock time when the student started the attempt.
+  startedAt   DateTime      @default(now())
+
+  /// Set when the attempt is finalised; null while in-progress.
+  submittedAt DateTime?
+
+  status      AttemptStatus @default(IN_PROGRESS)
+
+  /// Populated by the scoring service after submission.
+  score       Int?
+  maxScore    Int?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  answers     AttemptAnswer[]
+
+  @@index([studentId])
+  @@index([quizId])
+  @@index([studentId, quizId])
+  @@map("attempts")
+}
+
+// -----------------------------------------------------------------------
+// AttemptAnswer
+// -----------------------------------------------------------------------
+
+model AttemptAnswer {
+  id               String   @id @default(uuid()) @db.Uuid
+  attemptId        String   @db.Uuid
+  questionId       String   @db.Uuid
+
+  /// The option the student chose; null means the question was skipped.
+  selectedOptionId String?  @db.Uuid
+
+  /// Populated by the scoring service; null until graded.
+  isCorrect        Boolean?
+
+  /// Updated on every upsert so the solving module can track last save.
+  answeredAt       DateTime @default(now())
+
+  attempt          Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@map("attempt_answers")
 }
 enum EmailDeliveryStatus {
   PENDING
@@ -71,6 +123,31 @@ model EmailDeliveryLog {
   @@map("email_delivery_logs")
 }
 
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Quiz {
+  id              String     @id @default(cuid())
+  title           String
+  description     String?
+  status          QuizStatus @default(DRAFT)
+  durationMinutes Int?
+  passingScore    Int?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdById     String?
+  creator         User?      @relation(fields: [createdById], references: [id])
+  questions       Question[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status])
+  @@index([createdById])
+  @@index([startsAt, endsAt])
+}
+
 model CheatingEventLog {
   id          String            @id @default(cuid())
   attemptId   String
@@ -90,20 +167,22 @@ enum QuestionType {
   TRUE_FALSE
 }
 
+model User {
+  id                         String    @id @default(uuid())
+  email                      String    @unique
+  passwordHash               String    @map("password_hash")
+  fullName                   String?   @map("full_name")
+  role                       UserRole  @default(STUDENT)
+  emailVerified              Boolean   @default(false) @map("email_verified")
+  verificationToken          String?   @unique @map("verification_token")
+  verificationTokenExpiresAt DateTime? @map("verification_token_expires_at")
+  isActive                   Boolean   @default(true) @map("is_active")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
 
+  quizzes   Quiz[]
 
-model Quiz {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  creatorId   String
-  creator     User       @relation(fields: [creatorId], references: [id])
-  questions   Question[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  @@index([creatorId])
-  @@map("quizzes")
+  @@map("users")
 }
 
 model Question {
