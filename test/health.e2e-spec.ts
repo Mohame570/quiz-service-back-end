@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/common/prisma/prisma.service';
 
 describe('Health endpoint', () => {
   let app: INestApplication;
@@ -14,6 +15,11 @@ describe('Health endpoint', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
+
+    const prisma = app.get<PrismaService>(PrismaService);
+    jest.spyOn(prisma, '$connect').mockImplementation(async () => {});
+    jest.spyOn(prisma, '$disconnect').mockImplementation(async () => {});
+
     await app.init();
   });
 

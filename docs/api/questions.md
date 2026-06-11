@@ -37,8 +37,7 @@ Returns the newly created `Question` record containing:
 - `quizId`: `string`
 - `type`: `QuestionType`
 - `text`: `string`
-- `options`: `string[]`
-- `correctAnswer`: `string`
+- `options`: `Array<{ id: string, text: string, isCorrect: boolean }>`
 - `createdAt`: `DateTime`
 - `updatedAt`: `DateTime`
 
@@ -47,7 +46,7 @@ Returns the newly created `Question` record containing:
 - `quizId` must be a non-empty string.
 - `type` must be a valid `QuestionType` enum value (`MCQ` or `TRUE_FALSE`).
 - `text` must be a non-empty string.
-- `options` is required and must be an array with at least 2 items if `type` is `MCQ`.
+- `options` is required and must be an array of strings with at least 2 items if `type` is `MCQ`.
 - `correctAnswer` must not be empty.
   - If `type` is `TRUE_FALSE`, `correctAnswer` must be exactly `"True"` or `"False"`.
   - If `type` is `MCQ`, `correctAnswer` must be one of the strings provided in the `options` array.
@@ -59,11 +58,16 @@ Currently, there are no specific authentication or access rules defined at the c
 ## Side Effects
 
 - Persists a new `Question` record into the database, linked to the provided `quizId`.
+- Creates related `QuestionOption` records for the options array.
 
 ## Dependencies
 
-- **Prisma Models**: Depends on the `Question` and `Quiz` models. The `quizId` must correspond to an existing `Quiz` due to the foreign key relation.
+- **Prisma Models**: Depends on the `Question`, `QuestionOption`, and `Quiz` models.
 - **Enums**: Relies on the `QuestionType` enum from the generated Prisma client.
+
+## Design Justification & Extensibility
+
+- **Extracted `QuestionOption` Model**: We separated MCQ and True/False options into their own model (`QuestionOption`) with independent UUIDs. This prevents text-matching errors during runtime grading (e.g. if the text of an option changes), obscures the free-text correct answer from attempts which bolsters integrity, and allows translation extensions without breaking the scoring engine.
 
 ## Open Questions
 
@@ -98,8 +102,28 @@ Content-Type: application/json
   "quizId": "cm1abcdef0000xyz123456789",
   "type": "MCQ",
   "text": "What is the capital of France?",
-  "options": ["London", "Paris", "Berlin", "Madrid"],
-  "correctAnswer": "Paris",
+  "options": [
+    {
+      "id": "cm1abcdef0000xyz123456711",
+      "text": "London",
+      "isCorrect": false
+    },
+    {
+      "id": "cm1abcdef0000xyz123456712",
+      "text": "Paris",
+      "isCorrect": true
+    },
+    {
+      "id": "cm1abcdef0000xyz123456713",
+      "text": "Berlin",
+      "isCorrect": false
+    },
+    {
+      "id": "cm1abcdef0000xyz123456714",
+      "text": "Madrid",
+      "isCorrect": false
+    }
+  ],
   "createdAt": "2026-06-11T00:00:00.000Z",
   "updatedAt": "2026-06-11T00:00:00.000Z"
 }
