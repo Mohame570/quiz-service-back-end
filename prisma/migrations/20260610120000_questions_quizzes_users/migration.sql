@@ -1,13 +1,21 @@
 -- CreateEnum
 CREATE TYPE "QuestionType" AS ENUM ('MCQ', 'TRUE_FALSE');
+CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'STUDENT');
 
 -- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "password_hash" TEXT NOT NULL,
+    "role" "UserRole" NOT NULL DEFAULT 'STUDENT',
+    "email_verified" BOOLEAN NOT NULL DEFAULT false,
+    "verification_token" TEXT,
+    "verification_token_expires_at" TIMESTAMPTZ,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "name" TEXT,
+    
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
@@ -40,6 +48,7 @@ CREATE TABLE "questions" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+CREATE UNIQUE INDEX "users_verification_token_key" ON "users"("verification_token") WHERE "verification_token" IS NOT NULL;
 
 -- CreateIndex
 CREATE INDEX "quizzes_creatorId_idx" ON "quizzes"("creatorId");

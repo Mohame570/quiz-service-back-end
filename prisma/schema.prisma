@@ -19,6 +19,11 @@ enum AttemptStatus {
   ABANDONED
 }
 
+enum UserRole {
+  STUDENT
+  ADMIN
+}
+
 // -----------------------------------------------------------------------
 // Attempt
 // -----------------------------------------------------------------------
@@ -163,12 +168,19 @@ enum QuestionType {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
+  id                         String    @id @default(uuid())
+  email                      String    @unique
+  passwordHash               String    @map("password_hash")
+  name                       String?   @map("full_name")
+  role                       UserRole  @default(STUDENT)
+  emailVerified              Boolean   @default(false) @map("email_verified")
+  verificationToken          String?   @unique @map("verification_token")
+  verificationTokenExpiresAt DateTime? @map("verification_token_expires_at")
+  isActive                   Boolean   @default(true) @map("is_active")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
   quizzes   Quiz[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   @@map("users")
 }

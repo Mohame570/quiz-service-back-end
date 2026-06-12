@@ -5,6 +5,7 @@ import configuration from './common/config/configuration';
 import { envValidationSchema } from './common/config/env.validation';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { QuizModule } from './modules/quiz/quiz.module';
 import { AttemptsModule } from './modules/attempts/attempts.module';
 import { IntegrityModule } from './modules/integrity/integrity.module';
@@ -21,6 +22,7 @@ import { QuestionsModule } from './modules/questions/questions.module';
     }),
     PrismaModule,
     HealthModule,
+    AuthModule,
     QuizModule,
     AttemptsModule,
     NotificationsModule,
