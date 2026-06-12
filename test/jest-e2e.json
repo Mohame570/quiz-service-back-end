@@ -7,8 +7,5 @@
   },
   "collectCoverageFrom": ["src/**/*.ts"],
   "coverageDirectory": "./coverage",
-  "testEnvironment": "node",
-  "moduleNameMapper": {
-    "^(\\.{1,2}/.*)\\.js$": "$1"
-  }
+  "testEnvironment": "node"
 }

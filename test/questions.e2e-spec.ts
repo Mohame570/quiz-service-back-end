@@ -15,12 +15,10 @@ describe('QuestionsController (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+    await app.init();
 
     prisma = app.get<PrismaService>(PrismaService);
-    jest.spyOn(prisma, '$connect').mockImplementation(async () => {});
-    jest.spyOn(prisma, '$disconnect').mockImplementation(async () => {});
-
-    await app.init();
+    
     // We mock PrismaService to avoid DB connection issues if Docker is not available in the environment
     jest.spyOn(prisma.quiz, 'findUnique').mockImplementation((async (args: any): Promise<any> => {
       if (args.where.id === 'valid-quiz-id') {
