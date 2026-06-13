@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { AnalyticsService } from '../services/analytics.service';
 import { DashboardSummaryDto } from '../dto/dashboard-summary.dto';
 import { QuizAttemptsResponseDto } from '../dto/quiz-attempts-response.dto';
