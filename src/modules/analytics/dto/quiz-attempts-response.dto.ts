@@ -1,7 +1,6 @@
 import { QuizAttemptDto } from './quiz-attempt.dto';
 
 export interface QuizAttemptsResponseDto {
-  quizId: number;
 
   quizTitle: string;
 

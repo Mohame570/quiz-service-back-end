@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, ParseUUIDPipe } from '@nestjs/common';
 import { AnalyticsService } from '../services/analytics.service';
 import { DashboardSummaryDto } from '../dto/dashboard-summary.dto';
 import { QuizAttemptsResponseDto } from '../dto/quiz-attempts-response.dto';
@@ -12,11 +12,11 @@ export class AnalyticsController {
     return this.analyticsService.getAnalytics();
   }
 
-  @Get('quizzes/:quizId/attempts')
+  @Get('quizzes/:quizName/attempts')
   async getQuizAttempts(
-    @Param('quizId', ParseIntPipe) quizId: number,
+    @Param('quizName') quizName: string,
   ): Promise<QuizAttemptsResponseDto> {
-    return this.analyticsService.getQuizAttempts(quizId);
+    return this.analyticsService.getQuizAttempts(quizName);
   }
 }
 
