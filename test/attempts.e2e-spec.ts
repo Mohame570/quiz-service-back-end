@@ -49,6 +49,12 @@ function makeAnswer(overrides: Partial<any> = {}): any {
 
 function makePrismaMock() {
   return {
+    quiz: {
+      findUnique: jest.fn(),
+    },
+    studentProfile: {
+      findUnique: jest.fn(),
+    },
     attempt: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -81,6 +87,9 @@ describe('AttemptsService', () => {
     }).compile();
 
     service = module.get<AttemptsService>(AttemptsService);
+
+    prisma.quiz.findUnique.mockResolvedValue({ id: QUIZ_ID });
+    prisma.studentProfile.findUnique.mockResolvedValue({ userId: STUDENT_ID });
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -133,6 +142,22 @@ describe('AttemptsService', () => {
       prisma.attempt.create.mockResolvedValue(makeAttempt({ answers: [] }));
       const result = await service.start(QUIZ_ID, STUDENT_ID);
       expect(result.answers).toEqual([]);
+    });
+
+    it('throws NotFoundException when quiz does not exist', async () => {
+      prisma.quiz.findUnique.mockResolvedValueOnce(null);
+
+      await expect(service.start(QUIZ_ID, STUDENT_ID)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException when student profile does not exist', async () => {
+      prisma.studentProfile.findUnique.mockResolvedValueOnce(null);
+
+      await expect(service.start(QUIZ_ID, STUDENT_ID)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
