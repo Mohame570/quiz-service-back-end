@@ -36,7 +36,12 @@ npm run prisma:migrate:deploy
 
 # Open Prisma Studio (visual DB browser)
 npm run prisma:studio
+
+# Seed live-test fixtures (explicit in Prisma 7 — not auto-run on migrate)
+npm run db:seed
 ```
+
+Seed script: `prisma/seed.ts`. Used by live server tests — see `docs/testing/live-server-testing.md`.
 
 ## Local Database Setup
 

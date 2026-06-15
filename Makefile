@@ -1,6 +1,6 @@
 NPM ?= npm
 
-.PHONY: install dev build start lint format test test-e2e db-up db-down stack-up stack-down prisma-generate prisma-format prisma-migrate
+.PHONY: install dev build start lint format test test-e2e test-live db-seed stack-smoke db-up db-down stack-up stack-down prisma-generate prisma-format prisma-migrate
 
 install:
 	$(NPM) install
@@ -25,6 +25,15 @@ test:
 
 test-e2e:
 	$(NPM) run test:e2e
+
+test-live:
+	LIVE_TESTS=1 $(NPM) run test:live
+
+db-seed:
+	$(NPM) run db:seed
+
+stack-smoke:
+	bash scripts/run-live-tests.sh
 
 db-up:
 	docker compose up -d postgres mailhog

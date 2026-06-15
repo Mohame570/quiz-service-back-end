@@ -2,131 +2,168 @@
 
 ## Contract Name
 
-- owner module: `L7 Notifications / Integrity`
-- sprint: `01`
-- status: `foundation`
-- last updated: `2026-06-09`
+- owner module: `L7 Notifications`
+- sprint: `02`
+- status: `active`
+- last updated: `2026-06-15`
 
 ## Purpose
 
-This contract defines the shared notification foundation for Sprint 1:
+Unified notification service for the whole backend:
 
-- one shared service for verification and quiz invitation emails
-- reusable email templates
-- persisted email delivery logs
-- persisted cheating event logs
+- verification emails (L1 Auth)
+- quiz invitation emails (L2 / bulk invite flows)
+- persisted delivery logs with send/resend lifecycle
+- Nodemailer SMTP transport (MailHog in local dev)
 
-This is intentionally limited to module contracts and persistence foundations. It does not introduce HTTP endpoints in Sprint 1.
+Integrity logging moved to the scoring module in Sprint 2. See `src/modules/integrity/`.
 
 ## Interface Type
 
-- internal service
-- database contract
+- internal NestJS service (`NotificationService` / `NOTIFICATION_SERVICE` token)
+- optional HTTP ops endpoints for delivery-log management
 
-## Request Or Input
+## Service Methods
 
-### Notification service methods
+### `sendVerificationEmail(input)`
 
-`queueVerificationEmail(input)`
+**Consumers:** L1 Auth (verify + resend flows)
 
-Input fields:
+| Field | Type | Required |
+|---|---|---|
+| `recipientEmail` | string | yes |
+| `recipientName` | string | no |
+| `verificationUrl` | string | yes |
+| `expiresInHours` | number | no |
+| `correlationId` | string | no |
+| `metadata` | Json | no |
 
-- `recipientEmail: string`
-- `recipientName?: string`
-- `verificationUrl: string`
-- `expiresInHours?: number`
-- `correlationId?: string`
-- `metadata?: Json`
+### `sendQuizInvitationEmail(input)`
 
-`queueQuizInvitationEmail(input)`
+**Consumers:** L2 quiz management / bulk invitation flows
 
-Input fields:
+| Field | Type | Required |
+|---|---|---|
+| `recipientEmail` | string | yes |
+| `recipientName` | string | no |
+| `quizTitle` | string | yes |
+| `invitationUrl` | string | yes |
+| `invitedByName` | string | no |
+| `availableUntil` | Date | no |
+| `correlationId` | string | no |
+| `metadata` | Json | no |
 
-- `recipientEmail: string`
-- `recipientName?: string`
-- `quizTitle: string`
-- `invitationUrl: string`
-- `invitedByName?: string`
-- `availableUntil?: Date`
-- `correlationId?: string`
-- `metadata?: Json`
+### `resendDeliveryLog(deliveryLogId)`
 
-### Integrity service method
+Retries a single log that is not already `SENT`.
 
-`recordCheatingEvent(input)`
+### `resendFailedDeliveries(input?)`
 
-Input fields:
+Batch retries `FAILED` logs. Optional `templateKey` filter and `limit` (default 50).
 
-- `attemptId: string`
-- `eventType: CheatingEventType`
-- `description?: string`
-- `occurredAt?: Date`
-- `metadata?: Json`
+### `listDeliveryLogs(query?)`
 
-## Response Or Output
+Filter by `status`, `templateKey`, `recipientEmail`. Returns log summaries without rendered bodies.
 
-### Notification service output
+## Response Shape
 
-Both notification methods return:
+All send/resend methods return:
 
-- `deliveryLogId`
-- `status`
-- `templateKey`
-- `subject`
-- `html`
-- `text`
+```json
+{
+  "deliveryLogId": "cuid",
+  "status": "SENT",
+  "templateKey": "VERIFICATION",
+  "subject": "Verify your email address",
+  "html": "<html>...</html>",
+  "text": "plain text body",
+  "errorMessage": null,
+  "providerMessageId": "<smtp-message-id>",
+  "deliveredAt": "2026-06-15T12:00:00.000Z",
+  "attemptCount": 1
+}
+```
 
-The current Sprint 1 behavior is to:
+On failure, `status` is `FAILED` and `errorMessage` contains the SMTP error. `deliveredAt` is null.
 
-- render the template
-- create an `email_delivery_logs` row
-- return the rendered payload and log reference
+## HTTP Endpoints (operations)
 
-It does not yet integrate a real mail provider in this branch.
+### `GET /api/notifications/delivery-logs`
 
-### Integrity service output
+Query: `status`, `templateKey`, `recipientEmail`, `limit`
 
-The integrity service returns the created `cheating_event_logs` row.
+### `POST /api/notifications/delivery-logs/:id/resend`
+
+Retry one log.
+
+### `POST /api/notifications/delivery-logs/resend-failed`
+
+Body: `{ "templateKey"?: "VERIFICATION" | "QUIZ_INVITATION", "limit"?: number }`
+
+Returns:
+
+```json
+{
+  "attempted": 3,
+  "sent": 2,
+  "failed": 1,
+  "results": [ /* NotificationDispatchResultDto[] */ ]
+}
+```
+
+## Delivery Log Schema
+
+Table: `email_delivery_logs`
+
+| Field | Notes |
+|---|---|
+| `recipientEmail` | To address |
+| `templateKey` | `VERIFICATION` or `QUIZ_INVITATION` |
+| `status` | `PENDING` → `SENT` or `FAILED` |
+| `errorMessage` | Set on failure |
+| `attemptCount` | Incremented on each send attempt |
+| `lastAttemptAt` | Last SMTP attempt timestamp |
+| `deliveredAt` | Set when `SENT` |
+| `providerMessageId` | Nodemailer message id |
+| `metadata.rendered` | Stored HTML/text for resends |
 
 ## Validation Rules
 
-- verification emails require a `verificationUrl`
-- quiz invitation emails require both `quizTitle` and `invitationUrl`
-- cheating events require an `attemptId` and `eventType`
-- delivery logs default to `PENDING` status until an actual send attempt is integrated
+- verification emails require `verificationUrl`
+- quiz invitations require `quizTitle` and `invitationUrl`
+- cannot resend a log already in `SENT` status
+- resend requires stored `metadata.rendered` content
 
 ## Auth Or Access Rules
 
-No public HTTP access is defined in Sprint 1.
-
-These services are intended to be consumed internally by backend modules such as:
-
-- Auth
-- Quiz
-- Student
-- Scoring
+Service methods are internal. HTTP ops endpoints are unguarded in Sprint 2 — add admin auth when L1 guards land.
 
 ## Side Effects
 
-- notification methods create an `email_delivery_logs` record
-- integrity logging creates a `cheating_event_logs` record
-- templates generate both HTML and text output for reuse across flows
+- Creates/updates `email_delivery_logs` rows
+- Sends email via configured SMTP server
+- Visible in MailHog during local development (`http://localhost:8025`)
 
 ## Dependencies
 
-- `L1 Auth` will later consume verification email flow
-- `L2 Quiz` will later consume quiz invitation flow
-- `L4 Student` and `L5 Attempts` will later consume integrity event logging
-- `L3` must review final schema alignment before merge if shared Prisma migration ordering changes
+- `PrismaModule` — delivery log persistence
+- `ConfigModule` — SMTP settings (`SMTP_*` env vars)
+- Nodemailer — email transport
 
-## Coordination Notes
+## Consumer Coordination
 
-- `email_delivery_logs` intentionally stores `recipientEmail`, `templateKey`, and `correlationId` without assuming a relation to the future `User` model
-- `cheating_event_logs` intentionally stores `attemptId` as a scalar string for now to avoid assuming the final `Attempt` model ID type before `L5` and `L3` finalize it
-- once `L5` finalizes the attempt contract, this field can be reviewed for relation alignment if needed
+| Consumer | Method | When |
+|---|---|---|
+| L1 Auth | `sendVerificationEmail` | After register, resend verification |
+| L2 Quiz | `sendQuizInvitationEmail` | Bulk/single quiz invites |
+| Ops / admin | `resendFailedDeliveries` | Recover from SMTP outages |
+
+## Deprecated Aliases
+
+`queueVerificationEmail` and `queueQuizInvitationEmail` remain as aliases to the `send*` methods for Sprint 1 callers.
 
 ## Open Questions
 
-- final mail provider integration point
-- retry policy ownership and scheduling strategy
-- whether `attemptId` remains a scalar reference or becomes a strict Prisma relation after `L5` lands
+- Admin auth on delivery-log HTTP endpoints
+- Retry scheduling / background job vs on-demand resend
+- Rate limiting for bulk invitation sends

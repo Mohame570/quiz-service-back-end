@@ -20,6 +20,8 @@
     "test:watch": "jest --config ./test/jest-e2e.json --watch",
     "test:cov": "jest --config ./test/jest-e2e.json --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:live": "jest --config ./test/live/jest-live.json",
+    "db:seed": "prisma db seed",
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
     "prisma:migrate:dev": "prisma migrate dev",
@@ -55,6 +57,7 @@
     "class-validator": "^0.15.1",
     "dotenv": "^17.4.2",
     "joi": "^18.2.1",
+    "nodemailer": "^9.0.0",
     "pg": "^8.21.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
@@ -66,6 +69,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.9.2",
+    "@types/nodemailer": "^8.0.1",
     "@types/supertest": "^7.2.0",
     "eslint": "^10.4.1",
     "eslint-config-prettier": "^10.1.8",
@@ -79,6 +83,7 @@
     "ts-loader": "^9.6.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.0"
   }

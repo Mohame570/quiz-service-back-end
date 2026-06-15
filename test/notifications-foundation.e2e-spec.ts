@@ -4,6 +4,7 @@ import {
   NotificationTemplateKey,
 } from '../src/generated/prisma/client';
 import { IntegrityService } from '../src/modules/integrity/services/integrity.service';
+import { MailTransportService } from '../src/modules/notifications/services/mail-transport.service';
 import { NotificationService } from '../src/modules/notifications/services/notification.service';
 import { escapeHtml, formatUtcDate } from '../src/modules/notifications/templates/template.helpers';
 import { renderVerificationEmailTemplate } from '../src/modules/notifications/templates/verification-email.template';
@@ -14,16 +15,69 @@ import { renderQuizInvitationEmailTemplate } from '../src/modules/notifications/
 // ---------------------------------------------------------------------------
 
 function makeEmailDeliveryLogMock(overrides: Record<string, unknown> = {}) {
+  const rendered = { html: '<p>test</p>', text: 'test body' };
+  let currentLog = {
+    id: 'delivery-log-1',
+    recipientEmail: 'student@example.com',
+    subject: 'Verify your email address',
+    status: EmailDeliveryStatus.PENDING,
+    templateKey: NotificationTemplateKey.VERIFICATION,
+    metadata: { rendered },
+    attemptCount: 0,
+    errorMessage: null,
+    providerMessageId: null,
+    deliveredAt: null,
+    correlationId: null,
+    lastAttemptAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+
   return {
     emailDeliveryLog: {
-      create: jest.fn().mockResolvedValue({
-        id: 'delivery-log-1',
-        status: EmailDeliveryStatus.PENDING,
-        templateKey: NotificationTemplateKey.VERIFICATION,
-        ...overrides,
+      create: jest.fn().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+        currentLog = { ...currentLog, ...data, id: currentLog.id };
+        return currentLog;
       }),
+      findUnique: jest.fn().mockImplementation(async () => currentLog),
+      update: jest.fn().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+        const attemptIncrement =
+          data.attemptCount &&
+          typeof data.attemptCount === 'object' &&
+          'increment' in data.attemptCount
+            ? (data.attemptCount as { increment: number }).increment
+            : 0;
+
+        currentLog = {
+          ...currentLog,
+          ...data,
+          attemptCount: (currentLog.attemptCount as number) + attemptIncrement,
+          ...(data.status === EmailDeliveryStatus.SENT
+            ? {
+                deliveredAt: data.deliveredAt ?? new Date(),
+                providerMessageId: data.providerMessageId ?? 'smtp-msg-1',
+              }
+            : {}),
+        };
+        return currentLog;
+      }),
+      findMany: jest.fn().mockResolvedValue([]),
     },
   };
+}
+
+function makeMailTransportMock() {
+  return {
+    sendMail: jest.fn().mockResolvedValue({ messageId: 'smtp-msg-1' }),
+  };
+}
+
+function makeNotificationService(prisma: ReturnType<typeof makeEmailDeliveryLogMock>) {
+  return new NotificationService(
+    prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
+    makeMailTransportMock() as unknown as MailTransportService,
+  );
 }
 
 function makeCheatingEventLogMock(overrides: Record<string, unknown> = {}) {
@@ -292,9 +346,7 @@ describe('NotificationService.queueVerificationEmail', () => {
     const prisma = makeEmailDeliveryLogMock({
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
 
     await service.queueVerificationEmail({
       recipientEmail: 'student@example.com',
@@ -304,15 +356,23 @@ describe('NotificationService.queueVerificationEmail', () => {
       correlationId: 'auth-register-1',
     });
 
-    expect(prisma.emailDeliveryLog.create).toHaveBeenCalledWith({
-      data: {
-        recipientEmail: 'student@example.com',
-        subject: 'Verify your email address',
-        templateKey: NotificationTemplateKey.VERIFICATION,
-        status: EmailDeliveryStatus.PENDING,
-        correlationId: 'auth-register-1',
-      },
-    });
+    expect(prisma.emailDeliveryLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recipientEmail: 'student@example.com',
+          subject: 'Verify your email address',
+          templateKey: NotificationTemplateKey.VERIFICATION,
+          status: EmailDeliveryStatus.PENDING,
+          correlationId: 'auth-register-1',
+          metadata: expect.objectContaining({
+            rendered: expect.objectContaining({
+              html: expect.any(String),
+              text: expect.any(String),
+            }),
+          }),
+        }),
+      }),
+    );
   });
 
   it('returns the delivery log id from the created record', async () => {
@@ -320,9 +380,7 @@ describe('NotificationService.queueVerificationEmail', () => {
       id: 'my-log-id',
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueVerificationEmail({
       recipientEmail: 'a@b.com',
@@ -336,25 +394,21 @@ describe('NotificationService.queueVerificationEmail', () => {
     const prisma = makeEmailDeliveryLogMock({
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueVerificationEmail({
       recipientEmail: 'a@b.com',
       verificationUrl: 'https://example.com/v',
     });
 
-    expect(result.status).toBe(EmailDeliveryStatus.PENDING);
+    expect(result.status).toBe(EmailDeliveryStatus.SENT);
   });
 
   it('returns the VERIFICATION template key', async () => {
     const prisma = makeEmailDeliveryLogMock({
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueVerificationEmail({
       recipientEmail: 'a@b.com',
@@ -368,9 +422,7 @@ describe('NotificationService.queueVerificationEmail', () => {
     const prisma = makeEmailDeliveryLogMock({
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueVerificationEmail({
       recipientEmail: 'a@b.com',
@@ -384,9 +436,7 @@ describe('NotificationService.queueVerificationEmail', () => {
     const prisma = makeEmailDeliveryLogMock({
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueVerificationEmail({
       recipientEmail: 'a@b.com',
@@ -400,9 +450,7 @@ describe('NotificationService.queueVerificationEmail', () => {
     const prisma = makeEmailDeliveryLogMock({
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
 
     await service.queueVerificationEmail({
       recipientEmail: 'a@b.com',
@@ -417,9 +465,7 @@ describe('NotificationService.queueVerificationEmail', () => {
     const prisma = makeEmailDeliveryLogMock({
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
     const meta = { source: 'registration-flow', attempt: 1 };
 
     await service.queueVerificationEmail({
@@ -429,16 +475,23 @@ describe('NotificationService.queueVerificationEmail', () => {
     });
 
     const callArg = prisma.emailDeliveryLog.create.mock.calls[0][0];
-    expect(callArg.data.metadata).toEqual(meta);
+    expect(callArg.data.metadata).toEqual(
+      expect.objectContaining({
+        source: 'registration-flow',
+        attempt: 1,
+        rendered: expect.objectContaining({
+          html: expect.any(String),
+          text: expect.any(String),
+        }),
+      }),
+    );
   });
 
-  it('omits metadata from the Prisma payload when not provided', async () => {
+  it('stores rendered content in metadata when caller metadata is omitted', async () => {
     const prisma = makeEmailDeliveryLogMock({
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
 
     await service.queueVerificationEmail({
       recipientEmail: 'a@b.com',
@@ -446,16 +499,21 @@ describe('NotificationService.queueVerificationEmail', () => {
     });
 
     const callArg = prisma.emailDeliveryLog.create.mock.calls[0][0];
-    expect(callArg.data).not.toHaveProperty('metadata');
+    expect(callArg.data.metadata).toEqual(
+      expect.objectContaining({
+        rendered: expect.objectContaining({
+          html: expect.any(String),
+          text: expect.any(String),
+        }),
+      }),
+    );
   });
 
   it('returns the correct subject in the result', async () => {
     const prisma = makeEmailDeliveryLogMock({
       templateKey: NotificationTemplateKey.VERIFICATION,
     });
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueVerificationEmail({
       recipientEmail: 'a@b.com',
@@ -472,18 +530,12 @@ describe('NotificationService.queueVerificationEmail', () => {
 
 describe('NotificationService.queueQuizInvitationEmail', () => {
   it('creates a PENDING delivery log with correct fields', async () => {
-    const prisma = {
-      emailDeliveryLog: {
-        create: jest.fn().mockResolvedValue({
-          id: 'delivery-log-2',
-          status: EmailDeliveryStatus.PENDING,
-          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
-        }),
-      },
-    };
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const prisma = makeEmailDeliveryLogMock({
+      id: 'delivery-log-2',
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+      subject: 'Quiz invitation: Sprint 1 Quiz',
+    });
+    const service = makeNotificationService(prisma);
 
     await service.queueQuizInvitationEmail({
       recipientEmail: 'student@example.com',
@@ -493,30 +545,25 @@ describe('NotificationService.queueQuizInvitationEmail', () => {
       correlationId: 'quiz-invite-1',
     });
 
-    expect(prisma.emailDeliveryLog.create).toHaveBeenCalledWith({
-      data: {
-        recipientEmail: 'student@example.com',
-        subject: 'Quiz invitation: Sprint 1 Quiz',
-        templateKey: NotificationTemplateKey.QUIZ_INVITATION,
-        status: EmailDeliveryStatus.PENDING,
-        correlationId: 'quiz-invite-1',
-      },
-    });
+    expect(prisma.emailDeliveryLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          recipientEmail: 'student@example.com',
+          subject: 'Quiz invitation: Sprint 1 Quiz',
+          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+          status: EmailDeliveryStatus.PENDING,
+          correlationId: 'quiz-invite-1',
+        }),
+      }),
+    );
   });
 
   it('returns the delivery log id from the created record', async () => {
-    const prisma = {
-      emailDeliveryLog: {
-        create: jest.fn().mockResolvedValue({
-          id: 'quiz-log-99',
-          status: EmailDeliveryStatus.PENDING,
-          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
-        }),
-      },
-    };
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const prisma = makeEmailDeliveryLogMock({
+      id: 'quiz-log-99',
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+    });
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueQuizInvitationEmail({
       recipientEmail: 'a@b.com',
@@ -528,18 +575,10 @@ describe('NotificationService.queueQuizInvitationEmail', () => {
   });
 
   it('returns the QUIZ_INVITATION template key', async () => {
-    const prisma = {
-      emailDeliveryLog: {
-        create: jest.fn().mockResolvedValue({
-          id: 'x',
-          status: EmailDeliveryStatus.PENDING,
-          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
-        }),
-      },
-    };
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const prisma = makeEmailDeliveryLogMock({
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+    });
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueQuizInvitationEmail({
       recipientEmail: 'a@b.com',
@@ -551,18 +590,10 @@ describe('NotificationService.queueQuizInvitationEmail', () => {
   });
 
   it('includes the quiz title in the returned subject', async () => {
-    const prisma = {
-      emailDeliveryLog: {
-        create: jest.fn().mockResolvedValue({
-          id: 'x',
-          status: EmailDeliveryStatus.PENDING,
-          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
-        }),
-      },
-    };
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const prisma = makeEmailDeliveryLogMock({
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+    });
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueQuizInvitationEmail({
       recipientEmail: 'a@b.com',
@@ -574,18 +605,10 @@ describe('NotificationService.queueQuizInvitationEmail', () => {
   });
 
   it('includes the inviter name in the returned text', async () => {
-    const prisma = {
-      emailDeliveryLog: {
-        create: jest.fn().mockResolvedValue({
-          id: 'x',
-          status: EmailDeliveryStatus.PENDING,
-          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
-        }),
-      },
-    };
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const prisma = makeEmailDeliveryLogMock({
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+    });
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueQuizInvitationEmail({
       recipientEmail: 'a@b.com',
@@ -598,18 +621,10 @@ describe('NotificationService.queueQuizInvitationEmail', () => {
   });
 
   it('includes the quiz title in the returned HTML', async () => {
-    const prisma = {
-      emailDeliveryLog: {
-        create: jest.fn().mockResolvedValue({
-          id: 'x',
-          status: EmailDeliveryStatus.PENDING,
-          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
-        }),
-      },
-    };
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const prisma = makeEmailDeliveryLogMock({
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+    });
+    const service = makeNotificationService(prisma);
 
     const result = await service.queueQuizInvitationEmail({
       recipientEmail: 'a@b.com',
@@ -621,18 +636,10 @@ describe('NotificationService.queueQuizInvitationEmail', () => {
   });
 
   it('omits correlationId from the Prisma payload when not provided', async () => {
-    const prisma = {
-      emailDeliveryLog: {
-        create: jest.fn().mockResolvedValue({
-          id: 'x',
-          status: EmailDeliveryStatus.PENDING,
-          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
-        }),
-      },
-    };
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const prisma = makeEmailDeliveryLogMock({
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+    });
+    const service = makeNotificationService(prisma);
 
     await service.queueQuizInvitationEmail({
       recipientEmail: 'a@b.com',
@@ -645,18 +652,10 @@ describe('NotificationService.queueQuizInvitationEmail', () => {
   });
 
   it('passes metadata through to the Prisma payload when provided', async () => {
-    const prisma = {
-      emailDeliveryLog: {
-        create: jest.fn().mockResolvedValue({
-          id: 'x',
-          status: EmailDeliveryStatus.PENDING,
-          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
-        }),
-      },
-    };
-    const service = new NotificationService(
-      prisma as unknown as ConstructorParameters<typeof NotificationService>[0],
-    );
+    const prisma = makeEmailDeliveryLogMock({
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+    });
+    const service = makeNotificationService(prisma);
     const meta = { quizId: 'q-42', cohort: 'cs2025' };
 
     await service.queueQuizInvitationEmail({
@@ -667,7 +666,16 @@ describe('NotificationService.queueQuizInvitationEmail', () => {
     });
 
     const callArg = prisma.emailDeliveryLog.create.mock.calls[0][0];
-    expect(callArg.data.metadata).toEqual(meta);
+    expect(callArg.data.metadata).toEqual(
+      expect.objectContaining({
+        quizId: 'q-42',
+        cohort: 'cs2025',
+        rendered: expect.objectContaining({
+          html: expect.any(String),
+          text: expect.any(String),
+        }),
+      }),
+    );
   });
 });
 
