@@ -11,11 +11,12 @@ COPY . .
 
 RUN npm run prisma:generate && npm run build
 
-RUN chmod +x docker/entrypoint.sh
+# Strip Windows CRLF if present; chmod is a backup — ENTRYPOINT invokes /bin/sh explicitly.
+RUN sed -i 's/\r$//' docker/entrypoint.sh && chmod +x docker/entrypoint.sh
 
 ENV NODE_ENV=production
 ENV PORT=3002
 
 EXPOSE 3002
 
-ENTRYPOINT ["docker/entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "docker/entrypoint.sh"]
