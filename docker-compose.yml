@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,12 +19,35 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
   mailhog:
     image: mailhog/mailhog:v1.0.1
     container_name: quiz-service-mailhog
     ports:
       - "1025:1025"
       - "8025:8025"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quiz-service-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-3002}
+      API_PREFIX: ${API_PREFIX:-api}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3001}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-quiz_service}?schema=public
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@example.com}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-development}
+      JWT_ACCESS_TOKEN_EXPIRES_IN: ${JWT_ACCESS_TOKEN_EXPIRES_IN:-1h}
+    ports:
+      - "${PORT:-3002}:${PORT:-3002}"
 
 volumes:
   postgres_data:

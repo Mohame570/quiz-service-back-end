@@ -1,6 +1,6 @@
 NPM ?= npm
 
-.PHONY: install dev build start lint format test test-e2e db-up db-down prisma-generate prisma-format
+.PHONY: install dev build start lint format test test-e2e db-up db-down stack-up stack-down prisma-generate prisma-format prisma-migrate
 
 install:
 	$(NPM) install
@@ -31,6 +31,15 @@ db-up:
 
 db-down:
 	docker compose down
+
+stack-up:
+	docker compose up --build
+
+stack-down:
+	docker compose down
+
+prisma-migrate:
+	$(NPM) run prisma:migrate:deploy
 
 prisma-generate:
 	$(NPM) run prisma:generate
