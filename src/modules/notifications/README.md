@@ -123,7 +123,17 @@ npm run test -- --testPathPattern=notifications
 ```
 
 - `test/notifications-foundation.e2e-spec.ts` — templates + Sprint 1 contracts
-- `test/notifications-delivery.e2e-spec.ts` — SMTP send, failure, resend (Sprint 2)
+- `test/notifications-delivery.e2e-spec.ts` — SMTP send, failure, resend (Sprint 2, mocked)
+
+### Live server tests (real SMTP + MailHog)
+
+```bash
+bash scripts/run-live-tests.sh
+# Windows: .\scripts\run-live-tests.ps1
+```
+
+- `test/live/notifications.live-spec.ts` — hits running API + MailHog
+- Playbook: `docs/testing/notifications-live-testing.md`
 
 ## Contract doc
 
