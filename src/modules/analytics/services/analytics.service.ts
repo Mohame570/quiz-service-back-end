@@ -23,6 +23,7 @@ export class AnalyticsService {
       totalAttempts,
       averageScore: Number(averageScore._avg?.score ?? 0),
     };
+
   }
 
   async getQuizAttempts(quizId: string): Promise<QuizAttemptsResponseDto> {
