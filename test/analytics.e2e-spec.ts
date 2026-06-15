@@ -13,14 +13,14 @@ describe('Analytics endpoint', () => {
     quiz: {
       count: jest.fn().mockResolvedValue(0),
       findUnique: jest.fn().mockResolvedValue({
-        id: '11111111-1111-1111-1111-111111111111',
+        id: 'quiz_abc123',
         title: 'Sample Quiz',
       }),
     },
     user: {
       count: jest.fn().mockResolvedValue(0),
       findMany: jest.fn().mockResolvedValue([
-        { id: '22222222-2222-2222-2222-222222222222', name: 'Student Name' },
+        { id: 'student_abc123', name: 'Student Name' },
       ]),
     },
     attempt: {
@@ -28,8 +28,8 @@ describe('Analytics endpoint', () => {
       aggregate: jest.fn().mockResolvedValue({ _avg: { score: null } }),
       findMany: jest.fn().mockResolvedValue([
         {
-          id: '33333333-3333-3333-3333-333333333333',
-          studentId: '22222222-2222-2222-2222-222222222222',
+          id: 'attempt_abc123',
+          studentId: 'student_abc123',
           score: 0,
           submittedAt: now,
         },
@@ -71,17 +71,17 @@ describe('Analytics endpoint', () => {
 
   it('returns quiz attempts for a quiz id', async () => {
     const response = await request(app.getHttpServer()).get(
-      '/api/analytics/quizzes/11111111-1111-1111-1111-111111111111/attempts',
+      '/api/analytics/quizzes/quiz_abc123/attempts',
     );
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      quizId: '11111111-1111-1111-1111-111111111111',
+      quizId: 'quiz_abc123',
       quizTitle: 'Sample Quiz',
       attemptCount: 1,
       attempts: [
         {
-          attemptId: '33333333-3333-3333-3333-333333333333',
+          attemptId: 'attempt_abc123',
           studentName: 'Student Name',
           score: 0,
           submittedAt: expect.any(String),

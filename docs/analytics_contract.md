@@ -18,7 +18,7 @@
 
 ### `GET /api/analytics/quizzes/:quizId/attempts`
 - Path parameters:
-  - `quizId` (number, required): The ID of the quiz to retrieve attempt details for.
+  - `quizId` (string/cuid, required): The ID of the quiz to retrieve attempt details for.
 - No request body.
 - No query parameters.
 
@@ -45,12 +45,12 @@ Fields:
 
 ```json
 {
-  "quizId": 1,
+  "quizId": "quiz_abc123",
   "quizTitle": "Sample Quiz",
   "attemptCount": 1,
   "attempts": [
     {
-      "attemptId": 0,
+      "attemptId": "attempt_abc123",
       "studentName": "Student Name",
       "score": 0,
       "submittedAt": "2026-06-10T00:00:00.000Z"
@@ -60,13 +60,13 @@ Fields:
 ```
 
 Fields:
-- `quizId` (number): The quiz identifier.
+- `quizId` (string): The quiz identifier.
 - `quizTitle` (string): The quiz title.
 - `attemptCount` (number): Number of attempts for the quiz.
 - `attempts` (array): List of attempt objects.
 
 Attempt object fields:
-- `attemptId` (number): Unique attempt identifier.
+- `attemptId` (string): Unique attempt identifier.
 - `studentName` (string): Name of the student.
 - `score` (number): Score achieved on the attempt.
 - `submittedAt` (string): ISO timestamp for submission.
@@ -77,8 +77,8 @@ Attempt object fields:
 - No validation required for request payload.
 
 ### `GET /api/analytics/quizzes/:quizId/attempts`
-- `quizId` must be a valid numeric quiz identifier.
-- Requests with missing or non-numeric `quizId` should return HTTP 400.
+- `quizId` must be a valid quiz identifier (cuid string).
+- Requests with missing or empty `quizId` should return HTTP 400.
 
 ## 6. Dependencies on Other Modules
 

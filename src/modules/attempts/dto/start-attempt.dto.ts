@@ -1,8 +1,9 @@
 // src/modules/attempts/dto/start-attempt.dto.ts
 
-import { IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class StartAttemptDto {
-  @IsUUID(4, { message: 'quizId must be a valid UUID v4.' })
+  @IsString()
+  @IsNotEmpty({ message: 'quizId must be a non-empty string.' })
   quizId!: string;
 }

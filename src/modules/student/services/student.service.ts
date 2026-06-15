@@ -44,7 +44,10 @@ export class StudentService {
     studentId: string,
   ): Promise<StudentQuizListResponseDto> {
     const quizzes = await this.prisma.quiz.findMany({
-      where: { status: QuizStatus.PUBLISHED },
+      where: {
+        status: QuizStatus.PUBLISHED,
+        students: { some: { userId: studentId } },
+      },
       include: { questions: { select: { id: true } } },
     });
 
@@ -73,12 +76,16 @@ export class StudentService {
     studentId: string,
     quizId: string,
   ): Promise<StudentQuizInstructionsDto> {
-    const quiz = await this.prisma.quiz.findUnique({
-      where: { id: quizId },
+    const quiz = await this.prisma.quiz.findFirst({
+      where: {
+        id: quizId,
+        status: QuizStatus.PUBLISHED,
+        students: { some: { userId: studentId } },
+      },
       include: { questions: { select: { id: true } } },
     });
 
-    if (!quiz || quiz.status !== QuizStatus.PUBLISHED) {
+    if (!quiz) {
       throw new NotFoundException('Quiz not found or not available.');
     }
 

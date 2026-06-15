@@ -47,6 +47,7 @@ function makePrismaMock() {
   return {
     quiz: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
     },
     attempt: {
@@ -97,7 +98,10 @@ describe('StudentService', () => {
 
       expect(prisma.quiz.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: QuizStatus.PUBLISHED },
+          where: {
+            status: QuizStatus.PUBLISHED,
+            students: { some: { userId: STUDENT_ID } },
+          },
         }),
       );
       expect(result.items.map((q) => q.id)).toEqual([QUIZ_PUBLISHED_ACTIVE]);
@@ -276,9 +280,7 @@ describe('StudentService', () => {
 
   describe('getQuizInstructions()', () => {
     it('throws NotFoundException for a DRAFT quiz', async () => {
-      prisma.quiz.findUnique.mockResolvedValueOnce(
-        makeQuiz({ id: QUIZ_DRAFT, status: QuizStatus.DRAFT }),
-      );
+      prisma.quiz.findFirst.mockResolvedValueOnce(null);
 
       await expect(
         service.getQuizInstructions(STUDENT_ID, QUIZ_DRAFT),
@@ -286,7 +288,7 @@ describe('StudentService', () => {
     });
 
     it('throws NotFoundException for an unknown quiz id', async () => {
-      prisma.quiz.findUnique.mockResolvedValueOnce(null);
+      prisma.quiz.findFirst.mockResolvedValueOnce(null);
 
       await expect(
         service.getQuizInstructions(STUDENT_ID, 'missing'),
@@ -294,7 +296,7 @@ describe('StudentService', () => {
     });
 
     it('returns canStart=true for an active PUBLISHED quiz', async () => {
-      prisma.quiz.findUnique.mockResolvedValueOnce(
+      prisma.quiz.findFirst.mockResolvedValueOnce(
         makeQuiz({
           id: QUIZ_PUBLISHED_ACTIVE,
           status: QuizStatus.PUBLISHED,
@@ -315,7 +317,7 @@ describe('StudentService', () => {
     });
 
     it('returns canStart=false with reason for a not-yet-started quiz', async () => {
-      prisma.quiz.findUnique.mockResolvedValueOnce(
+      prisma.quiz.findFirst.mockResolvedValueOnce(
         makeQuiz({
           id: QUIZ_PUBLISHED_FUTURE,
           status: QuizStatus.PUBLISHED,
@@ -335,7 +337,7 @@ describe('StudentService', () => {
     });
 
     it('returns canStart=false with reason for a closed quiz', async () => {
-      prisma.quiz.findUnique.mockResolvedValueOnce(
+      prisma.quiz.findFirst.mockResolvedValueOnce(
         makeQuiz({
           id: QUIZ_PUBLISHED_CLOSED,
           status: QuizStatus.PUBLISHED,
@@ -355,7 +357,7 @@ describe('StudentService', () => {
     });
 
     it('returns attemptId of the most recent active attempt', async () => {
-      prisma.quiz.findUnique.mockResolvedValueOnce(
+      prisma.quiz.findFirst.mockResolvedValueOnce(
         makeQuiz({ id: QUIZ_PUBLISHED_ACTIVE, status: QuizStatus.PUBLISHED }),
       );
       prisma.attempt.findMany.mockResolvedValueOnce([

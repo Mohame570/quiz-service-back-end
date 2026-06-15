@@ -13,9 +13,9 @@
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key |
-| `quizId` | UUID | FK → quizzes (L2) |
-| `studentId` | UUID | FK → users (L1) |
+| `id` | cuid | Primary key |
+| `quizId` | cuid | FK → quizzes (L2) |
+| `studentId` | cuid | FK → student_profiles.userId (L4) |
 | `startedAt` | DateTime | Set when attempt is created |
 | `submittedAt` | DateTime \| null | Set on submit; null while in-progress |
 | `status` | `AttemptStatus` | See enum below |
@@ -28,10 +28,10 @@
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | UUID | Primary key |
-| `attemptId` | UUID | FK → attempts (cascade delete) |
-| `questionId` | UUID | FK → questions (L3) |
-| `selectedOptionId` | UUID \| null | null = skipped |
+| `id` | cuid | Primary key |
+| `attemptId` | cuid | FK → attempts (cascade delete) |
+| `questionId` | cuid | FK → questions (L3) |
+| `selectedOptionId` | string \| null | null = skipped |
 | `isCorrect` | Boolean \| null | Populated by scoring service (Sprint 2) |
 | `answeredAt` | DateTime | Updated on every upsert |
 
@@ -54,14 +54,14 @@ Start a new quiz attempt.
 **Auth:** Student (JWT — wire in from L1)  
 **Request body:**
 ```json
-{ "quizId": "uuid" }
+{ "quizId": "cuid" }
 ```
 **Response 201:**
 ```json
 {
-  "id": "uuid",
-  "quizId": "uuid",
-  "studentId": "uuid",
+  "id": "cuid",
+  "quizId": "cuid",
+  "studentId": "cuid",
   "startedAt": "2026-06-01T10:00:00.000Z",
   "submittedAt": null,
   "status": "IN_PROGRESS",
@@ -80,7 +80,7 @@ Start a new quiz attempt.
 List all attempts for the authenticated student.
 
 **Auth:** Student (JWT)  
-**Query params:** `?quizId=uuid` (optional filter)  
+**Query params:** `?quizId=cuid` (optional filter)  
 **Response 200:** array of `AttemptSummary` (no `answers` field)
 
 ---
@@ -103,8 +103,8 @@ Upserts by `(attemptId, questionId)` — safe to call multiple times.
 ```json
 {
   "answers": [
-    { "questionId": "uuid", "selectedOptionId": "uuid" },
-    { "questionId": "uuid", "selectedOptionId": null }
+    { "questionId": "cuid", "selectedOptionId": "option-value" },
+    { "questionId": "cuid", "selectedOptionId": null }
   ]
 }
 ```

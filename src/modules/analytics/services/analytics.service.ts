@@ -13,7 +13,10 @@ export class AnalyticsService {
       where: { role: 'STUDENT' },
     });
     const totalAttempts = await this.prisma.attempt.count();
-    const averageScore = await this.prisma.attempt.aggregate({ _avg: { score: true } });
+    const averageScore = await this.prisma.attempt.aggregate({
+      _avg: { score: true },
+    });
+
     return {
       totalQuizzes,
       totalStudents,
