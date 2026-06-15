@@ -1,5 +1,5 @@
 export interface QuizAttemptDto {
-  attemptId: number;
+  attemptId: string;
 
   studentName: string;
 

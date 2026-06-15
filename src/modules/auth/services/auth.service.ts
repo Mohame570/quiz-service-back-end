@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { User } from '../../../generated/prisma/client';
+import { User, UserRole } from '../../../generated/prisma/client';
 
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { LoginDto } from '../dto/login.dto';
@@ -43,14 +43,19 @@ export class AuthService {
 
     const verificationToken = randomUUID();
 
+    const role = dto.role ?? UserRole.STUDENT;
+
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
         email: dto.email,
         passwordHash,
-        role: 'STUDENT',
+        role,
         emailVerified: false,
-        verificationToken,        
+        verificationToken,
+        ...(role === UserRole.STUDENT
+          ? { studentProfile: { create: {} } }
+          : {}),
       },
     });
 

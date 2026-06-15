@@ -24,6 +24,19 @@ export class AttemptsService {
   // -----------------------------------------------------------------------
 
   async start(quizId: string, studentId: string): Promise<AttemptResponseDto> {
+    const [quiz, studentProfile] = await Promise.all([
+      this.prisma.quiz.findUnique({ where: { id: quizId } }),
+      this.prisma.studentProfile.findUnique({ where: { userId: studentId } }),
+    ]);
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found.');
+    }
+
+    if (!studentProfile) {
+      throw new ForbiddenException('Student profile not found.');
+    }
+
     const attempt = await this.prisma.attempt.create({
       data: {
         quizId,

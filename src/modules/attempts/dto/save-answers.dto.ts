@@ -4,18 +4,20 @@ import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
+  IsNotEmpty,
   IsOptional,
-  IsUUID,
+  IsString,
   ValidateNested,
 } from 'class-validator';
 
 export class SaveAnswerItemDto {
-  @IsUUID(4, { message: 'questionId must be a valid UUID v4.' })
+  @IsString()
+  @IsNotEmpty({ message: 'questionId must be a non-empty string.' })
   questionId!: string;
 
   /// null / omitted means the student skipped this question.
   @IsOptional()
-  @IsUUID(4, { message: 'selectedOptionId must be a valid UUID v4.' })
+  @IsString()
   selectedOptionId?: string | null;
 }
 
