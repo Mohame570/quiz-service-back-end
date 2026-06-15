@@ -1,256 +1,169 @@
 # Contributing Guide
 
-This document defines how contributors should build features in this backend repository so work merges cleanly across the team.
+This document defines how contributors build features in this backend repository so work merges cleanly across the team.
 
-This repo is backend-only and is locked to:
-
-- `NestJS`
-- `PostgreSQL`
-- `Prisma`
+**Stack:** NestJS, PostgreSQL, Prisma  
+**Current sprint:** Sprint 2 (`02` in branch names)
 
 ## Core Rules
 
 - Start every feature from the latest `main`.
-- Work only in your owned module area unless a shared change is required.
+- Work mainly in your owned module folder.
 - Keep feature logic out of `src/common/` unless the code is truly shared infrastructure.
-- Do not commit local-only or generated folders such as `node_modules/`, `dist/`, `src/generated/prisma/`, or `.env`.
-- Document shared API and schema changes before asking for merge.
+- Do not commit `node_modules/`, `dist/`, `src/generated/prisma/`, or `.env`.
+- Document shared API and schema changes before requesting merge.
+- After pulling `main`, run `npm run prisma:migrate:deploy && npm run prisma:generate`.
 
 ## Branch Naming
 
-Every feature branch must follow this format:
+Format:
 
-`QNA-L#xx-feature-name`
+```text
+QNA-L#xx-feature-name
+```
 
-Meaning:
+- `L#` = learner number (`L1` … `L7`)
+- `xx` = 2-digit sprint number (`01`, `02`, …)
+- `feature-name` = short kebab-case description
 
-- `L#` = learner number
-- `xx` = 2-digit sprint number
-- `feature-name` = short kebab-case description of the work
+### Sprint 2 examples
 
-Current sprint:
-
-- `01`
-
-Examples:
-
-- Learner 7, Sprint 01, notification foundation:
-  `QNA-L701-notification-foundation`
-- Learner 3, Sprint 01, question schema setup:
-  `QNA-L301-question-schema-setup`
-- Learner 2, Sprint 01, quiz CRUD endpoints:
-  `QNA-L201-quiz-crud-endpoints`
+| Learner | Branch example |
+|---|---|
+| L1 | `QNA-L102-email-verification-flow` |
+| L2 | `QNA-L202-quiz-publish-settings` |
+| L3 | `QNA-L302-question-bank-validation` |
+| L4 | `QNA-L402-student-quiz-solving` |
+| L5 | `QNA-L502-auto-scoring-integrity` |
+| L6 | `QNA-L602-admin-analytics-dashboard` |
+| L7 | `QNA-L702-notification-smtp-delivery` |
 
 Rules:
 
-- Always branch from updated `main`.
-- Use lowercase kebab-case for the feature part.
-- Keep one branch for one logical feature or task.
-- Do not reuse an old branch for a different task.
-
-## Ownership And Where Code Goes
-
-Each learner should work mainly inside their owned module folder under `src/modules/`.
-
-### Module ownership
-
-- `L1` Auth: `src/modules/auth/`
-- `L2` Quiz: `src/modules/quiz/`
-- `L3` Questions and migration integration: `src/modules/questions/` plus coordinated work in `prisma/`
-- `L4` Student: `src/modules/student/`
-- `L5` Attempts / solving contract: `src/modules/attempts/`
-- `L6` Analytics: `src/modules/analytics/`
-- `L7` Notifications: `src/modules/notifications/`
-- `L7` Integrity / cheating logs: `src/modules/integrity/`
-
-### Recommended module structure
-
-Inside your module folder, use this layout when needed:
-
-- `controllers/` for Nest controllers
-- `services/` for business logic
-- `dto/` for request and response DTOs
-- `guards/` for auth or access control guards
-- `decorators/` for custom Nest decorators
-- `strategies/` for auth strategies if needed
-- `mappers/` or `entities/` for mapping between Prisma data and API shapes
-- `*.spec.ts` files near the code for unit tests
-
-Example:
-
-```text
-src/modules/notifications/
-├── notifications.module.ts
-├── controllers/
-├── services/
-├── dto/
-├── templates/
-└── notifications.service.spec.ts
-```
-
-## Shared Areas And When You May Edit Them
-
-These areas are shared across the team and should be changed carefully:
-
-- `src/common/`: only for shared infrastructure used by multiple modules
-- `src/app.module.ts`: only when wiring a new module into the application
-- `prisma/schema.prisma`: only for agreed schema changes
-- `prisma/migrations/`: only for agreed and reviewed schema migrations
-- `docs/api/`: shared contract documentation
-- `README.md` and `CONTRIBUTING.md`: only when structure or process changes
-
-Do not put feature-specific business logic in:
-
-- `src/common/`
-- `src/main.ts`
-- root-level files outside the module folders
-
-## Feature Workflow
-
-Follow this workflow for every feature.
-
-1. Update your local `main`.
-2. Create a new branch from `main` using the naming rule.
-3. Build the feature inside your owned module folder.
-4. Update or create the needed API or schema documentation.
-5. Run local checks.
-6. Commit your work.
-7. Push your branch.
-8. Open a pull request into `main`.
-9. Request review from the right people.
-10. Merge only after approval and passing checks.
-
-Suggested commands:
+- Branch from updated `main`.
+- Lowercase kebab-case only.
+- One branch per logical feature.
+- Do not reuse old Sprint 1 branches for Sprint 2 work.
 
 ```bash
 git checkout main
 git pull origin main
-git checkout -b QNA-L701-notification-foundation
+git checkout -b QNA-L702-notification-smtp-delivery
 ```
 
-Then after your work:
+## Module Ownership
 
-```bash
-git push -u origin QNA-L701-notification-foundation
+| Learner | Path | Sprint 2 focus |
+|---|---|---|
+| L1 | `src/modules/auth/` | Verify email, resend, route guards |
+| L2 | `src/modules/quiz/` | Publish/unpublish, settings, assignment |
+| L3 | `src/modules/questions/` | Question bank CRUD, publish validation gate |
+| L4 | `src/modules/student/` | Solving flow + frontend integration |
+| L5 | `src/modules/attempts/` | Auto-scoring, integrity event capture |
+| L6 | `src/modules/analytics/` | Real metrics dashboard APIs |
+| L7 | `src/modules/notifications/` | SMTP transport, delivery logs, resend |
+| L7 | `src/modules/integrity/` | Cheating log writes (with L5) |
+
+### Recommended module layout
+
+```text
+src/modules/<module>/
+├── <module>.module.ts
+├── controllers/
+├── services/
+├── dto/
+├── guards/          # when needed
+├── templates/       # notifications only
+└── *.spec.ts        # unit tests near code
 ```
 
-## API Changes
+E2E / whole-app tests belong in `test/`.
 
-If you add or edit an API:
+## Shared Areas
 
-- place controllers, services, and DTOs inside your module folder
-- keep endpoint-specific validation close to that module
-- document the API in `docs/api/`
-- update the contract doc before requesting merge
+Edit carefully — request review from affected owners:
 
-Use one contract file per area when possible, for example:
+| Path | When you may edit |
+|---|---|
+| `src/common/` | Shared infra used by multiple modules |
+| `src/app.module.ts` | Wiring a new or updated module |
+| `prisma/schema.prisma` | Agreed schema changes only |
+| `prisma/migrations/` | Matching reviewed migrations |
+| `docs/api/` | Contract updates |
+| `README.md`, `CONTRIBUTING.md` | Process/structure changes |
+| `docker-compose.yml`, `Dockerfile` | DevOps changes with team notice |
 
-- `docs/api/auth.md`
-- `docs/api/quiz.md`
-- `docs/api/attempts.md`
-- `docs/api/notifications.md`
+**Migration integrator:** `L3` coordinates cross-module schema PRs.
 
-Each shared API doc should include at least:
+## Feature Workflow
 
-1. endpoint or event name
-2. owner module
-3. request payload
-4. response payload
-5. auth requirements
-6. validation rules
-7. dependencies on other modules
-8. side effects
-9. open questions
+1. Pull latest `main`.
+2. Create branch (`QNA-L#02-...`).
+3. Implement in your module.
+4. Update `docs/api/<your-module>.md`.
+5. If schema changed: coordinate with `L3`, add migration, run `prisma:generate`.
+6. Run quality gates (below).
+7. Open PR to `main`.
+8. Tag affected module owners.
+9. Merge after approval.
 
-If your API is consumed by another learner's module:
+## API Documentation
 
-- mention that dependency in the doc
-- tag the affected learner in the PR
-- do not merge a breaking contract change silently
+One contract file per area in `docs/api/`:
 
-## Database And Prisma Changes
+- `auth.md`, `quiz.md`, `questions.md`, `student.md`, `attempts.md`, `notifications.md`
 
-All database schema work must go through `Prisma`.
+Use `docs/api/_template.md` for new contracts.
 
-### Where schema work goes
+Each doc should cover: endpoint, owner, request/response, auth, validation, dependencies, side effects, open questions.
 
-- schema definitions: `prisma/schema.prisma`
-- migrations: `prisma/migrations/`
-- generated client: `src/generated/prisma/` but this folder is generated locally and must not be committed
+Breaking changes must be announced in the PR and tagged to consumers **before** merge.
 
-### Schema change rules
+## Database Changes
 
-- `L3` is the Sprint 1 migration integrator
-- do not make uncoordinated shared schema changes on `main`
-- if your feature needs a model, field, relation, enum, or index change, coordinate first
-- until the initial shared schema baseline is merged, avoid ad-hoc model changes from unrelated branches
+All schema work goes through Prisma:
 
-### When you need a DB or model change
+1. Discuss the change in `docs/api/` or PR description.
+2. Coordinate with `L3` for shared models.
+3. Edit `prisma/schema.prisma` on your branch.
+4. Run `npm run prisma:format` and `npm run prisma:migrate:dev -- --name describe_change`.
+5. Update `prisma/DATABASE.md` if tables/relations change materially.
+6. Run `npm run prisma:generate`.
+7. Document impact in the PR.
 
-1. Write down the required change in the relevant file under `docs/api/`
-2. Explain why the schema change is needed and which modules depend on it
-3. Coordinate with `L3` and any affected module owners
-4. Update `prisma/schema.prisma` on your feature branch only after alignment
-5. Run:
-   - `npm run prisma:format`
-   - `npm run prisma:generate`
-6. If migration generation is part of the agreed change, include the resulting migration files
-7. Mention the schema impact clearly in the PR description
+Never hand-edit `src/generated/prisma/`.
 
-Do not:
+## Frontend Coordination
 
-- edit generated Prisma client files by hand
-- commit database dumps
-- sneak shared schema changes into unrelated PRs
+The frontend is a separate repo. When your API change affects UI:
 
-## Documentation Rules
+- Update the matching `docs/api/` file.
+- Note the change in `docs/frontend-integration.md` if it affects CORS, auth, or base URL setup.
+- Tag the frontend owner in the PR.
 
-Documentation is part of the feature, not a cleanup step after it.
+## Pull Request Checklist
 
-Update docs when you change:
+- [ ] Branch name follows `QNA-L#xx-feature-name`
+- [ ] Scope is focused (no unrelated changes)
+- [ ] Code in correct module folder
+- [ ] `docs/api/` updated
+- [ ] Migration included if schema changed
+- [ ] `npm run prisma:generate && npm run build && npm run test` pass
+- [ ] Affected owners tagged
 
-- shared API shape
-- auth requirements
-- request or response format
-- side effects such as sending email or creating an attempt
-- DB schema used by other modules
+### Reviewers
 
-Minimum documentation locations:
+- Your module reviewer / mentor
+- `L3` if `prisma/` changed
+- Any module owner affected by a shared contract change
 
-- architecture and structure changes: `README.md`
-- team process changes: `CONTRIBUTING.md`
-- API and cross-module contracts: `docs/api/`
+### PR title examples
 
-## Pull Request Rules
+- `L1 S02: add verify-email and resend endpoints`
+- `L5 S02: auto-score submitted attempts`
+- `L7 S02: wire SMTP delivery to notification service`
 
-Every feature must be merged through a PR into `main`.
-
-### PR checklist
-
-- branch name follows the required naming rule
-- scope is focused and not mixing unrelated features
-- code is placed in the correct module folder
-- shared API docs are updated if needed
-- Prisma schema or migration changes are documented if needed
-- local checks pass
-- affected owners are tagged for review
-
-### Request review from
-
-- your module reviewer or teammate
-- `L3` if `prisma/schema.prisma` or `prisma/migrations/` changed
-- any impacted module owner if you changed a shared API or behavior they depend on
-- the owner of any shared file you had to modify outside your module folder
-
-### Good PR title examples
-
-- `L7 S01: add notification module skeleton`
-- `L5 S01: add attempt DTOs and service flow`
-- `L2 S01: add quiz CRUD controller and contracts`
-
-## Quality Gates Before Review
-
-Run the relevant local checks before opening or updating a PR:
+## Quality Gates
 
 ```bash
 npm run prisma:generate
@@ -259,37 +172,43 @@ npm run lint
 npm run test
 ```
 
-If you changed the Prisma schema, also run:
+With schema changes also run:
 
 ```bash
 npm run prisma:format
+npm run prisma:migrate:deploy   # verify migrations apply cleanly
 ```
+
+## Docker / Local Environment
+
+- **DB + MailHog only:** `make db-up` then `npm run start:dev`
+- **Full stack:** `make stack-up` (see `README.md`)
+
+Ensure `.env` exists (copy from `.env.example`).
 
 ## What Must Never Be Committed
 
-Do not commit:
+- `node_modules/`, `dist/`, `src/generated/prisma/`, `.env`
+- Database dumps, local logs, editor-specific files
 
-- `node_modules/`
-- `dist/`
-- `src/generated/prisma/`
-- `.env`
-- local logs
-- editor-specific local files
+## Clean Merge Tips
 
-## Clean Merge Expectations
+- Rebase or merge `main` before opening PR if the base moved.
+- Keep PRs small.
+- Do not mix schema refactors with unrelated feature work.
+- Use a temporary integration branch to test multiple in-flight features — do not use `main` for that.
 
-To keep merges clean:
+## Sprint 2 Coordination
 
-- rebase or pull latest `main` before opening the PR if the base moved
-- keep PRs small and focused
-- avoid mixing structure changes, schema changes, and unrelated feature work in one branch
-- document breaking changes early
-- coordinate before touching shared files
+Per-learner deliverables are in `misc/sprint2.txt`. Each owner ships backend work here plus matching frontend screens in the separate frontend repo.
 
-If in doubt, prefer:
+**Learner 8 (bulk invitations) is no longer on the project.** That scope will be reassigned — likely **L2** (assignment/invite APIs) and **L7** (email transport).
 
-- smaller PRs
-- clearer docs
-- explicit review requests
+| Dependency | Owner | Consumers |
+|---|---|---|
+| Email verification + JWT guards | L1 | L4 solving, protected routes |
+| SMTP notification service | L7 | L1 verification, future invites |
+| Question publish validation gate | L3 | L2 publish API |
+| Auto-scoring + integrity capture | L5 | L4 solving UI, L6 analytics |
+| Quiz student assignment | L2 (from L8) | L4 student quiz list |
 
-That is better than merging a big unclear branch that blocks the rest of the team.
