@@ -80,6 +80,15 @@ npm run test
 curl http://localhost:3002/api/health
 ```
 
+### Live server smoke (real Postgres + MailHog + API)
+
+```bash
+bash scripts/run-live-tests.sh          # Linux / macOS / Git Bash
+# .\scripts\run-live-tests.ps1          # Windows PowerShell
+```
+
+See `docs/testing/live-server-testing.md`.
+
 ## Environment Variables
 
 See `.env.example`. Key values:
@@ -99,6 +108,7 @@ Inside Docker Compose, the API uses `postgres` as the database host. On the host
 | Document | Contents |
 |---|---|
 | `CONTRIBUTING.md` | Branch naming, PR rules, module ownership |
+| `docs/testing/live-server-testing.md` | Live stack + seed + dynamic test guide |
 | `prisma/README.md` | Prisma CLI, migrations, troubleshooting |
 | `prisma/DATABASE.md` | Full schema, tables, relations, ER diagram |
 | `docs/frontend-integration.md` | Connecting the Next.js frontend to this API |
@@ -155,6 +165,9 @@ npm run prisma:studio      # DB browser
 make db-up                 # Postgres + MailHog only
 make stack-up              # Full Docker stack
 make stack-down
+make stack-smoke           # Docker up + seed + live tests
+make db-seed               # Populate live-test fixtures
+npm run test:live          # Live specs (set LIVE_TESTS=1)
 ```
 
 ## Database Rules

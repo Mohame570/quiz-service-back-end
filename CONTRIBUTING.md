@@ -149,6 +149,7 @@ The frontend is a separate repo. When your API change affects UI:
 - [ ] `docs/api/` updated
 - [ ] Migration included if schema changed
 - [ ] `npm run prisma:generate && npm run build && npm run test` pass
+- [ ] Live smoke passes when feature touches DB/SMTP/Docker (`bash scripts/run-live-tests.sh` or `.\scripts\run-live-tests.ps1`)
 - [ ] Affected owners tagged
 
 ### Reviewers
@@ -179,12 +180,34 @@ npm run prisma:format
 npm run prisma:migrate:deploy   # verify migrations apply cleanly
 ```
 
+### Live server validation (before merge)
+
+Static `npm run test` uses in-process Nest with mocks. Features that touch Postgres, SMTP, or Docker must also pass live tests:
+
+```bash
+# Linux / macOS / Git Bash
+bash scripts/run-live-tests.sh
+
+# Windows PowerShell
+.\scripts\run-live-tests.ps1
+
+# Or via Make (Unix)
+make stack-smoke
+```
+
+See `docs/testing/live-server-testing.md` for the full contributor guide. Module owners add `docs/testing/<module>-live-testing.md` for their feature (example: `docs/testing/notifications-live-testing.md` for L7).
+
 ## Docker / Local Environment
 
 - **DB + MailHog only:** `make db-up` then `npm run start:dev`
 - **Full stack:** `make stack-up` (see `README.md`)
+- **Live smoke tests:** `make stack-smoke` or `bash scripts/run-live-tests.sh` (Windows: `.\scripts\run-live-tests.ps1`)
 
 Ensure `.env` exists (copy from `.env.example`).
+
+### Windows + Docker
+
+The API container runs `docker/entrypoint.sh` **inside Linux** — you do not run that script in PowerShell. We enforce LF line endings (`.gitattributes`) and normalize CRLF in the `Dockerfile` so `docker compose up --build` works on Windows with Docker Desktop (WSL2 backend recommended).
 
 ## What Must Never Be Committed
 
