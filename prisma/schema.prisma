@@ -19,20 +19,16 @@ enum AttemptStatus {
   ABANDONED
 }
 
-enum UserRole {
-  STUDENT
-  ADMIN
-}
-
 // -----------------------------------------------------------------------
 // Attempt
 // -----------------------------------------------------------------------
 
 model Attempt {
-  id          String        @id @default(uuid()) @db.Uuid
-  quizId      String        @db.Uuid
-  studentId   String        @db.Uuid
-
+  id          String        @id @default(cuid())
+  quizId      String
+  quiz        Quiz          @relation(fields: [quizId] , references: [id])
+  studentId   String
+  student     StudentProfile @relation(fields: [studentId] ,references: [userId])
   /// Wall-clock time when the student started the attempt.
   startedAt   DateTime      @default(now())
 
@@ -55,18 +51,21 @@ model Attempt {
   @@index([studentId, quizId])
   @@map("attempts")
 }
+/// There is no relation between attmept and cheatinglog
 
 // -----------------------------------------------------------------------
 // AttemptAnswer
 // -----------------------------------------------------------------------
 
 model AttemptAnswer {
-  id               String   @id @default(uuid()) @db.Uuid
-  attemptId        String   @db.Uuid
-  questionId       String   @db.Uuid
+  id               String   @id @default(cuid())
+  attemptId        String
 
+
+  questionId       String
+  question Question @relation(fields: [questionId] , references: [id])
   /// The option the student chose; null means the question was skipped.
-  selectedOptionId String?  @db.Uuid
+  selectedOptionId String?
 
   /// Populated by the scoring service; null until graded.
   isCorrect        Boolean?
@@ -143,6 +142,9 @@ model Quiz {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
+  attempts Attempt[]
+  students StudentProfile[]
+
   @@index([status])
   @@index([createdById])
   @@index([startsAt, endsAt])
@@ -167,23 +169,35 @@ enum QuestionType {
   TRUE_FALSE
 }
 
+enum Role {
+  ADMIN
+  STUDENT
+}
 model User {
-  id                         String    @id @default(uuid())
-  email                      String    @unique
-  passwordHash               String    @map("password_hash")
-  name                       String?   @map("full_name")
-  role                       UserRole  @default(STUDENT)
-  emailVerified              Boolean   @default(false) @map("email_verified")
-  verificationToken          String?   @unique @map("verification_token")
-  verificationTokenExpiresAt DateTime? @map("verification_token_expires_at")
-  isActive                   Boolean   @default(true) @map("is_active")
-  createdAt                  DateTime  @default(now()) @map("created_at")
-  updatedAt                  DateTime  @updatedAt @map("updated_at")
-
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
   quizzes   Quiz[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  role Role
+
+  studentProfile  StudentProfile?
+
 
   @@map("users")
 }
+
+model StudentProfile {
+  userId String @id
+  user User @relation(fields: [userId] , references: [id])
+
+
+  attempts Attempt[]
+  quizzes Quiz[]
+}
+
+
 
 model Question {
   id            String       @id @default(cuid())
@@ -195,6 +209,8 @@ model Question {
   correctAnswer String
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+
+  attemptAnswers AttemptAnswer[]
 
   @@index([quizId])
   @@map("questions")
