@@ -10,4 +10,8 @@ export interface NotificationDispatchResultDto {
   subject: string;
   html: string;
   text: string;
+  errorMessage?: string | null;
+  providerMessageId?: string | null;
+  deliveredAt?: Date | null;
+  attemptCount: number;
 }
