@@ -12,11 +12,11 @@ export class AnalyticsController {
     return this.analyticsService.getAnalytics();
   }
 
-  @Get('quizzes/:quizName/attempts')
+  @Get('quizzes/:quizId/attempts')
   async getQuizAttempts(
-    @Param('quizName') quizName: string,
+    @Param('quizId') quizId: string,
   ): Promise<QuizAttemptsResponseDto> {
-    return this.analyticsService.getQuizAttempts(quizName);
+    return this.analyticsService.getQuizAttempts(quizId);
   }
 }
 
