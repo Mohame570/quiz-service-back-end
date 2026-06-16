@@ -113,7 +113,7 @@ Inside Docker Compose, the API uses `postgres` as the database host. On the host
 | `prisma/DATABASE.md` | Full schema, tables, relations, ER diagram |
 | `docs/frontend-integration.md` | Connecting the Next.js frontend to this API |
 | `docs/api/` | Per-module API contracts |
-| `src/modules/README.md` | Module layout conventions |
+| `src/modules/README.md` | Module layout conventions |.
 
 ## Project Layout
 
