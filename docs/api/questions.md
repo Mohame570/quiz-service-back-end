@@ -29,6 +29,25 @@ This contract defines the API for managing questions within quizzes. It provides
 - `options`: `string[]` (optional, used for MCQ)
 - `correctAnswer`: `string`
 
+### Update Question Endpoint
+
+`PATCH /questions/:id`
+
+**Request Body (`UpdateQuestionDto`)**
+
+- `type`: `QuestionType` (`MCQ` or `TRUE_FALSE`) (optional)
+- `text`: `string` (optional)
+- `options`: `string[]` (optional, used for MCQ)
+- `correctAnswer`: `string` (optional)
+
+### Delete Question Endpoint
+
+`DELETE /questions/:id`
+
+**Response**
+
+- Returns the deleted question.
+
 ## Response Or Output
 
 Returns the newly created `Question` record containing:
@@ -68,7 +87,6 @@ Currently, there are no specific authentication or access rules defined at the c
 ## Open Questions
 
 - Should we add authentication guards or ownership validation (e.g. ensure the user creating the question is the creator of the quiz)?
-- Will there be endpoints for updating or deleting questions?
 
 ## Example
 

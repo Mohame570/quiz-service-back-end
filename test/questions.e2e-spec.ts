@@ -30,6 +30,21 @@ describe('QuestionsController (e2e)', () => {
     jest.spyOn(prisma.question, 'create').mockImplementation((async (args: any): Promise<any> => {
       return { id: 'new-q-id', ...args.data, createdAt: new Date(), updatedAt: new Date() };
     }) as any);
+
+    jest.spyOn(prisma.question, 'findUnique').mockImplementation((async (args: any): Promise<any> => {
+      if (args.where.id === 'valid-q-id') {
+        return { id: 'valid-q-id', quizId: 'valid-quiz-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', createdAt: new Date(), updatedAt: new Date() };
+      }
+      return null;
+    }) as any);
+
+    jest.spyOn(prisma.question, 'update').mockImplementation((async (args: any): Promise<any> => {
+      return { id: args.where.id, ...args.data, createdAt: new Date(), updatedAt: new Date() };
+    }) as any);
+
+    jest.spyOn(prisma.question, 'delete').mockImplementation((async (args: any): Promise<any> => {
+      return { id: args.where.id, createdAt: new Date(), updatedAt: new Date() };
+    }) as any);
   });
 
   afterAll(async () => {
@@ -87,5 +102,34 @@ describe('QuestionsController (e2e)', () => {
         correctAnswer: 'No' // Must be 'True' or 'False'
       })
       .expect(400);
+  });
+
+  it('/questions/:id (PATCH) - Success', () => {
+    return request(app.getHttpServer())
+      .patch('/questions/valid-q-id')
+      .send({
+        text: 'New text',
+        correctAnswer: 'B' // Valid since 'B' is in options
+      })
+      .expect(200)
+      .expect((res: any) => {
+        expect(res.body.text).toBe('New text');
+        expect(res.body.correctAnswer).toBe('B');
+      });
+  });
+
+  it('/questions/:id (PATCH) - Fail invalid answer', () => {
+    return request(app.getHttpServer())
+      .patch('/questions/valid-q-id')
+      .send({
+        correctAnswer: 'C' // Not in old options ['A', 'B']
+      })
+      .expect(400);
+  });
+
+  it('/questions/:id (DELETE) - Success', () => {
+    return request(app.getHttpServer())
+      .delete('/questions/valid-q-id')
+      .expect(200);
   });
 });
