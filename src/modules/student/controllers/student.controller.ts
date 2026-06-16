@@ -21,7 +21,7 @@ import {
 // ---------------------------------------------------------------------------
 
 function resolveStudentId(req: any): string {
-  return req.user?.sub ?? 'stub-student-id';
+  return req.user?.sub;
 }
 
 @Controller('student')

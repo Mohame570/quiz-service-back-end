@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AuthService } from './services/auth.service';
 import { AuthController } from './controllers/auth.controller';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -17,6 +18,8 @@ import { AuthController } from './controllers/auth.controller';
         secret: configService.get<string>('jwt.secret'),
       }),
     }),
+    NotificationsModule,
+    
   ],
   controllers: [AuthController],
   providers: [AuthService],

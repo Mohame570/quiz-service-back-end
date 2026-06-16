@@ -11,8 +11,12 @@ import { User, UserRole } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
+import { VerifyEmailDto } from '../dto/verify-email.dto';
+import { ResendVerificationDto } from '../dto/resend-verification.dto';
 import { AuthResult, SafeUser } from '../types/auth.types';
 import { randomUUID } from 'crypto';
+import { NotFoundException } from '@nestjs/common';
+import { NotificationService } from '../../notifications/services/notification.service';
 
 type JwtPayload = {
   sub: string;
@@ -28,6 +32,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+
+    private readonly notificationService: NotificationService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResult> {
@@ -58,6 +64,14 @@ export class AuthService {
           : {}),
       },
     });
+
+    await this.notificationService.sendVerificationEmail({
+      recipientEmail: user.email,
+      recipientName: user.name ?? undefined,
+      verificationUrl: `${this.configService.get<string>(
+        'FRONTEND_BASE_URL',
+        )}/verify-email?token=${verificationToken}`,
+      });
 
 
     return this.buildAuthResult(user);
@@ -106,6 +120,75 @@ export class AuthService {
   private async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, AuthService.PASSWORD_SALT_ROUNDS);
   }
+
+  async verifyEmail(dto: VerifyEmailDto): Promise<{ success: boolean }> {
+  // 1. Find user by token
+  const user = await this.prisma.user.findFirst({
+    where: {
+      verificationToken: dto.token,
+    },
+  });
+
+  // 2. Token invalid or expired (not found)
+  if (!user) {
+    throw new UnauthorizedException('Invalid or expired verification token');
+  }
+
+  // 3. If already verified, we can just return success (idempotent behavior)
+  if (user.emailVerified) {
+    return { success: true };
+  }
+
+  // 4. Update user as verified
+  await this.prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerified: true,
+      verificationToken: null,
+    },
+  });
+
+  return { success: true };
+}
+
+async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean }> {
+  // 1. Find user by email
+  const user = await this.prisma.user.findUnique({
+    where: { email: dto.email },
+  });
+
+  // 2. If user doesn't exist
+  if (!user) {
+    throw new NotFoundException('User not found');
+  }
+
+  // 3. If already verified
+  if (user.emailVerified) {
+    return { success: true };
+  }
+
+  // 4. Generate new token
+  const verificationToken = randomUUID();
+
+  // 5. Update user with new token
+  await this.prisma.user.update({
+    where: { id: user.id },
+    data: {
+      verificationToken,
+    },
+  });
+
+  // 6. Send email again
+  await this.notificationService.sendVerificationEmail({
+    recipientEmail: user.email,
+    recipientName: user.name ?? undefined,
+    verificationUrl: `${this.configService.get<string>(
+      'FRONTEND_BASE_URL',
+    )}/verify-email?token=${verificationToken}`,
+  });
+
+  return { success: true };
+}
 
   private async buildAuthResult(user: User): Promise<AuthResult> {
     const tokens = await this.createTokens(user);
