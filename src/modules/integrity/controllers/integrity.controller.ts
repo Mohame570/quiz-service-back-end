@@ -1,20 +1,27 @@
 // src/modules/integrity/controllers/integrity.controller.ts
 //
-// New controller wired against the existing IntegrityService and
-// RecordCheatingEventDto (already on main from L7's foundation work).
-// This is the missing piece: the solving page had no endpoint to call.
-//
-// NOTE: Wire @UseGuards(AuthGuard) from L1 once JWT guard is available.
+// Updated: server-side ownership validation added.
+// - JWT guard authenticates the student
+// - attemptId in body is verified to belong to the authenticated student
+//   before the event is logged — prevents logging events against other
+//   students' attempts
 
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  NotFoundException,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { IsEnum, IsISO8601, IsObject, IsOptional, IsString } from 'class-validator';
 import { CheatingEventType } from '../../../generated/prisma/client';
+import { PrismaService } from '../../../common/prisma/prisma.service';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { IntegrityService } from '../services/integrity.service';
 import { RecordCheatingEventDto } from '../dto/record-cheating-event.dto';
 
-// RecordCheatingEventDto is currently a plain interface (no decorators),
-// so request bodies aren't validated yet. This class adds validation
-// without changing the interface other code already depends on.
 class RecordCheatingEventBody implements RecordCheatingEventDto {
   @IsString()
   attemptId!: string;
@@ -39,20 +46,52 @@ class RecordCheatingEventBody implements RecordCheatingEventDto {
 
 @Controller('integrity')
 export class IntegrityController {
-  constructor(private readonly integrityService: IntegrityService) {}
+  constructor(
+    private readonly integrityService: IntegrityService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   /**
    * POST /api/integrity/events
    *
-   * Called by the solving page whenever a suspicious browser event fires
-   * (tab hidden, window blur, fullscreen exit, copy/paste, etc — see the
-   * CheatingEventType enum in prisma/schema.prisma for the full list).
-   *
-   * Fire this as a non-blocking background request from the client so it
-   * never interrupts the student's quiz flow.
+   * Requires a valid JWT. Validates that the attemptId in the body belongs
+   * to the authenticated student and is currently IN_PROGRESS before
+   * logging the event. Rejects attempts to log events against other
+   * students' attempts or already-completed attempts.
    */
   @Post('events')
-  async logEvent(@Body() body: RecordCheatingEventBody) {
-    return this.integrityService.recordCheatingEvent(body);
+  @UseGuards(JwtAuthGuard)
+  async logEvent(
+    @Body() body: RecordCheatingEventBody,
+    @Request() req: any,
+  ) {
+    const studentId: string = req.user.sub;
+
+    // Server-side ownership + status validation
+    const attempt = await this.prisma.attempt.findUnique({
+      where: { id: body.attemptId },
+      select: { studentId: true, status: true },
+    });
+
+    if (!attempt) {
+      throw new NotFoundException('Attempt not found.');
+    }
+
+    if (attempt.studentId !== studentId) {
+      throw new ForbiddenException(
+        'You can only log integrity events for your own attempts.',
+      );
+    }
+
+    if (attempt.status !== 'IN_PROGRESS') {
+      throw new ForbiddenException(
+        'Integrity events can only be logged for active attempts.',
+      );
+    }
+
+    return this.integrityService.recordCheatingEvent({
+      ...body,
+      occurredAt: body.occurredAt ? new Date(body.occurredAt) : undefined,
+    });
   }
 }

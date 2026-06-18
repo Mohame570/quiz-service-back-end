@@ -1,37 +1,14 @@
 // src/modules/attempts/services/scoring.service.ts
-//
-// Real, runnable auto-scoring against this repo's actual schema.
-//
-// Source of truth for "what is correct": Question.correctAnswer (a plain
-// string — either "True"/"False" for TRUE_FALSE, or one of Question.options
-// for MCQ). There is no separate Option table in this schema, so the
-// comparison is a direct string match between AttemptAnswer.selectedOptionId
-// and Question.correctAnswer.
-//
-// Note on naming: AttemptAnswer.selectedOptionId is misleadingly named —
-// it actually stores the literal answer text the student picked (see
-// save-answers.dto.ts, which validates it with @IsString()), not a
-// relational ID. This service treats it as such.
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { AttemptResponseDto } from '../dto/attempt-response.dto';
-
-export interface ScoringResult {
-  score: number;
-  maxScore: number;
-  percentage: number;
-}
 
 @Injectable()
 export class ScoringService {
   private readonly logger = new Logger(ScoringService.name);
 
   constructor(private readonly prisma: PrismaService) {}
-
-  // -----------------------------------------------------------------------
-  // Main entry point — called by AttemptsService.submit()
-  // -----------------------------------------------------------------------
 
   async scoreAttempt(attemptId: string): Promise<AttemptResponseDto> {
     const attempt = await this.prisma.attempt.findUnique({
@@ -44,14 +21,36 @@ export class ScoringService {
     const answers = attempt.answers;
 
     if (answers.length === 0) {
-      await this.prisma.attempt.update({
-        where: { id: attemptId },
-        data: { score: 0, maxScore: 0 },
-      });
+      await this.prisma.$transaction([
+        this.prisma.attempt.update({
+          where: { id: attemptId },
+          data: { score: 0, maxScore: 0 },
+        }),
+        this.prisma.result.upsert({
+          where: { attemptId },
+          create: {
+            attemptId,
+            studentId: attempt.studentId,
+            quizId: attempt.quizId,
+            score: 0,
+            maxScore: 0,
+            percentage: 0,
+            passed: false,
+            gradedAt: new Date(),
+          },
+          update: {
+            score: 0,
+            maxScore: 0,
+            percentage: 0,
+            passed: false,
+            gradedAt: new Date(),
+          },
+        }),
+      ]);
       return this.toResponseDto({ ...attempt, score: 0, maxScore: 0 });
     }
 
-    // 1. Load the real correct answer for every question in this attempt.
+    // Load correct answers from Question table
     const questionIds = answers.map((a) => a.questionId);
     const questions = await this.prisma.question.findMany({
       where: { id: { in: questionIds } },
@@ -59,8 +58,7 @@ export class ScoringService {
     });
     const correctAnswerMap = new Map(questions.map((q) => [q.id, q.correctAnswer]));
 
-    // 2. Compare each submitted answer's text against the question's
-    //    correctAnswer. This is the actual comparison.
+    // Grade each answer
     const graded = answers.map((answer) => {
       const correctAnswer = correctAnswerMap.get(answer.questionId);
       const isCorrect = this.compareAnswer(answer.selectedOptionId, correctAnswer);
@@ -69,9 +67,14 @@ export class ScoringService {
 
     const score = graded.filter((g) => g.isCorrect === true).length;
     const maxScore = graded.filter((g) => g.hasKey).length;
+    const percentage = this.computePercentage(score, maxScore);
 
-    // 3. Persist isCorrect per answer + score/maxScore on the attempt,
-    //    all in one transaction.
+    // Determine pass/fail — default passing threshold is 50%
+    // This can be driven by Quiz.passingScore once that field is used
+    const passingThreshold = 50;
+    const passed = percentage >= passingThreshold;
+
+    // Persist everything atomically
     await this.prisma.$transaction([
       ...graded.map((g) =>
         this.prisma.attemptAnswer.update({
@@ -83,9 +86,25 @@ export class ScoringService {
         where: { id: attemptId },
         data: { score, maxScore },
       }),
+      this.prisma.result.upsert({
+        where: { attemptId },
+        create: {
+          attemptId,
+          studentId: attempt.studentId,
+          quizId: attempt.quizId,
+          score,
+          maxScore,
+          percentage,
+          passed,
+          gradedAt: new Date(),
+        },
+        update: { score, maxScore, percentage, passed, gradedAt: new Date() },
+      }),
     ]);
 
-    this.logger.log(`Attempt ${attemptId} scored: ${score}/${maxScore}`);
+    this.logger.log(
+      `Attempt ${attemptId} scored: ${score}/${maxScore} (${percentage}%) — ${passed ? 'PASSED' : 'FAILED'}`,
+    );
 
     const scored = await this.prisma.attempt.findUnique({
       where: { id: attemptId },
@@ -95,18 +114,6 @@ export class ScoringService {
     return this.toResponseDto(scored);
   }
 
-  // -----------------------------------------------------------------------
-  // The actual comparison.
-  //   - selected === correctAnswer        -> true
-  //   - selected exists but !== correct   -> false
-  //   - selected is null (skipped)        -> false
-  //   - question has no correctAnswer on file -> null (ungraded)
-  //
-  // Comparison is case-sensitive and exact-match, matching how
-  // Question.correctAnswer is validated on creation (IsValidCorrectAnswerConstraint
-  // checks for an exact string match against options, or "True"/"False").
-  // -----------------------------------------------------------------------
-
   compareAnswer(
     selectedOptionId: string | null,
     correctAnswer: string | undefined,
@@ -114,10 +121,6 @@ export class ScoringService {
     if (correctAnswer === undefined) return null;
     return selectedOptionId !== null && selectedOptionId === correctAnswer;
   }
-
-  // -----------------------------------------------------------------------
-  // Deterministic percentage — same input always gives same output.
-  // -----------------------------------------------------------------------
 
   computePercentage(score: number, maxScore: number): number {
     if (maxScore === 0) return 0;
