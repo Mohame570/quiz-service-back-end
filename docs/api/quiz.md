@@ -30,13 +30,13 @@ Admin endpoints for managing quizzes. These endpoints provide CRUD operations fo
 ```json
 {
   "title": "string (required)",
-  "description": "string (optional)",
-  "status": "draft | published (optional, defaults to draft)",
-  "durationMinutes": "number (optional)",
-  "passingScore": "number (optional)",
-  "startsAt": "ISO 8601 date string (optional)",
-  "endsAt": "ISO 8601 date string (optional)",
-  "createdById": "string (optional)"
+  "description": "string (required)",
+  "status": "draft | published (required, defaults to draft)",
+  "durationMinutes": "number (required)",
+  "passingScore": "number (required)",
+  "startsAt": "ISO 8601 date string (required)",
+  "endsAt": "ISO 8601 date string (required)",
+  "createdById": "string (required)"
 }
 ```
 

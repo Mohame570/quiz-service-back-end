@@ -20,32 +20,32 @@ export class CreateQuizDto {
 
   @IsOptional()
   @IsString()
-  description?: string;
+  description!: string;
 
   @IsOptional()
   @Transform(({ value }) =>
     typeof value === 'string' ? value.toLowerCase() : value,
   )
   @IsEnum(CreateQuizStatusEnum)
-  status?: CreateQuizStatusEnum;
+  status!: CreateQuizStatusEnum;
 
   @IsOptional()
   @IsInt()
-  durationMinutes?: number;
+  durationMinutes!: number;
 
   @IsOptional()
   @IsInt()
-  passingScore?: number;
+  passingScore!: number;
 
   @IsOptional()
   @IsDateString()
-  startsAt?: string;
+  startsAt!: string;
 
   @IsOptional()
   @IsDateString()
-  endsAt?: string;
+  endsAt!: string;
 
   @IsOptional()
   @IsString()
-  createdById?: string;
+  createdById!: string;
 }
