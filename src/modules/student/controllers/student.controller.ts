@@ -3,8 +3,13 @@ import {
   Get,
   Param,
   Request,
+  UseGuards,
 } from '@nestjs/common';
 
+import {
+  AuthenticatedRequest,
+  JwtAuthGuard,
+} from '../../auth/guards/jwt-auth.guard';
 import { StudentService } from '../services/student.service';
 import {
   StudentActiveAttemptResponseDto,
@@ -12,19 +17,8 @@ import {
   StudentQuizListResponseDto,
 } from '../dto';
 
-// ---------------------------------------------------------------------------
-// NOTE: @UseGuards(AuthGuard) and @Request() req.user are stubbed below.
-// Mirrors the pattern used in L5's attempts controller:
-//   - L1 Auth will provide the real JWT guard.
-//   - For now, the student id is read from req.user.sub.
-//   - If absent, a stub id is used so the endpoint is testable in isolation.
-// ---------------------------------------------------------------------------
-
-function resolveStudentId(req: any): string {
-  return req.user?.sub ?? 'stub-student-id';
-}
-
 @Controller('student')
+@UseGuards(JwtAuthGuard)
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
@@ -33,8 +27,10 @@ export class StudentController {
    * Dashboard list of PUBLISHED quizzes that the current student can start.
    */
   @Get('quizzes')
-  async listQuizzes(@Request() req: any): Promise<StudentQuizListResponseDto> {
-    return this.studentService.listQuizzesForStudent(resolveStudentId(req));
+  async listQuizzes(
+    @Request() req: AuthenticatedRequest,
+  ): Promise<StudentQuizListResponseDto> {
+    return this.studentService.listQuizzesForStudent(req.user!.sub);
   }
 
   /**
@@ -45,10 +41,10 @@ export class StudentController {
   @Get('quizzes/:id')
   async getQuizInstructions(
     @Param('id') id: string,
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<StudentQuizInstructionsDto> {
     return this.studentService.getQuizInstructions(
-      resolveStudentId(req),
+      req.user!.sub,
       id,
     );
   }
@@ -61,10 +57,10 @@ export class StudentController {
    */
   @Get('attempts/active')
   async getActiveAttempt(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
   ): Promise<StudentActiveAttemptResponseDto> {
     const attempt = await this.studentService.getActiveAttempt(
-      resolveStudentId(req),
+      req.user!.sub,
     );
     return { attempt };
   }
