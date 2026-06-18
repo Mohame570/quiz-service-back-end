@@ -40,6 +40,16 @@ export class QuizController {
   }
 
   /**
+   * POST /api/admin/quizzes/:id/unpublish
+   * Move a quiz back to draft
+   */
+  @Post(':id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  async unpublish(@Param('id') id: string): Promise<Quiz> {
+    return this.quizService.unpublish(id);
+  }
+
+  /**
    * PATCH /api/admin/quizzes/:id
    * Update an existing quiz
    */

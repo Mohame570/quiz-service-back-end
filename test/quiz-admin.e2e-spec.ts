@@ -311,6 +311,84 @@ describe('Quiz admin endpoints', () => {
     expect(prismaMock.quiz.update).not.toHaveBeenCalled();
   });
 
+  it('unpublishes a published quiz back to draft', async () => {
+    prismaMock.quiz.findUnique.mockResolvedValueOnce({
+      id: 'quiz-1',
+      status: 'PUBLISHED',
+    });
+    prismaMock.quiz.update.mockResolvedValueOnce({
+      id: 'quiz-1',
+      title: 'Sprint 1 Quiz',
+      description: null,
+      status: 'DRAFT',
+      durationMinutes: null,
+      passingScore: null,
+      startsAt: null,
+      endsAt: null,
+      createdById: null,
+      createdAt: '2026-06-10T00:00:00.000Z',
+      updatedAt: '2026-06-10T00:00:00.000Z',
+    });
+
+    const response = await request(app.getHttpServer()).post(
+      '/api/admin/quizzes/quiz-1/unpublish',
+    );
+
+    expect(response.status).toBe(200);
+    expect(prismaMock.quiz.update).toHaveBeenCalledWith({
+      where: { id: 'quiz-1' },
+      data: {
+        status: 'DRAFT',
+      },
+    });
+    expect(response.body.status).toBe('DRAFT');
+  });
+
+  it('unpublishes an already draft quiz idempotently', async () => {
+    prismaMock.quiz.findUnique.mockResolvedValueOnce({
+      id: 'quiz-1',
+      status: 'DRAFT',
+    });
+    prismaMock.quiz.update.mockResolvedValueOnce({
+      id: 'quiz-1',
+      title: 'Sprint 1 Quiz',
+      description: null,
+      status: 'DRAFT',
+      durationMinutes: null,
+      passingScore: null,
+      startsAt: null,
+      endsAt: null,
+      createdById: null,
+      createdAt: '2026-06-10T00:00:00.000Z',
+      updatedAt: '2026-06-10T00:00:00.000Z',
+    });
+
+    const response = await request(app.getHttpServer()).post(
+      '/api/admin/quizzes/quiz-1/unpublish',
+    );
+
+    expect(response.status).toBe(200);
+    expect(prismaMock.quiz.update).toHaveBeenCalledWith({
+      where: { id: 'quiz-1' },
+      data: {
+        status: 'DRAFT',
+      },
+    });
+    expect(response.body.status).toBe('DRAFT');
+  });
+
+  it('returns 404 when unpublishing a quiz that does not exist', async () => {
+    prismaMock.quiz.findUnique.mockResolvedValueOnce(null);
+
+    const response = await request(app.getHttpServer()).post(
+      '/api/admin/quizzes/missing-quiz/unpublish',
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.body.message).toContain('Quiz with id missing-quiz not found');
+    expect(prismaMock.quiz.update).not.toHaveBeenCalled();
+  });
+
   it('filters the admin list by quiz status', async () => {
     prismaMock.quiz.findMany.mockResolvedValueOnce([
       {

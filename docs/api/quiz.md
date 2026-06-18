@@ -140,7 +140,32 @@ Same as Create Quiz response, with `status` set to `PUBLISHED`.
 
 ---
 
-### 4. Delete Quiz
+### 4. Unpublish Quiz
+
+**Endpoint:** `POST /api/admin/quizzes/:id/unpublish`
+
+**Owner Module:** `quiz`
+
+**Request Payload:** None
+
+**Response Payload:**
+
+Same as Create Quiz response, with `status` set to `DRAFT`.
+
+**Behavior:**
+
+- Verifies the quiz exists.
+- Moves the quiz back to `DRAFT`.
+- Does not require any questions.
+
+**Status Code:**
+
+- `200 OK` on success
+- `404 Not Found` if quiz with given `id` does not exist
+
+---
+
+### 5. Delete Quiz
 
 **Endpoint:** `DELETE /api/admin/quizzes/:id`
 
@@ -169,7 +194,7 @@ Same as Create Quiz response, with `status` set to `PUBLISHED`.
 
 ---
 
-### 5. Get Single Quiz
+### 6. Get Single Quiz
 
 **Endpoint:** `GET /api/admin/quizzes/:id`
 
@@ -188,7 +213,7 @@ Same as Create Quiz response.
 
 ---
 
-### 6. List Quizzes
+### 7. List Quizzes
 
 **Endpoint:** `GET /api/admin/quizzes`
 
@@ -249,6 +274,7 @@ status: optional, case-insensitive
 - **Create:** A new quiz record is created in the database.
 - **Update:** Only provided fields are updated; omitted fields remain unchanged. Publishing through update requires at least one question.
 - **Publish:** Quiz status is updated to `PUBLISHED` only after the quiz has at least one question.
+- **Unpublish:** Quiz status is updated to `DRAFT` without question-count validation.
 - **Delete:** Quiz record is permanently removed (hard delete).
 - **Get/List:** Read-only operations with no side effects.
 
@@ -266,6 +292,7 @@ status: optional, case-insensitive
 
 - **Status Mapping:** Request status values (`draft`, `published`) are mapped case-insensitively to Prisma enum values (`DRAFT`, `PUBLISHED`).
 - **Publish Rule:** A quiz must have at least one related `Question` record before it can become `PUBLISHED`.
+- **Unpublish Rule:** A quiz can always be moved back to `DRAFT`.
 - **Hard Delete:** Delete operations permanently remove the record. There is no soft delete or archival in this phase.
 - **No Transactions:** Individual operations are not wrapped in Prisma transactions at this stage.
 

@@ -189,4 +189,24 @@ export class QuizService {
       },
     });
   }
+
+  /**
+   * Unpublish an existing quiz by moving it back to draft.
+   */
+  async unpublish(id: string): Promise<Quiz> {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with id ${id} not found`);
+    }
+
+    return this.prisma.quiz.update({
+      where: { id },
+      data: {
+        status: QuizStatus.DRAFT,
+      },
+    });
+  }
 }
