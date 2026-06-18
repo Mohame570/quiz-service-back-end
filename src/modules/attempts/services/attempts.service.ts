@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { AttemptStatus, Prisma } from '../../../generated/prisma/client';
+import { ScoringService } from './scoring.service';
 import { SaveAnswerItemDto } from '../dto/save-answers.dto';
 import {
   AttemptAnswerResponseDto,
@@ -17,7 +18,10 @@ import {
 
 @Injectable()
 export class AttemptsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly scoringService: ScoringService,
+  ) {}
 
   // -----------------------------------------------------------------------
   // Start
@@ -178,7 +182,8 @@ export class AttemptsService {
       throw new NotFoundException('Attempt not found.');
     }
 
-    return this.toResponseDto(updated);
+    // Sprint 2: grade the attempt immediately after it's finalised.
+    return this.scoringService.scoreAttempt(id);
   }
 
   // -----------------------------------------------------------------------
