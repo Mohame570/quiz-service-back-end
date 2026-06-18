@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
@@ -20,10 +24,32 @@ export class QuizService {
     return undefined;
   }
 
+  private isPublishing(status?: string): boolean {
+    return this.mapStatusToEnum(status) === QuizStatus.PUBLISHED;
+  }
+
+  private async ensureQuizHasQuestions(id: string): Promise<void> {
+    const questionCount = await this.prisma.question.count({
+      where: { quizId: id } as any,
+    });
+
+    if (questionCount < 1) {
+      throw new BadRequestException(
+        'Quiz must have at least one question before it can be published',
+      );
+    }
+  }
+
   /**
    * Create a new quiz
    */
   async create(createQuizDto: CreateQuizDto): Promise<Quiz> {
+    if (this.isPublishing(createQuizDto.status)) {
+      throw new BadRequestException(
+        'A new quiz cannot be created as published because it has no questions yet',
+      );
+    }
+
     return this.prisma.quiz.create({
       data: {
         title: createQuizDto.title,
@@ -53,6 +79,10 @@ export class QuizService {
 
     if (!quiz) {
       throw new NotFoundException(`Quiz with id ${id} not found`);
+    }
+
+    if (this.isPublishing(updateQuizDto.status)) {
+      await this.ensureQuizHasQuestions(id);
     }
 
     return this.prisma.quiz.update({
@@ -135,6 +165,28 @@ export class QuizService {
 
     return this.prisma.quiz.findMany({
       where,
+    });
+  }
+
+  /**
+   * Publish an existing quiz after validating that it has questions.
+   */
+  async publish(id: string): Promise<Quiz> {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with id ${id} not found`);
+    }
+
+    await this.ensureQuizHasQuestions(id);
+
+    return this.prisma.quiz.update({
+      where: { id },
+      data: {
+        status: QuizStatus.PUBLISHED,
+      },
     });
   }
 }
