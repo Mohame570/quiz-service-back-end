@@ -3,6 +3,7 @@ import {
   Get,
   Param,
   Request,
+  UseGuards,
 } from '@nestjs/common';
 
 import { StudentService } from '../services/student.service';
@@ -11,6 +12,9 @@ import {
   StudentQuizInstructionsDto,
   StudentQuizListResponseDto,
 } from '../dto';
+
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { EmailVerifiedGuard } from '../../auth/guards/email-verified.guard';
 
 // ---------------------------------------------------------------------------
 // NOTE: @UseGuards(AuthGuard) and @Request() req.user are stubbed below.
@@ -21,9 +25,10 @@ import {
 // ---------------------------------------------------------------------------
 
 function resolveStudentId(req: any): string {
-  return req.user?.sub ?? 'stub-student-id';
+  return req.user?.sub;
 }
 
+@UseGuards( JwtAuthGuard, EmailVerifiedGuard )
 @Controller('student')
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
