@@ -5,8 +5,11 @@ import {
   IsInt,
   IsDateString,
   IsNotEmpty,
+  Min,
+  Validate,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { QuizDateRangeConstraint } from './quiz-date-range.validator';
 
 export enum CreateQuizStatusEnum {
   DRAFT = 'draft',
@@ -30,7 +33,9 @@ export class CreateQuizDto {
   status!: CreateQuizStatusEnum;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
+  @Min(1)
   durationMinutes!: number;
 
   @IsOptional()
@@ -43,6 +48,7 @@ export class CreateQuizDto {
 
   @IsOptional()
   @IsDateString()
+  @Validate(QuizDateRangeConstraint)
   endsAt!: string;
 
   @IsOptional()

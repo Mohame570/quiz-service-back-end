@@ -121,6 +121,31 @@ describe('Quiz admin endpoints', () => {
     expect(prismaMock.quiz.create).not.toHaveBeenCalled();
   });
 
+  it('rejects creating a quiz with a non-positive duration', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/admin/quizzes')
+      .send({
+        title: 'Sprint 1 Quiz',
+        durationMinutes: 0,
+      });
+
+    expect(response.status).toBe(400);
+    expect(prismaMock.quiz.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a quiz when the end date is not after the start date', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/admin/quizzes')
+      .send({
+        title: 'Sprint 1 Quiz',
+        startsAt: '2026-06-20T00:00:00Z',
+        endsAt: '2026-06-20T00:00:00Z',
+      });
+
+    expect(response.status).toBe(400);
+    expect(prismaMock.quiz.create).not.toHaveBeenCalled();
+  });
+
   it('updates a quiz status through the admin patch endpoint', async () => {
     prismaMock.quiz.findUnique.mockResolvedValueOnce({
       id: 'quiz-1',
@@ -156,6 +181,38 @@ describe('Quiz admin endpoints', () => {
         status: 'PUBLISHED',
       },
     });
+  });
+
+  it('rejects updating a quiz with a non-positive duration', async () => {
+    const response = await request(app.getHttpServer())
+      .patch('/api/admin/quizzes/quiz-1')
+      .send({
+        durationMinutes: -5,
+      });
+
+    expect(response.status).toBe(400);
+    expect(prismaMock.quiz.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.quiz.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects updating a quiz when a partial date change makes the stored range invalid', async () => {
+    prismaMock.quiz.findUnique.mockResolvedValueOnce({
+      id: 'quiz-1',
+      startsAt: new Date('2026-06-15T00:00:00Z'),
+      endsAt: new Date('2026-06-20T00:00:00Z'),
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch('/api/admin/quizzes/quiz-1')
+      .send({
+        endsAt: '2026-06-10T00:00:00Z',
+      });
+
+    expect(response.status).toBe(400);
+    expect(prismaMock.quiz.findUnique).toHaveBeenCalledWith({
+      where: { id: 'quiz-1' },
+    });
+    expect(prismaMock.quiz.update).not.toHaveBeenCalled();
   });
 
   it('rejects patching a quiz to published when it has no questions', async () => {

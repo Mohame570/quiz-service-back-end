@@ -28,6 +28,35 @@ export class QuizService {
     return this.mapStatusToEnum(status) === QuizStatus.PUBLISHED;
   }
 
+  private parseNullableDate(value?: string | null): Date | null {
+    if (value === undefined) {
+      return null;
+    }
+
+    return value ? new Date(value) : null;
+  }
+
+  private isValidDate(value: Date | null): value is Date {
+    return value instanceof Date && !Number.isNaN(value.getTime());
+  }
+
+  private ensureQuizDateRangeIsValid(
+    startsAt: Date | null,
+    endsAt: Date | null,
+  ): void {
+    if (startsAt && !this.isValidDate(startsAt)) {
+      throw new BadRequestException('startsAt must be a valid date');
+    }
+
+    if (endsAt && !this.isValidDate(endsAt)) {
+      throw new BadRequestException('endsAt must be a valid date');
+    }
+
+    if (startsAt && endsAt && endsAt.getTime() <= startsAt.getTime()) {
+      throw new BadRequestException('endsAt must be after startsAt');
+    }
+  }
+
   private async ensureQuizHasQuestions(id: string): Promise<void> {
     const questionCount = await this.prisma.question.count({
       where: { quizId: id } as any,
@@ -50,6 +79,10 @@ export class QuizService {
       );
     }
 
+    const startsAt = this.parseNullableDate(createQuizDto.startsAt);
+    const endsAt = this.parseNullableDate(createQuizDto.endsAt);
+    this.ensureQuizDateRangeIsValid(startsAt, endsAt);
+
     return this.prisma.quiz.create({
       data: {
         title: createQuizDto.title,
@@ -59,10 +92,8 @@ export class QuizService {
           : QuizStatus.DRAFT,
         durationMinutes: createQuizDto.durationMinutes,
         passingScore: createQuizDto.passingScore,
-        startsAt: createQuizDto.startsAt
-          ? new Date(createQuizDto.startsAt)
-          : null,
-        endsAt: createQuizDto.endsAt ? new Date(createQuizDto.endsAt) : null,
+        startsAt,
+        endsAt,
         createdById: createQuizDto.createdById,
       },
     });
@@ -85,6 +116,17 @@ export class QuizService {
       await this.ensureQuizHasQuestions(id);
     }
 
+    const startsAt =
+      updateQuizDto.startsAt !== undefined
+        ? this.parseNullableDate(updateQuizDto.startsAt)
+        : quiz.startsAt;
+    const endsAt =
+      updateQuizDto.endsAt !== undefined
+        ? this.parseNullableDate(updateQuizDto.endsAt)
+        : quiz.endsAt;
+
+    this.ensureQuizDateRangeIsValid(startsAt, endsAt);
+
     return this.prisma.quiz.update({
       where: { id },
       data: {
@@ -104,12 +146,10 @@ export class QuizService {
           passingScore: updateQuizDto.passingScore,
         }),
         ...(updateQuizDto.startsAt !== undefined && {
-          startsAt: updateQuizDto.startsAt
-            ? new Date(updateQuizDto.startsAt)
-            : null,
+          startsAt,
         }),
         ...(updateQuizDto.endsAt !== undefined && {
-          endsAt: updateQuizDto.endsAt ? new Date(updateQuizDto.endsAt) : null,
+          endsAt,
         }),
         ...(updateQuizDto.createdById !== undefined && {
           createdById: updateQuizDto.createdById,
