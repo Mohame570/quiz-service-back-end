@@ -76,4 +76,28 @@ export class QuestionsService {
     await this.prisma.question.delete({ where: { id } });
     return question;
   }
+
+  async getQuestion(id: string) {
+    const question = await this.prisma.question.findUnique({ where: { id } });
+    if (!question) {
+      throw new NotFoundException('Question not found');
+    }
+    return question;
+  }
+
+  async getQuestions(quizId?: string) {
+    if (quizId) {
+      return this.prisma.question.findMany({ where: { quizId } });
+    }
+    return this.prisma.question.findMany();
+  }
+
+  /**
+   * Helper method for the quiz module to validate if a quiz has at least one question
+   * before allowing it to be published.
+   */
+  async validateQuizHasQuestions(quizId: string): Promise<boolean> {
+    const count = await this.prisma.question.count({ where: { quizId } });
+    return count > 0;
+  }
 }

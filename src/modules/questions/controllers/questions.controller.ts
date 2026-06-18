@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete, Query } from '@nestjs/common';
 import { QuestionsService } from '../services/questions.service';
 import { CreateQuestionDto } from '../dto/create-question.dto';
 import { UpdateQuestionDto } from '../dto/update-question.dto';
@@ -6,6 +6,16 @@ import { UpdateQuestionDto } from '../dto/update-question.dto';
 @Controller('questions')
 export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}
+
+  @Get()
+  async findAll(@Query('quizId') quizId?: string) {
+    return this.questionsService.getQuestions(quizId);
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return this.questionsService.getQuestion(id);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

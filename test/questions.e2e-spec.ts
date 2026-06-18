@@ -45,6 +45,13 @@ describe('QuestionsController (e2e)', () => {
     jest.spyOn(prisma.question, 'delete').mockImplementation((async (args: any): Promise<any> => {
       return { id: args.where.id, createdAt: new Date(), updatedAt: new Date() };
     }) as any);
+
+    jest.spyOn(prisma.question, 'findMany').mockImplementation((async (args: any): Promise<any> => {
+      if (args?.where?.quizId === 'valid-quiz-id') {
+        return [{ id: 'valid-q-id', quizId: 'valid-quiz-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', createdAt: new Date(), updatedAt: new Date() }];
+      }
+      return [];
+    }) as any);
   });
 
   afterAll(async () => {
@@ -131,5 +138,32 @@ describe('QuestionsController (e2e)', () => {
     return request(app.getHttpServer())
       .delete('/questions/valid-q-id')
       .expect(200);
+  });
+
+  it('/questions (GET) - Success list with quizId', () => {
+    return request(app.getHttpServer())
+      .get('/questions?quizId=valid-quiz-id')
+      .expect(200)
+      .expect((res: any) => {
+        expect(Array.isArray(res.body)).toBeTruthy();
+        expect(res.body.length).toBe(1);
+        expect(res.body[0].quizId).toBe('valid-quiz-id');
+      });
+  });
+
+  it('/questions/:id (GET) - Success', () => {
+    return request(app.getHttpServer())
+      .get('/questions/valid-q-id')
+      .expect(200)
+      .expect((res: any) => {
+        expect(res.body.id).toBe('valid-q-id');
+        expect(res.body.text).toBe('Old text');
+      });
+  });
+
+  it('/questions/:id (GET) - Not found', () => {
+    return request(app.getHttpServer())
+      .get('/questions/invalid-id')
+      .expect(404);
   });
 });
