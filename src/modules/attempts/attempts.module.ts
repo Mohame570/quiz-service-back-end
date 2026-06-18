@@ -4,9 +4,10 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AttemptsController } from './controllers/attempts.controller';
 import { AttemptsService } from './services/attempts.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [AttemptsController],
   providers: [AttemptsService],
   // Export the service so L6 Analytics can inject it if needed.

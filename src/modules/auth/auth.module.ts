@@ -6,6 +6,8 @@ import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AuthService } from './services/auth.service';
 import { AuthController } from './controllers/auth.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { EmailVerifiedGuard } from './guards/email-verified.guard';
 
 @Module({
   imports: [
@@ -22,7 +24,15 @@ import { NotificationsModule } from '../notifications/notifications.module';
     
   ],
   controllers: [AuthController],
-  providers: [AuthService],
-  exports: [AuthService],
+  providers: [
+    AuthService,
+    JwtAuthGuard,
+    EmailVerifiedGuard
+    ],
+  exports: [
+    AuthService,
+    JwtModule,
+    JwtAuthGuard,
+    EmailVerifiedGuard],
 })
 export class AuthModule {}
