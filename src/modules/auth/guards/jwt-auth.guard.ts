@@ -4,20 +4,23 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { UserRole } from '../../../generated/prisma/client';
+import { ConfigService } from '@nestjs/config';
 
-export interface AuthenticatedRequest {
-  headers: {
-    authorization?: string;
-  };
-  user?: {
-    sub: string;
-    email: string;
-    role: UserRole;
-  };
-}
+type JwtPayload = {
+  sub: string;
+  email: string;
+  role: string;
+};
+
+/**
+ * JwtAuthGuard
+ * -------------------------
+ * This guard checks if the request contains a valid JWT token.
+ * It verifies the token, extracts the user data (sub, email, role),
+ * and attaches it to `request.user` so it can be used in controllers.
+ * If the token is missing, invalid, or expired, the request is rejected.
+ */
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -27,20 +30,34 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    const request = context.switchToHttp().getRequest();
+
+    // 1. Extract Authorization header
+    const authHeader = request.headers.authorization;
+
+    if (!authHeader) {
+      throw new UnauthorizedException('Missing Authorization header');
+    }
+
+    // 2. Extract token from "Bearer <token>"
+    const [type, token] = authHeader.split(' ');
 
     if (type !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Bearer token is required');
+      throw new UnauthorizedException('Invalid Authorization format');
     }
 
     try {
-      request.user = await this.jwtService.verifyAsync(token, {
+      // 3. Verify token
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.configService.get<string>('jwt.secret'),
       });
+
+      // 4. Attach user to request
+      request.user = payload;
+
       return true;
     } catch {
-      throw new UnauthorizedException('Invalid or expired access token');
+      throw new UnauthorizedException('Invalid or expired token');
     }
   }
 }

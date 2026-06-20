@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Request, UseGuards } from '@nestjs/common';
 
 import {
   AuthenticatedRequest,
@@ -17,6 +11,22 @@ import {
   StudentQuizListResponseDto,
 } from '../dto';
 
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { EmailVerifiedGuard } from '../../auth/guards/email-verified.guard';
+
+// ---------------------------------------------------------------------------
+// NOTE: @UseGuards(AuthGuard) and @Request() req.user are stubbed below.
+// Mirrors the pattern used in L5's attempts controller:
+//   - L1 Auth will provide the real JWT guard.
+//   - For now, the student id is read from req.user.sub.
+//   - If absent, a stub id is used so the endpoint is testable in isolation.
+// ---------------------------------------------------------------------------
+
+function resolveStudentId(req: any): string {
+  return req.user?.sub;
+}
+
+@UseGuards(JwtAuthGuard, EmailVerifiedGuard)
 @Controller('student')
 @UseGuards(JwtAuthGuard)
 export class StudentController {
@@ -43,10 +53,7 @@ export class StudentController {
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ): Promise<StudentQuizInstructionsDto> {
-    return this.studentService.getQuizInstructions(
-      req.user!.sub,
-      id,
-    );
+    return this.studentService.getQuizInstructions(req.user!.sub, id);
   }
 
   /**
@@ -59,9 +66,7 @@ export class StudentController {
   async getActiveAttempt(
     @Request() req: AuthenticatedRequest,
   ): Promise<StudentActiveAttemptResponseDto> {
-    const attempt = await this.studentService.getActiveAttempt(
-      req.user!.sub,
-    );
+    const attempt = await this.studentService.getActiveAttempt(req.user!.sub);
     return { attempt };
   }
 }

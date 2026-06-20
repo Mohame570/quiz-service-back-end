@@ -5,7 +5,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AuthService } from './services/auth.service';
 import { AuthController } from './controllers/auth.controller';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { EmailVerifiedGuard } from './guards/email-verified.guard';
 
 @Module({
   imports: [
@@ -18,9 +20,10 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
         secret: configService.get<string>('jwt.secret'),
       }),
     }),
+    NotificationsModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard],
-  exports: [AuthService, JwtAuthGuard, JwtModule],
+  providers: [AuthService, JwtAuthGuard, EmailVerifiedGuard],
+  exports: [AuthService, JwtModule, JwtAuthGuard, EmailVerifiedGuard],
 })
 export class AuthModule {}
