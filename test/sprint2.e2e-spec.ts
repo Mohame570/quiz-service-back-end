@@ -1,17 +1,20 @@
-// src/modules/sprint2.spec.ts
-// Run: npm run test -- sprint2.spec.ts
+// test/sprint2.e2e-spec.ts
 //
-// Written against the actual repo schema:
-//   - cuid() string IDs (not UUID)
-//   - Question.correctAnswer (plain string), no separate Option table
-//   - CheatingEventLog / CheatingEventType (already on main)
+// IMPORTANT: This file MUST live in test/ (not src/modules/) and MUST be
+// named *.e2e-spec.ts to be picked up by this project's Jest config
+// (test/jest-e2e.json), which only matches "test/.*\.e2e-spec\.ts$".
+//
+// Despite the filename, this follows the same pattern as the existing
+// test/attempts.e2e-spec.ts — a mocked unit test using NestJS's
+// Test.createTestingModule with a stubbed PrismaService, not a real
+// database connection.
 
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AttemptStatus, CheatingEventType } from '../generated/prisma/client';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { ScoringService } from './attempts/services/scoring.service';
-import { IntegrityService } from './integrity/services/integrity.service';
+import { AttemptStatus, CheatingEventType } from '../src/generated/prisma/client';
+import { PrismaService } from '../src/common/prisma/prisma.service';
+import { ScoringService } from '../src/modules/attempts/services/scoring.service';
+import { IntegrityService } from '../src/modules/integrity/services/integrity.service';
 
 const STUDENT_ID = 'student_cuid_1';
 const QUIZ_ID    = 'quiz_cuid_1';
@@ -44,6 +47,7 @@ function makePrisma() {
     attempt: { findUnique: jest.fn(), update: jest.fn() },
     attemptAnswer: { update: jest.fn() },
     question: { findMany: jest.fn() },
+    result: { upsert: jest.fn() },
     cheatingEventLog: { create: jest.fn() },
     $transaction: jest.fn(),
   };
@@ -66,10 +70,6 @@ describe('ScoringService', () => {
   });
 
   afterEach(() => jest.clearAllMocks());
-
-  // -----------------------------------------------------------------------
-  // compareAnswer() — the actual comparison, tested directly
-  // -----------------------------------------------------------------------
 
   describe('compareAnswer() — real comparison against Question.correctAnswer', () => {
     it('returns true when the selected text matches correctAnswer exactly', () => {
@@ -98,10 +98,6 @@ describe('ScoringService', () => {
     });
   });
 
-  // -----------------------------------------------------------------------
-  // computePercentage()
-  // -----------------------------------------------------------------------
-
   describe('computePercentage()', () => {
     it('returns 100 when all correct', () => expect(service.computePercentage(5, 5)).toBe(100));
     it('returns 0 when score is 0', () => expect(service.computePercentage(0, 5)).toBe(0));
@@ -112,10 +108,6 @@ describe('ScoringService', () => {
     });
   });
 
-  // -----------------------------------------------------------------------
-  // scoreAttempt() — end-to-end grading run
-  // -----------------------------------------------------------------------
-
   describe('scoreAttempt()', () => {
     it('throws NotFoundException for unknown attempt', async () => {
       prisma.attempt.findUnique.mockResolvedValue(null);
@@ -124,13 +116,13 @@ describe('ScoringService', () => {
 
     it('scores 0/0 when no answers were submitted', async () => {
       prisma.attempt.findUnique.mockResolvedValue(makeAttempt({ answers: [] }));
-      prisma.attempt.update.mockResolvedValue({});
+      prisma.$transaction.mockResolvedValue([]);
       const result = await service.scoreAttempt(ATTEMPT_ID);
       expect(result.score).toBe(0);
       expect(result.maxScore).toBe(0);
     });
 
-    it('scores all-correct MCQ answers as score == maxScore', async () => {
+    it('scores all-correct answers as score == maxScore', async () => {
       const answers = [makeAnswer(Q1_ID, 'Paris'), makeAnswer(Q2_ID, 'True')];
       prisma.attempt.findUnique
         .mockResolvedValueOnce(makeAttempt({ answers }))
@@ -140,6 +132,7 @@ describe('ScoringService', () => {
         { id: Q2_ID, correctAnswer: 'True' },
       ]);
       prisma.attemptAnswer.update.mockResolvedValue({});
+      prisma.result.upsert.mockResolvedValue({});
       prisma.$transaction.mockResolvedValue([]);
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
@@ -154,6 +147,7 @@ describe('ScoringService', () => {
         .mockResolvedValueOnce(makeAttempt({ answers, score: 0, maxScore: 1 }));
       prisma.question.findMany.mockResolvedValue([{ id: Q1_ID, correctAnswer: 'Paris' }]);
       prisma.attemptAnswer.update.mockResolvedValue({});
+      prisma.result.upsert.mockResolvedValue({});
       prisma.$transaction.mockResolvedValue([]);
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
@@ -168,6 +162,7 @@ describe('ScoringService', () => {
         .mockResolvedValueOnce(makeAttempt({ answers, score: 0, maxScore: 1 }));
       prisma.question.findMany.mockResolvedValue([{ id: Q1_ID, correctAnswer: 'Paris' }]);
       prisma.attemptAnswer.update.mockResolvedValue({});
+      prisma.result.upsert.mockResolvedValue({});
       prisma.$transaction.mockResolvedValue([]);
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
@@ -176,12 +171,13 @@ describe('ScoringService', () => {
     });
 
     it('excludes a question with no matching record from maxScore', async () => {
-      const answers = [makeAnswer(Q1_ID, 'Paris')]; // question not found
+      const answers = [makeAnswer(Q1_ID, 'Paris')];
       prisma.attempt.findUnique
         .mockResolvedValueOnce(makeAttempt({ answers }))
         .mockResolvedValueOnce(makeAttempt({ answers, score: 0, maxScore: 0 }));
-      prisma.question.findMany.mockResolvedValue([]); // deleted/missing question
+      prisma.question.findMany.mockResolvedValue([]);
       prisma.attemptAnswer.update.mockResolvedValue({});
+      prisma.result.upsert.mockResolvedValue({});
       prisma.$transaction.mockResolvedValue([]);
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
@@ -191,9 +187,9 @@ describe('ScoringService', () => {
 
     it('handles a realistic mixed quiz: correct, wrong, skipped', async () => {
       const answers = [
-        makeAnswer(Q1_ID, 'Paris'),  // correct
-        makeAnswer(Q2_ID, 'False'),  // wrong (correct is True)
-        makeAnswer(Q3_ID, null),     // skipped
+        makeAnswer(Q1_ID, 'Paris'),
+        makeAnswer(Q2_ID, 'False'),
+        makeAnswer(Q3_ID, null),
       ];
       prisma.attempt.findUnique
         .mockResolvedValueOnce(makeAttempt({ answers }))
@@ -204,6 +200,7 @@ describe('ScoringService', () => {
         { id: Q3_ID, correctAnswer: 'Berlin' },
       ]);
       prisma.attemptAnswer.update.mockResolvedValue({});
+      prisma.result.upsert.mockResolvedValue({});
       prisma.$transaction.mockResolvedValue([]);
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
@@ -218,6 +215,7 @@ describe('ScoringService', () => {
         .mockResolvedValueOnce(makeAttempt({ answers, score: 1, maxScore: 1 }));
       prisma.question.findMany.mockResolvedValue([{ id: Q1_ID, correctAnswer: 'Paris' }]);
       prisma.attemptAnswer.update.mockResolvedValue({});
+      prisma.result.upsert.mockResolvedValue({});
       prisma.$transaction.mockResolvedValue([]);
 
       await service.scoreAttempt(ATTEMPT_ID);
@@ -229,14 +227,67 @@ describe('ScoringService', () => {
         }),
       );
     });
+
+    it('upserts a Result record with score, maxScore, percentage, and passed', async () => {
+      const answers = [makeAnswer(Q1_ID, 'Paris'), makeAnswer(Q2_ID, 'True')];
+      prisma.attempt.findUnique
+        .mockResolvedValueOnce(makeAttempt({ answers }))
+        .mockResolvedValueOnce(makeAttempt({ answers, score: 2, maxScore: 2 }));
+      prisma.question.findMany.mockResolvedValue([
+        { id: Q1_ID, correctAnswer: 'Paris' },
+        { id: Q2_ID, correctAnswer: 'True' },
+      ]);
+      prisma.attemptAnswer.update.mockResolvedValue({});
+      prisma.result.upsert.mockResolvedValue({});
+      prisma.$transaction.mockResolvedValue([]);
+
+      await service.scoreAttempt(ATTEMPT_ID);
+
+      expect(prisma.result.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { attemptId: ATTEMPT_ID },
+          create: expect.objectContaining({
+            attemptId: ATTEMPT_ID,
+            studentId: STUDENT_ID,
+            quizId: QUIZ_ID,
+            score: 2,
+            maxScore: 2,
+            percentage: 100,
+            passed: true,
+          }),
+        }),
+      );
+    });
+
+    it('marks passed=false when percentage is below the 50% threshold', async () => {
+      const answers = [makeAnswer(Q1_ID, 'London'), makeAnswer(Q2_ID, 'False')];
+      prisma.attempt.findUnique
+        .mockResolvedValueOnce(makeAttempt({ answers }))
+        .mockResolvedValueOnce(makeAttempt({ answers, score: 0, maxScore: 2 }));
+      prisma.question.findMany.mockResolvedValue([
+        { id: Q1_ID, correctAnswer: 'Paris' },
+        { id: Q2_ID, correctAnswer: 'True' },
+      ]);
+      prisma.attemptAnswer.update.mockResolvedValue({});
+      prisma.result.upsert.mockResolvedValue({});
+      prisma.$transaction.mockResolvedValue([]);
+
+      await service.scoreAttempt(ATTEMPT_ID);
+
+      expect(prisma.result.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ passed: false, percentage: 0 }),
+        }),
+      );
+    });
   });
 });
 
 // ===========================================================================
-// INTEGRITY SERVICE — exercising the real, existing service
+// INTEGRITY SERVICE
 // ===========================================================================
 
-describe('IntegrityService (existing L7 foundation)', () => {
+describe('IntegrityService', () => {
   let service: IntegrityService;
   let prisma: ReturnType<typeof makePrisma>;
 
