@@ -1,9 +1,6 @@
 import { Controller, Get, Param, Request, UseGuards } from '@nestjs/common';
 
-import {
-  AuthenticatedRequest,
-  JwtAuthGuard,
-} from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { StudentService } from '../services/student.service';
 import {
   StudentActiveAttemptResponseDto,
@@ -11,7 +8,6 @@ import {
   StudentQuizListResponseDto,
 } from '../dto';
 
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { EmailVerifiedGuard } from '../../auth/guards/email-verified.guard';
 
 // ---------------------------------------------------------------------------
@@ -21,10 +17,6 @@ import { EmailVerifiedGuard } from '../../auth/guards/email-verified.guard';
 //   - For now, the student id is read from req.user.sub.
 //   - If absent, a stub id is used so the endpoint is testable in isolation.
 // ---------------------------------------------------------------------------
-
-function resolveStudentId(req: any): string {
-  return req.user?.sub;
-}
 
 @UseGuards(JwtAuthGuard, EmailVerifiedGuard)
 @Controller('student')
@@ -37,9 +29,7 @@ export class StudentController {
    * Dashboard list of PUBLISHED quizzes that the current student can start.
    */
   @Get('quizzes')
-  async listQuizzes(
-    @Request() req: AuthenticatedRequest,
-  ): Promise<StudentQuizListResponseDto> {
+  async listQuizzes(@Request() req: any): Promise<StudentQuizListResponseDto> {
     return this.studentService.listQuizzesForStudent(req.user!.sub);
   }
 
@@ -51,7 +41,7 @@ export class StudentController {
   @Get('quizzes/:id')
   async getQuizInstructions(
     @Param('id') id: string,
-    @Request() req: AuthenticatedRequest,
+    @Request() req: any,
   ): Promise<StudentQuizInstructionsDto> {
     return this.studentService.getQuizInstructions(req.user!.sub, id);
   }
@@ -64,7 +54,7 @@ export class StudentController {
    */
   @Get('attempts/active')
   async getActiveAttempt(
-    @Request() req: AuthenticatedRequest,
+    @Request() req: any,
   ): Promise<StudentActiveAttemptResponseDto> {
     const attempt = await this.studentService.getActiveAttempt(req.user!.sub);
     return { attempt };
