@@ -102,9 +102,7 @@ export class StudentService {
     return {
       ...listItem,
       canStart: inWindow,
-      reasonIfBlocked: inWindow
-        ? null
-        : this.reasonForBlockedWindow(quiz, now),
+      reasonIfBlocked: inWindow ? null : this.reasonForBlockedWindow(quiz, now),
       ...(latestActiveAttempt
         ? { attemptId: latestActiveAttempt.id }
         : { attemptId: listItem.attemptId }),
