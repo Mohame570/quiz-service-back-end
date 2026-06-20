@@ -44,6 +44,7 @@ export class StudentController {
     @Request() req: any,
   ): Promise<StudentQuizInstructionsDto> {
     return this.studentService.getQuizInstructions(req.user!.sub, id);
+    return this.studentService.getQuizInstructions(req.user!.sub, id);
   }
 
   /**
@@ -56,6 +57,7 @@ export class StudentController {
   async getActiveAttempt(
     @Request() req: any,
   ): Promise<StudentActiveAttemptResponseDto> {
+    const attempt = await this.studentService.getActiveAttempt(req.user!.sub);
     const attempt = await this.studentService.getActiveAttempt(req.user!.sub);
     return { attempt };
   }
