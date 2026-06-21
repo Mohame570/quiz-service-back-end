@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { AttemptStatus, Prisma } from '../../../generated/prisma/client';
+import { analyticsEvents$ } from '../../analytics/analytics.events';
 import { SaveAnswerItemDto } from '../dto/save-answers.dto';
 import {
   AttemptAnswerResponseDto,
@@ -176,6 +177,23 @@ export class AttemptsService {
 
     if (!updated) {
       throw new NotFoundException('Attempt not found.');
+    }
+
+    // Emit analytics event for real-time updates
+    try {
+      analyticsEvents$.next({
+        type: 'attempt_submitted',
+        payload: {
+          quizId: attempt.quizId,
+          attemptId: updated.id,
+          studentId,
+          score: updated.score ?? null,
+          submittedAt: updated.submittedAt ?? null,
+        },
+      });
+    } catch (e) {
+      // swallow errors to avoid affecting normal flow
+      console.error('Failed to emit analytics event', e);
     }
 
     return this.toResponseDto(updated);
