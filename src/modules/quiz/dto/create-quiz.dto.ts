@@ -1,6 +1,5 @@
 import {
   IsString,
-  IsOptional,
   IsEnum,
   IsInt,
   IsDateString,
@@ -21,37 +20,31 @@ export class CreateQuizDto {
   @IsNotEmpty()
   title!: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   description!: string;
 
-  @IsOptional()
   @Transform(({ value }) =>
     typeof value === 'string' ? value.toLowerCase() : value,
   )
   @IsEnum(CreateQuizStatusEnum)
   status!: CreateQuizStatusEnum;
 
-  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   durationMinutes!: number;
 
-  @IsOptional()
   @IsInt()
   passingScore!: number;
 
-  @IsOptional()
   @IsDateString()
   startsAt!: string;
 
-  @IsOptional()
   @IsDateString()
   @Validate(QuizDateRangeConstraint)
   endsAt!: string;
 
-  @IsOptional()
   @IsString()
   createdById!: string;
 }
