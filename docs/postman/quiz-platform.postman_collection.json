@@ -1,0 +1,440 @@
+{
+  "info": {
+    "name": "Quiz Platform — Student Flow",
+    "_postman_id": "quiz-platform-student-flow-2026-06-23",
+    "description": "End-to-end student quiz flow. Frontend must use only /api/auth and /api/student. The /api/attempts, /api/questions, and /api/admin/quizzes endpoints are internal.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Refresh the bearer token from the collection variable",
+          "pm.collectionVariables.set('token', pm.collectionVariables.get('accessToken') || '');"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3002/api",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "studentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "quizId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "attemptId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "questionId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student@example.com\",\n  \"password\": \"Passw0rd!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', json.tokens.accessToken);",
+                  "pm.collectionVariables.set('studentId', json.user.id);",
+                  "console.log('Logged in as', json.user.email);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 Success",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"user\": {\n    \"id\": \"cm1student0000000000000abc\",\n    \"email\": \"student@example.com\",\n    \"role\": \"STUDENT\",\n    \"emailVerified\": true\n  },\n  \"tokens\": {\n    \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"tokenType\": \"Bearer\",\n    \"expiresIn\": \"3600s\"\n  }\n}"
+            },
+            {
+              "name": "401 Invalid credentials",
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Invalid credentials.\",\n  \"error\": \"Unauthorized\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Student Flow",
+      "item": [
+        {
+          "name": "GET /student/quizzes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/student/quizzes",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "quizzes"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.items && json.items.length > 0) {",
+                  "  pm.collectionVariables.set('quizId', json.items[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 Available quizzes",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"items\": [\n    {\n      \"id\": \"cm1quiz00000000000000abc\",\n      \"title\": \"Sample Quiz\",\n      \"description\": null,\n      \"durationMinutes\": 30,\n      \"passingScore\": 70,\n      \"startsAt\": null,\n      \"endsAt\": null,\n      \"questionCount\": 5,\n      \"attemptStatus\": \"NOT_STARTED\",\n      \"attemptId\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /student/quizzes/:quizId",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/student/quizzes/:quizId",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "quizzes", ":quizId"],
+              "variable": [
+                { "key": "quizId", "value": "{{quizId}}" }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 Quiz instructions",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"id\": \"cm1quiz00000000000000abc\",\n  \"title\": \"Sample Quiz\",\n  \"description\": null,\n  \"durationMinutes\": 30,\n  \"passingScore\": 70,\n  \"startsAt\": null,\n  \"endsAt\": null,\n  \"questionCount\": 5,\n  \"attemptStatus\": \"NOT_STARTED\",\n  \"attemptId\": null,\n  \"canStart\": true,\n  \"reasonIfBlocked\": null\n}"
+            },
+            {
+              "name": "404 Not found",
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Quiz not found or not available.\",\n  \"error\": \"Not Found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /student/quizzes/:quizId/start",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/student/quizzes/:quizId/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "quizzes", ":quizId", "start"],
+              "variable": [
+                { "key": "quizId", "value": "{{quizId}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('attemptId', json.id);",
+                  "if (json.answers && json.answers.length > 0) {",
+                  "  pm.collectionVariables.set('questionId', json.answers[0].questionId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 Attempt started",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"id\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"studentId\": \"cm1student0000000000000abc\",\n  \"startedAt\": \"2026-06-23T10:00:00.000Z\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"submittedAt\": null,\n  \"status\": \"IN_PROGRESS\",\n  \"score\": null,\n  \"maxScore\": null,\n  \"createdAt\": \"2026-06-23T10:00:00.000Z\",\n  \"updatedAt\": \"2026-06-23T10:00:00.000Z\",\n  \"answers\": []\n}"
+            },
+            {
+              "name": "404 Unknown quiz",
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Quiz not found or not available.\",\n  \"error\": \"Not Found\"\n}"
+            },
+            {
+              "name": "409 Duplicate active attempt",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"You already have an active attempt for this quiz.\",\n  \"error\": \"Conflict\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /student/attempts/active",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/student/attempts/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "attempts", "active"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 Active attempt present",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"attempt\": {\n    \"attemptId\": \"cm1attempt0000000000000abc\",\n    \"quizId\": \"cm1quiz00000000000000abc\",\n    \"startedAt\": \"2026-06-23T10:00:00.000Z\",\n    \"expiresAt\": \"2026-06-23T10:30:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "200 No active attempt",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"attempt\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /student/attempts/:attemptId/questions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/student/attempts/:attemptId/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "attempts", ":attemptId", "questions"],
+              "variable": [
+                { "key": "attemptId", "value": "{{attemptId}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.questions && json.questions.length > 0) {",
+                  "  pm.collectionVariables.set('questionId', json.questions[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 Questions for attempt (no correctAnswer)",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"attemptId\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"remainingSeconds\": 1740,\n  \"questions\": [\n    {\n      \"id\": \"cm1question0000000000000a\",\n      \"type\": \"MCQ\",\n      \"text\": \"What is the capital of France?\",\n      \"options\": [\"London\", \"Paris\", \"Berlin\", \"Madrid\"],\n      \"order\": 0\n    }\n  ]\n}"
+            },
+            {
+              "name": "403 Cross-student access",
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 403,\n  \"message\": \"Access denied.\",\n  \"error\": \"Forbidden\"\n}"
+            },
+            {
+              "name": "404 Attempt not found",
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Attempt not found.\",\n  \"error\": \"Not Found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "PATCH /student/attempts/:attemptId/answers",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/student/attempts/:attemptId/answers",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "attempts", ":attemptId", "answers"],
+              "variable": [
+                { "key": "attemptId", "value": "{{attemptId}}" }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"questionId\": \"{{questionId}}\", \"selectedOptionId\": \"Paris\" }\n  ]\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "200 Saved answers",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "[\n  {\n    \"id\": \"cm1answer00000000000000abc\",\n    \"attemptId\": \"cm1attempt0000000000000abc\",\n    \"questionId\": \"{{questionId}}\",\n    \"selectedOptionId\": \"Paris\",\n    \"isCorrect\": null,\n    \"answeredAt\": \"2026-06-23T10:05:00.000Z\"\n  }\n]"
+            },
+            {
+              "name": "409 Submitted attempt",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Cannot modify a 'submitted' attempt.\",\n  \"error\": \"Conflict\"\n}"
+            },
+            {
+              "name": "409 Timed out attempt",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Cannot modify a 'timed_out' attempt.\",\n  \"error\": \"Conflict\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /student/attempts/:attemptId/submit",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/student/attempts/:attemptId/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "attempts", ":attemptId", "submit"],
+              "variable": [
+                { "key": "attemptId", "value": "{{attemptId}}" }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": []\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "201 Submitted",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"id\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"studentId\": \"cm1student0000000000000abc\",\n  \"startedAt\": \"2026-06-23T10:00:00.000Z\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"submittedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"status\": \"SUBMITTED\",\n  \"score\": null,\n  \"maxScore\": null,\n  \"createdAt\": \"2026-06-23T10:00:00.000Z\",\n  \"updatedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"answers\": []\n}"
+            },
+            {
+              "name": "409 Already submitted",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Cannot submit a 'submitted' attempt.\",\n  \"error\": \"Conflict\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /student/attempts/:attemptId/result",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/student/attempts/:attemptId/result",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "attempts", ":attemptId", "result"],
+              "variable": [
+                { "key": "attemptId", "value": "{{attemptId}}" }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 Result",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"id\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"studentId\": \"cm1student0000000000000abc\",\n  \"startedAt\": \"2026-06-23T10:00:00.000Z\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"submittedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"status\": \"SUBMITTED\",\n  \"score\": null,\n  \"maxScore\": null,\n  \"createdAt\": \"2026-06-23T10:00:00.000Z\",\n  \"updatedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"answers\": [\n    {\n      \"id\": \"cm1answer00000000000000abc\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"{{questionId}}\",\n      \"selectedOptionId\": \"Paris\",\n      \"isCorrect\": null,\n      \"answeredAt\": \"2026-06-23T10:05:00.000Z\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "403 Cross-student access",
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 403,\n  \"message\": \"Access denied.\",\n  \"error\": \"Forbidden\"\n}"
+            },
+            {
+              "name": "409 Not yet submitted",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Attempt has not been submitted yet.\",\n  \"error\": \"Conflict\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

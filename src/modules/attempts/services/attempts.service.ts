@@ -37,11 +37,17 @@ export class AttemptsService {
       throw new ForbiddenException('Student profile not found.');
     }
 
+    const startedAt = new Date();
+    const expiresAt = new Date(
+      startedAt.getTime() + (quiz.durationMinutes ?? 30) * 60_000,
+    );
+
     const attempt = await this.prisma.attempt.create({
       data: {
         quizId,
         studentId,
-        startedAt: new Date(),
+        startedAt,
+        expiresAt,
         status: AttemptStatus.IN_PROGRESS,
       },
       include: { answers: true },

@@ -69,6 +69,9 @@ model Attempt {
   /// Wall-clock time when the student started the attempt.
   startedAt DateTime @default(now())
 
+  /// Persisted deadline calculated from the quiz duration when the attempt starts.
+  expiresAt DateTime
+
   /// Set when the attempt is finalised; null while in-progress.
   submittedAt DateTime?
 
@@ -86,6 +89,7 @@ model Attempt {
   @@index([studentId])
   @@index([quizId])
   @@index([studentId, quizId])
+  @@index([status, expiresAt])
   @@map("attempts")
 }
 

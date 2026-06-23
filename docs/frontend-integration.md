@@ -78,10 +78,11 @@ Until Sprint 2 lands, student and attempt controllers use a stub student id when
 | Login / Register | `/api/auth` | L1 |
 | Admin quiz list & editor | `/api/quizzes` | L2 |
 | Question bank | `/api/questions` | L3 |
-| Student dashboard & instructions | `/api/student` | L4 |
-| Quiz solving (start/save/submit) | `/api/attempts` | L5 + L4 |
+| **Student dashboard, instructions, solving, and result** | `/api/student` | **L4** |
 | Admin analytics | `/api/analytics` | L6 |
 | Email / integrity (internal) | notifications + integrity modules | L7 |
+
+> **Frontend rule:** the student UI must use only `/api/auth` and `/api/student`. The `/api/attempts`, `/api/questions`, and `/api/admin/quizzes` endpoints are internal and reserved for the Student module's `StudentAttemptOrchestrator`. Do not call them from the student frontend.
 
 Contract docs live in `docs/api/`.
 
@@ -143,7 +144,7 @@ Frontend should read Nest's default error shape:
 - [ ] Store JWT from login/register (httpOnly cookie or secure storage per team decision)
 - [ ] Send `Authorization` header on student, attempt, and admin routes
 - [ ] Handle `emailVerified: false` state after registration
-- [ ] Wire quiz solving UI to `/api/attempts` start/save/submit flow
+- [ ] Wire quiz solving UI to `/api/student` (start / questions / answers / submit / result)
 - [ ] Add tab-switch hook calling integrity endpoint (contract with L5/L7)
 
 For API payload details, always check the matching file in `docs/api/` before implementing a screen.

@@ -1,5 +1,7 @@
 # Questions Contract
 
+> **Internal use only.** These endpoints are used by the admin question bank and by the Student module's `StudentAttemptOrchestrator`. The student-facing flow does not call `/api/questions` directly — questions are returned as part of `GET /api/student/attempts/:attemptId/questions`.
+
 ## Contract Name
 
 - owner module: `Questions`

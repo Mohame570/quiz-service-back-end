@@ -1,76 +1,140 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
   Request,
   UseGuards,
 } from '@nestjs/common';
 
-import { StudentService } from '../services/student.service';
-import {
-  StudentActiveAttemptResponseDto,
-  StudentQuizInstructionsDto,
-  StudentQuizListResponseDto,
-} from '../dto';
-
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { EmailVerifiedGuard } from '../../auth/guards/email-verified.guard';
+import {
+  StudentActiveAttemptResponseDto,
+  StudentAttemptAnswerDto,
+  StudentAttemptQuestionsResponseDto,
+  StudentAttemptResponseDto,
+  StudentQuizInstructionsDto,
+  StudentQuizListResponseDto,
+  StudentSaveAnswersDto,
+  StudentSubmitAttemptDto,
+} from '../dto';
+import { StudentRoleGuard } from '../guards/student-role.guard';
+import { StudentService } from '../services/student.service';
 
 // ---------------------------------------------------------------------------
-// NOTE: @UseGuards(AuthGuard) and @Request() req.user are stubbed below.
-// Mirrors the pattern used in L5's attempts controller:
-//   - L1 Auth will provide the real JWT guard.
-//   - For now, the student id is read from req.user.sub.
-//   - If absent, a stub id is used so the endpoint is testable in isolation.
+// The Student controller is the public API surface for the frontend.
+// Frontend must not call /api/attempts, /api/questions, or /api/quizzes
+// directly. All quiz-solving flows are exposed under /api/student.
 // ---------------------------------------------------------------------------
 
-function resolveStudentId(req: any): string {
-  return req.user?.sub;
-}
-
-@UseGuards( JwtAuthGuard, EmailVerifiedGuard )
+@UseGuards(JwtAuthGuard, EmailVerifiedGuard, StudentRoleGuard)
 @Controller('student')
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
-  /**
-   * GET /api/student/quizzes
-   * Dashboard list of PUBLISHED quizzes that the current student can start.
-   */
+  // -------------------------------------------------------------------------
+  // GET /api/student/quizzes
+  // -------------------------------------------------------------------------
+
   @Get('quizzes')
   async listQuizzes(@Request() req: any): Promise<StudentQuizListResponseDto> {
-    return this.studentService.listQuizzesForStudent(resolveStudentId(req));
+    return this.studentService.listQuizzesForStudent(req.user.sub);
   }
 
-  /**
-   * GET /api/student/quizzes/:id
-   * Quiz instructions / pre-start screen.
-   * Throws 404 if the quiz is not PUBLISHED.
-   */
-  @Get('quizzes/:id')
+  // -------------------------------------------------------------------------
+  // GET /api/student/quizzes/:quizId
+  // -------------------------------------------------------------------------
+
+  @Get('quizzes/:quizId')
   async getQuizInstructions(
-    @Param('id') id: string,
+    @Param('quizId', new ParseUUIDPipe()) quizId: string,
     @Request() req: any,
   ): Promise<StudentQuizInstructionsDto> {
-    return this.studentService.getQuizInstructions(
-      resolveStudentId(req),
-      id,
-    );
+    return this.studentService.getQuizInstructions(req.user.sub, quizId);
   }
 
-  /**
-   * GET /api/student/attempts/active
-   * Returns the most recent IN_PROGRESS attempt for the current student,
-   * wrapped in `{ attempt: ... }`. The inner value is `null` if none.
-   * Useful for resume-after-reload.
-   */
+  // -------------------------------------------------------------------------
+  // POST /api/student/quizzes/:quizId/start
+  // -------------------------------------------------------------------------
+
+  @Post('quizzes/:quizId/start')
+  async startQuizAttempt(
+    @Param('quizId', new ParseUUIDPipe()) quizId: string,
+    @Request() req: any,
+  ): Promise<StudentAttemptResponseDto> {
+    return this.studentService.startAttempt(req.user.sub, quizId);
+  }
+
+  // -------------------------------------------------------------------------
+  // GET /api/student/attempts/active
+  // -------------------------------------------------------------------------
+
   @Get('attempts/active')
   async getActiveAttempt(
     @Request() req: any,
   ): Promise<StudentActiveAttemptResponseDto> {
-    const attempt = await this.studentService.getActiveAttempt(
-      resolveStudentId(req),
+    return this.studentService.getActiveAttempt(req.user.sub);
+  }
+
+  // -------------------------------------------------------------------------
+  // GET /api/student/attempts/:attemptId/questions
+  // -------------------------------------------------------------------------
+
+  @Get('attempts/:attemptId/questions')
+  async getAttemptQuestions(
+    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Request() req: any,
+  ): Promise<StudentAttemptQuestionsResponseDto> {
+    return this.studentService.getAttemptQuestions(req.user.sub, attemptId);
+  }
+
+  // -------------------------------------------------------------------------
+  // PATCH /api/student/attempts/:attemptId/answers
+  // -------------------------------------------------------------------------
+
+  @Patch('attempts/:attemptId/answers')
+  async saveAnswers(
+    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Body() dto: StudentSaveAnswersDto,
+    @Request() req: any,
+  ): Promise<StudentAttemptAnswerDto[]> {
+    return this.studentService.saveAttemptAnswers(
+      req.user.sub,
+      attemptId,
+      dto.answers,
     );
-    return { attempt };
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /api/student/attempts/:attemptId/submit
+  // -------------------------------------------------------------------------
+
+  @Post('attempts/:attemptId/submit')
+  async submitAttempt(
+    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Body() dto: StudentSubmitAttemptDto,
+    @Request() req: any,
+  ): Promise<StudentAttemptResponseDto> {
+    return this.studentService.submitAttempt(
+      req.user.sub,
+      attemptId,
+      dto.answers ?? [],
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // GET /api/student/attempts/:attemptId/result
+  // -------------------------------------------------------------------------
+
+  @Get('attempts/:attemptId/result')
+  async getAttemptResult(
+    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Request() req: any,
+  ): Promise<StudentAttemptResponseDto> {
+    return this.studentService.getAttemptResult(req.user.sub, attemptId);
   }
 }
