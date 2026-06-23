@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
@@ -20,10 +24,65 @@ export class QuizService {
     return undefined;
   }
 
+  private isPublishing(status?: string): boolean {
+    return this.mapStatusToEnum(status) === QuizStatus.PUBLISHED;
+  }
+
+  private parseNullableDate(value?: string | null): Date | null {
+    if (value === undefined) {
+      return null;
+    }
+
+    return value ? new Date(value) : null;
+  }
+
+  private isValidDate(value: Date | null): value is Date {
+    return value instanceof Date && !Number.isNaN(value.getTime());
+  }
+
+  private ensureQuizDateRangeIsValid(
+    startsAt: Date | null,
+    endsAt: Date | null,
+  ): void {
+    if (startsAt && !this.isValidDate(startsAt)) {
+      throw new BadRequestException('startsAt must be a valid date');
+    }
+
+    if (endsAt && !this.isValidDate(endsAt)) {
+      throw new BadRequestException('endsAt must be a valid date');
+    }
+
+    if (startsAt && endsAt && endsAt.getTime() <= startsAt.getTime()) {
+      throw new BadRequestException('endsAt must be after startsAt');
+    }
+  }
+
+  private async ensureQuizHasQuestions(id: string): Promise<void> {
+    const questionCount = await this.prisma.question.count({
+      where: { quizId: id } as any,
+    });
+
+    if (questionCount < 1) {
+      throw new BadRequestException(
+        'Quiz must have at least one question before it can be published',
+      );
+    }
+  }
+
   /**
    * Create a new quiz
    */
   async create(createQuizDto: CreateQuizDto): Promise<Quiz> {
+    if (this.isPublishing(createQuizDto.status)) {
+      throw new BadRequestException(
+        'A new quiz cannot be created as published because it has no questions yet',
+      );
+    }
+
+    const startsAt = this.parseNullableDate(createQuizDto.startsAt);
+    const endsAt = this.parseNullableDate(createQuizDto.endsAt);
+    this.ensureQuizDateRangeIsValid(startsAt, endsAt);
+
     return this.prisma.quiz.create({
       data: {
         title: createQuizDto.title,
@@ -33,10 +92,8 @@ export class QuizService {
           : QuizStatus.DRAFT,
         durationMinutes: createQuizDto.durationMinutes,
         passingScore: createQuizDto.passingScore,
-        startsAt: createQuizDto.startsAt
-          ? new Date(createQuizDto.startsAt)
-          : null,
-        endsAt: createQuizDto.endsAt ? new Date(createQuizDto.endsAt) : null,
+        startsAt,
+        endsAt,
         createdById: createQuizDto.createdById,
       },
     });
@@ -54,6 +111,21 @@ export class QuizService {
     if (!quiz) {
       throw new NotFoundException(`Quiz with id ${id} not found`);
     }
+
+    if (this.isPublishing(updateQuizDto.status)) {
+      await this.ensureQuizHasQuestions(id);
+    }
+
+    const startsAt =
+      updateQuizDto.startsAt !== undefined
+        ? this.parseNullableDate(updateQuizDto.startsAt)
+        : quiz.startsAt;
+    const endsAt =
+      updateQuizDto.endsAt !== undefined
+        ? this.parseNullableDate(updateQuizDto.endsAt)
+        : quiz.endsAt;
+
+    this.ensureQuizDateRangeIsValid(startsAt, endsAt);
 
     return this.prisma.quiz.update({
       where: { id },
@@ -74,12 +146,10 @@ export class QuizService {
           passingScore: updateQuizDto.passingScore,
         }),
         ...(updateQuizDto.startsAt !== undefined && {
-          startsAt: updateQuizDto.startsAt
-            ? new Date(updateQuizDto.startsAt)
-            : null,
+          startsAt,
         }),
         ...(updateQuizDto.endsAt !== undefined && {
-          endsAt: updateQuizDto.endsAt ? new Date(updateQuizDto.endsAt) : null,
+          endsAt,
         }),
         ...(updateQuizDto.createdById !== undefined && {
           createdById: updateQuizDto.createdById,
@@ -135,6 +205,48 @@ export class QuizService {
 
     return this.prisma.quiz.findMany({
       where,
+    });
+  }
+
+  /**
+   * Publish an existing quiz after validating that it has questions.
+   */
+  async publish(id: string): Promise<Quiz> {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with id ${id} not found`);
+    }
+
+    await this.ensureQuizHasQuestions(id);
+
+    return this.prisma.quiz.update({
+      where: { id },
+      data: {
+        status: QuizStatus.PUBLISHED,
+      },
+    });
+  }
+
+  /**
+   * Unpublish an existing quiz by moving it back to draft.
+   */
+  async unpublish(id: string): Promise<Quiz> {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with id ${id} not found`);
+    }
+
+    return this.prisma.quiz.update({
+      where: { id },
+      data: {
+        status: QuizStatus.DRAFT,
+      },
     });
   }
 }

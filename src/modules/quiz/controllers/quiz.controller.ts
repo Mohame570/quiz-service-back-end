@@ -7,6 +7,8 @@ import {
   Body,
   Param,
   Query,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { QuizService } from '../services/quiz.service';
 import { CreateQuizDto } from '../dto/create-quiz.dto';
@@ -25,6 +27,26 @@ export class QuizController {
   @Post()
   async create(@Body() createQuizDto: CreateQuizDto): Promise<Quiz> {
     return this.quizService.create(createQuizDto);
+  }
+
+  /**
+   * POST /api/admin/quizzes/:id/publish
+   * Publish a quiz after verifying it has at least one question
+   */
+  @Post(':id/publish')
+  @HttpCode(HttpStatus.OK)
+  async publish(@Param('id') id: string): Promise<Quiz> {
+    return this.quizService.publish(id);
+  }
+
+  /**
+   * POST /api/admin/quizzes/:id/unpublish
+   * Move a quiz back to draft
+   */
+  @Post(':id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  async unpublish(@Param('id') id: string): Promise<Quiz> {
+    return this.quizService.unpublish(id);
   }
 
   /**
