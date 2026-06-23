@@ -60,7 +60,7 @@ enum QuestionType {
 // -----------------------------------------------------------------------
 
 model Attempt {
-  id        String        @id @default(cuid())
+  id        String        @id @default(uuid())
   quizId    String
   quiz      Quiz          @relation(fields: [quizId], references: [id])
   studentId String
@@ -85,6 +85,7 @@ model Attempt {
   updatedAt DateTime @updatedAt
 
   answers AttemptAnswer[]
+  result  Result?
 
   @@index([studentId])
   @@index([quizId])
@@ -225,3 +226,24 @@ model Question {
   @@index([quizId])
   @@map("questions")
 }
+
+// Result model — populated by ScoringService after submission
+model Result {
+  id         String   @id @default(cuid())
+  attemptId  String   @unique
+  studentId  String
+  quizId     String
+  score      Int
+  maxScore   Int
+  percentage Float
+  passed     Boolean
+  gradedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  attempt    Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  @@index([studentId])
+  @@index([quizId])
+  @@index([passed])
+  @@map("results")
+}
+

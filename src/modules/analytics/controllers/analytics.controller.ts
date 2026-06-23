@@ -1,7 +1,10 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Sse, MessageEvent } from '@nestjs/common';
 import { AnalyticsService } from '../services/analytics.service';
 import { DashboardSummaryDto } from '../dto/dashboard-summary.dto';
 import { QuizAttemptsResponseDto } from '../dto/quiz-attempts-response.dto';
+import { analyticsEvents$ } from '../analytics.events';
+import { map } from 'rxjs/operators';
+import { Observable } from 'rxjs';
 
 @Controller('analytics')
 export class AnalyticsController {
@@ -12,11 +15,16 @@ export class AnalyticsController {
     return this.analyticsService.getAnalytics();
   }
 
-  @Get('quizzes/:quizId/attempts')
+  @Get('quizzes/:quizTitle/attempts')
   async getQuizAttempts(
-    @Param('quizId') quizId: string,
+    @Param('quizTitle') quizTitle: string,
   ): Promise<QuizAttemptsResponseDto> {
-    return this.analyticsService.getQuizAttempts(quizId);
+    return this.analyticsService.getQuizAttempts(quizTitle);
+  }
+
+  @Sse('events')
+  stream(): Observable<MessageEvent> {
+    return analyticsEvents$.pipe(map((payload) => ({ data: payload })));
   }
 }
 

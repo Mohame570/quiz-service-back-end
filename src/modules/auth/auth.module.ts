@@ -21,18 +21,9 @@ import { EmailVerifiedGuard } from './guards/email-verified.guard';
       }),
     }),
     NotificationsModule,
-    
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    JwtAuthGuard,
-    EmailVerifiedGuard
-    ],
-  exports: [
-    AuthService,
-    JwtModule,
-    JwtAuthGuard,
-    EmailVerifiedGuard],
+  providers: [AuthService, JwtAuthGuard, EmailVerifiedGuard],
+  exports: [AuthService, JwtModule, JwtAuthGuard, EmailVerifiedGuard],
 })
 export class AuthModule {}

@@ -1,7 +1,4 @@
-import {
-  LIVE_API_BASE_URL,
-  waitForApi,
-} from './helpers/live-client';
+import { LIVE_API_BASE_URL, waitForApi } from './helpers/live-client';
 
 const runLiveTests = process.env.LIVE_TESTS === '1';
 
@@ -71,7 +68,7 @@ async function deleteQuizIfPresent(id: string | null): Promise<void> {
       const startsAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const endsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
       let createdQuizId: string | null = null;
-
+      const createdById = 'cmqmalcro0000zgud0fnpw5go'; // coming from seed do not change or test will fail;
       try {
         const createResult = await fetchJson<CreatedQuiz>('/admin/quizzes', {
           method: 'POST',
@@ -83,8 +80,12 @@ async function deleteQuizIfPresent(id: string | null): Promise<void> {
             passingScore: 70,
             startsAt,
             endsAt,
+            createdById,
           }),
         });
+
+        console.log('Status:', createResult.status);
+        console.log('Body:', createResult.body);
 
         expect(createResult.status).toBe(201);
         expect(createResult.body.title).toBe(quizTitle);

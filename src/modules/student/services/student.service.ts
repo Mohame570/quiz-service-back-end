@@ -144,9 +144,7 @@ export class StudentService {
     return {
       ...listItem,
       canStart: inWindow,
-      reasonIfBlocked: inWindow
-        ? null
-        : this.reasonForBlockedWindow(quiz, now),
+      reasonIfBlocked: inWindow ? null : this.reasonForBlockedWindow(quiz, now),
       ...(latestActiveAttempt
         ? { attemptId: latestActiveAttempt.id }
         : { attemptId: listItem.attemptId }),
@@ -242,9 +240,7 @@ export class StudentService {
     const refreshed = await this.autoFinalizeIfExpired(attempt);
 
     if (refreshed.status !== AttemptStatus.IN_PROGRESS) {
-      throw new ConflictException(
-        'Attempt is no longer in progress.',
-      );
+      throw new ConflictException('Attempt is no longer in progress.');
     }
 
     const questions = (await this.orchestrator.listQuizQuestions(
@@ -378,7 +374,9 @@ export class StudentService {
     return attempt as AttemptRow;
   }
 
-  private async autoFinalizeIfExpired(attempt: AttemptRow): Promise<AttemptRow> {
+  private async autoFinalizeIfExpired(
+    attempt: AttemptRow,
+  ): Promise<AttemptRow> {
     if (attempt.status !== AttemptStatus.IN_PROGRESS) {
       return attempt;
     }
