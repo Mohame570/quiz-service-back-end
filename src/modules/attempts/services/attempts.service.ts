@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { AttemptStatus, Prisma } from '../../../generated/prisma/client';
+import { ScoringService } from './scoring.service';
 import { analyticsEvents$ } from '../../analytics/analytics.events';
 import { SaveAnswerItemDto } from '../dto/save-answers.dto';
 import {
@@ -18,7 +19,10 @@ import {
 
 @Injectable()
 export class AttemptsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly scoringService: ScoringService,
+  ) {}
 
   // -----------------------------------------------------------------------
   // Start
@@ -196,7 +200,8 @@ export class AttemptsService {
       console.error('Failed to emit analytics event', e);
     }
 
-    return this.toResponseDto(updated);
+    // Sprint 2: grade the attempt immediately after it's finalised.
+    return this.scoringService.scoreAttempt(id);
   }
 
   // -----------------------------------------------------------------------
