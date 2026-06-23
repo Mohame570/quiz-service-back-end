@@ -30,9 +30,19 @@ import {
 } from './attempt-timer.util';
 
 /// Student-facing response shape: the attempts module's full response with
-/// the student-only `expiresAt` field appended. The service returns the
-/// orchestrator's `AttemptResponseDto` and spreads `expiresAt` on top of it.
-type StudentAttemptResponse = AttemptResponseDto & { expiresAt: Date };
+/// the student-only `expiresAt` field and the `Result` summary appended.
+/// The service returns the orchestrator's `AttemptResponseDto` and merges
+/// `expiresAt` + the `Result` row on top of it.
+export interface StudentAttemptResultSummary {
+  percentage: number;
+  passed: boolean;
+  gradedAt: Date;
+}
+
+type StudentAttemptResponse = AttemptResponseDto & {
+  expiresAt: Date;
+  result: StudentAttemptResultSummary | null;
+};
 
 interface AttemptRow {
   id: string;
@@ -225,7 +235,7 @@ export class StudentService {
       data: { expiresAt },
     });
 
-    return { ...created, expiresAt };
+    return { ...created, expiresAt, result: null };
   }
 
   // -------------------------------------------------------------------------
@@ -316,7 +326,7 @@ export class StudentService {
     }
 
     if (refreshed.status === AttemptStatus.TIMED_OUT) {
-      return this.withExpiresAt(
+      return this.withAttemptMetadata(
         attemptId,
         await this.orchestrator.getResult(attemptId, studentId),
       );
@@ -327,7 +337,7 @@ export class StudentService {
       await this.orchestrator.saveAnswers(attemptId, studentId, items);
     }
 
-    return this.withExpiresAt(
+    return this.withAttemptMetadata(
       attemptId,
       await this.orchestrator.submit(attemptId, studentId, []),
     );
@@ -348,7 +358,7 @@ export class StudentService {
       throw new ConflictException('Attempt has not been submitted yet.');
     }
 
-    return this.withExpiresAt(
+    return this.withAttemptMetadata(
       attemptId,
       await this.orchestrator.getResult(attemptId, studentId),
     );
@@ -472,17 +482,30 @@ export class StudentService {
     return a.id.localeCompare(b.id);
   }
 
-  private async withExpiresAt(
+  private async withAttemptMetadata(
     attemptId: string,
     attempt: AttemptResponseDto,
   ): Promise<StudentAttemptResponse> {
-    const row = await this.prisma.attempt.findUnique({
-      where: { id: attemptId },
-      select: { expiresAt: true },
-    });
-    if (!row) {
+    const [attemptRow, resultRow] = await Promise.all([
+      this.prisma.attempt.findUnique({
+        where: { id: attemptId },
+        select: { expiresAt: true },
+      }),
+      this.prisma.result.findUnique({ where: { attemptId } }),
+    ]);
+    if (!attemptRow) {
       throw new NotFoundException('Attempt not found.');
     }
-    return { ...attempt, expiresAt: row.expiresAt };
+    return {
+      ...attempt,
+      expiresAt: attemptRow.expiresAt,
+      result: resultRow
+        ? {
+            percentage: resultRow.percentage,
+            passed: resultRow.passed,
+            gradedAt: resultRow.gradedAt,
+          }
+        : null,
+    };
   }
 }

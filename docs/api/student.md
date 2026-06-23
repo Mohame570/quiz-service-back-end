@@ -171,7 +171,7 @@ Incrementally save or update answers. Upserts by `(attemptId, questionId)`.
 ]
 ```
 
-`isCorrect` is `null` until the scoring service runs (Sprint 2).
+`isCorrect` is `null` while the attempt is `IN_PROGRESS` and gets populated by the auto-scoring service when the attempt is submitted.
 
 **Errors:**
 - `404 Attempt not found.`
@@ -190,7 +190,48 @@ Finalise the attempt. If the attempt is expired at submit time, the server auto-
 { "answers": [] }
 ```
 
-**Response 201** — full `StudentAttemptResponseDto` with `status: 'SUBMITTED'` and `score: null` (scoring deferred).
+**Response 201** — full `StudentAttemptResponseDto` with `status: 'SUBMITTED'`, scored by `ScoringService` on submit:
+
+```json
+{
+  "id": "cm1attempt0000000000000abc",
+  "quizId": "cm1quiz00000000000000abc",
+  "studentId": "cm1student0000000000000abc",
+  "startedAt": "2026-06-23T10:00:00.000Z",
+  "expiresAt": "2026-06-23T10:30:00.000Z",
+  "submittedAt": "2026-06-23T10:25:00.000Z",
+  "status": "SUBMITTED",
+  "score": 3,
+  "maxScore": 5,
+  "createdAt": "2026-06-23T10:00:00.000Z",
+  "updatedAt": "2026-06-23T10:25:00.000Z",
+  "answers": [
+    {
+      "id": "cm1answer00000000000000a1",
+      "attemptId": "cm1attempt0000000000000abc",
+      "questionId": "cm1question0000000000000a",
+      "selectedOptionId": "Paris",
+      "isCorrect": true,
+      "answeredAt": "2026-06-23T10:05:00.000Z"
+    },
+    {
+      "id": "cm1answer00000000000000a2",
+      "attemptId": "cm1attempt0000000000000abc",
+      "questionId": "cm1question0000000000000b",
+      "selectedOptionId": "Berlin",
+      "isCorrect": false,
+      "answeredAt": "2026-06-23T10:07:00.000Z"
+    }
+  ],
+  "result": {
+    "percentage": 60.0,
+    "passed": true,
+    "gradedAt": "2026-06-23T10:25:00.500Z"
+  }
+}
+```
+
+`result` is `null` while the attempt is `IN_PROGRESS` and for `TIMED_OUT` attempts (where `ScoringService` was not called). The frontend does not need a separate `GET /api/results/:attemptId` call.
 
 **Errors:** `404`, `403`, `409 Cannot submit a 'submitted' attempt.`
 
@@ -198,7 +239,48 @@ Finalise the attempt. If the attempt is expired at submit time, the server auto-
 
 Read the result of a finalised attempt. If the attempt is expired and never submitted, the server auto-finalises it before returning. Results remain accessible after a timeout.
 
-**Response 200** — full `StudentAttemptResponseDto` with `answers` and `score: null` / `maxScore: null`.
+**Response 200** — full `StudentAttemptResponseDto` with the scored `answers` and the `Result` summary:
+
+```json
+{
+  "id": "cm1attempt0000000000000abc",
+  "quizId": "cm1quiz00000000000000abc",
+  "studentId": "cm1student0000000000000abc",
+  "startedAt": "2026-06-23T10:00:00.000Z",
+  "expiresAt": "2026-06-23T10:30:00.000Z",
+  "submittedAt": "2026-06-23T10:25:00.000Z",
+  "status": "SUBMITTED",
+  "score": 3,
+  "maxScore": 5,
+  "createdAt": "2026-06-23T10:00:00.000Z",
+  "updatedAt": "2026-06-23T10:25:00.000Z",
+  "answers": [
+    {
+      "id": "cm1answer00000000000000a1",
+      "attemptId": "cm1attempt0000000000000abc",
+      "questionId": "cm1question0000000000000a",
+      "selectedOptionId": "Paris",
+      "isCorrect": true,
+      "answeredAt": "2026-06-23T10:05:00.000Z"
+    },
+    {
+      "id": "cm1answer00000000000000a2",
+      "attemptId": "cm1attempt0000000000000abc",
+      "questionId": "cm1question0000000000000b",
+      "selectedOptionId": "Berlin",
+      "isCorrect": false,
+      "answeredAt": "2026-06-23T10:07:00.000Z"
+    }
+  ],
+  "result": {
+    "percentage": 60.0,
+    "passed": true,
+    "gradedAt": "2026-06-23T10:25:00.500Z"
+  }
+}
+```
+
+`result` is `null` while the attempt is `IN_PROGRESS` and for `TIMED_OUT` attempts (where `ScoringService` was not called). The frontend does not need a separate `GET /api/results/:attemptId` call.
 
 **Errors:**
 - `404 Attempt not found.`

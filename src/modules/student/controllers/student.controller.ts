@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   Request,
@@ -52,7 +51,7 @@ export class StudentController {
 
   @Get('quizzes/:quizId')
   async getQuizInstructions(
-    @Param('quizId', new ParseUUIDPipe()) quizId: string,
+    @Param('quizId') quizId: string,
     @Request() req: any,
   ): Promise<StudentQuizInstructionsDto> {
     return this.studentService.getQuizInstructions(req.user.sub, quizId);
@@ -64,7 +63,7 @@ export class StudentController {
 
   @Post('quizzes/:quizId/start')
   async startQuizAttempt(
-    @Param('quizId', new ParseUUIDPipe()) quizId: string,
+    @Param('quizId') quizId: string,
     @Request() req: any,
   ): Promise<StudentAttemptResponseDto> {
     return this.studentService.startAttempt(req.user.sub, quizId);
@@ -87,7 +86,7 @@ export class StudentController {
 
   @Get('attempts/:attemptId/questions')
   async getAttemptQuestions(
-    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Param('attemptId') attemptId: string,
     @Request() req: any,
   ): Promise<StudentAttemptQuestionsResponseDto> {
     return this.studentService.getAttemptQuestions(req.user.sub, attemptId);
@@ -99,7 +98,7 @@ export class StudentController {
 
   @Patch('attempts/:attemptId/answers')
   async saveAnswers(
-    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Param('attemptId') attemptId: string,
     @Body() dto: StudentSaveAnswersDto,
     @Request() req: any,
   ): Promise<StudentAttemptAnswerDto[]> {
@@ -116,7 +115,7 @@ export class StudentController {
 
   @Post('attempts/:attemptId/submit')
   async submitAttempt(
-    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Param('attemptId') attemptId: string,
     @Body() dto: StudentSubmitAttemptDto,
     @Request() req: any,
   ): Promise<StudentAttemptResponseDto> {
@@ -133,7 +132,7 @@ export class StudentController {
 
   @Get('attempts/:attemptId/result')
   async getAttemptResult(
-    @Param('attemptId', new ParseUUIDPipe()) attemptId: string,
+    @Param('attemptId') attemptId: string,
     @Request() req: any,
   ): Promise<StudentAttemptResponseDto> {
     return this.studentService.getAttemptResult(req.user.sub, attemptId);

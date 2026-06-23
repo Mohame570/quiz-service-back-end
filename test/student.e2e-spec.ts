@@ -93,8 +93,17 @@ function makePrismaMock() {
     question: {
       findMany: jest.fn(),
     },
+    result: {
+      findUnique: jest.fn(),
+    },
   };
 }
+
+const RESULT_ROW = {
+  percentage: 60,
+  passed: true,
+  gradedAt: new Date('2026-06-23T10:25:00.500Z'),
+};
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -792,7 +801,7 @@ describe('StudentService', () => {
   // -------------------------------------------------------------------------
 
   describe('submitAttempt()', () => {
-    it('delegates to the orchestrator and returns score: null', async () => {
+    it('delegates to the orchestrator and surfaces the Result summary', async () => {
       const startedAt = new Date();
       const expiresAt = new Date(startedAt.getTime() + 30 * 60_000);
       prisma.attempt.findUnique.mockResolvedValueOnce(
@@ -814,13 +823,42 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce({
         expiresAt,
       });
+      prisma.result.findUnique.mockResolvedValueOnce(RESULT_ROW);
 
       const result = await service.submitAttempt(STUDENT_ID, ATTEMPT_ID, []);
 
       expect(result.status).toBe(AttemptStatus.SUBMITTED);
-      expect(result.score).toBeNull();
-      expect(result.maxScore).toBeNull();
       expect(result.expiresAt).toEqual(expiresAt);
+      expect(result.result).toEqual(RESULT_ROW);
+    });
+
+    it('returns result: null when no Result row exists yet', async () => {
+      const startedAt = new Date();
+      const expiresAt = new Date(startedAt.getTime() + 30 * 60_000);
+      prisma.attempt.findUnique.mockResolvedValueOnce(
+        makeAttempt({ startedAt, expiresAt }),
+      );
+      orchestrator.submit.mockResolvedValueOnce({
+        id: ATTEMPT_ID,
+        quizId: QUIZ_PUBLISHED_ACTIVE,
+        studentId: STUDENT_ID,
+        startedAt,
+        submittedAt: new Date(),
+        status: AttemptStatus.SUBMITTED,
+        score: null,
+        maxScore: null,
+        createdAt: startedAt,
+        updatedAt: new Date(),
+        answers: [],
+      });
+      prisma.attempt.findUnique.mockResolvedValueOnce({
+        expiresAt,
+      });
+      prisma.result.findUnique.mockResolvedValueOnce(null);
+
+      const result = await service.submitAttempt(STUDENT_ID, ATTEMPT_ID, []);
+
+      expect(result.result).toBeNull();
     });
 
     it('throws ConflictException for an already SUBMITTED attempt', async () => {
@@ -860,10 +898,12 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce({
         expiresAt,
       });
+      prisma.result.findUnique.mockResolvedValueOnce(null);
 
       const result = await service.submitAttempt(STUDENT_ID, ATTEMPT_ID, []);
 
       expect(result.status).toBe(AttemptStatus.TIMED_OUT);
+      expect(result.result).toBeNull();
       expect(orchestrator.submit).not.toHaveBeenCalled();
     });
   });
@@ -873,7 +913,7 @@ describe('StudentService', () => {
   // -------------------------------------------------------------------------
 
   describe('getAttemptResult()', () => {
-    it('returns the result for a SUBMITTED attempt', async () => {
+    it('returns the result for a SUBMITTED attempt with the Result summary', async () => {
       prisma.attempt.findUnique
         .mockResolvedValueOnce(
           makeAttempt({
@@ -906,11 +946,44 @@ describe('StudentService', () => {
           },
         ],
       });
+      prisma.result.findUnique.mockResolvedValueOnce(RESULT_ROW);
 
       const result = await service.getAttemptResult(STUDENT_ID, ATTEMPT_ID);
 
       expect(result.status).toBe(AttemptStatus.SUBMITTED);
       expect(result.answers).toHaveLength(1);
+      expect(result.result).toEqual(RESULT_ROW);
+    });
+
+    it('returns result: null for a SUBMITTED attempt with no Result row', async () => {
+      prisma.attempt.findUnique
+        .mockResolvedValueOnce(
+          makeAttempt({
+            status: AttemptStatus.SUBMITTED,
+            submittedAt: new Date(),
+          }),
+        )
+        .mockResolvedValueOnce({
+          expiresAt: new Date('2099-01-01T10:30:00Z'),
+        });
+      orchestrator.getResult.mockResolvedValueOnce({
+        id: ATTEMPT_ID,
+        quizId: QUIZ_PUBLISHED_ACTIVE,
+        studentId: STUDENT_ID,
+        startedAt: new Date(),
+        submittedAt: new Date(),
+        status: AttemptStatus.SUBMITTED,
+        score: null,
+        maxScore: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        answers: [],
+      });
+      prisma.result.findUnique.mockResolvedValueOnce(null);
+
+      const result = await service.getAttemptResult(STUDENT_ID, ATTEMPT_ID);
+
+      expect(result.result).toBeNull();
     });
 
     it('throws ForbiddenException for another student\'s attempt', async () => {
@@ -950,10 +1023,12 @@ describe('StudentService', () => {
         updatedAt: new Date(),
         answers: [],
       });
+      prisma.result.findUnique.mockResolvedValueOnce(null);
 
       const result = await service.getAttemptResult(STUDENT_ID, ATTEMPT_ID);
 
       expect(result.status).toBe(AttemptStatus.TIMED_OUT);
+      expect(result.result).toBeNull();
     });
   });
 });

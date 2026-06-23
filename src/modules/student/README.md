@@ -44,6 +44,16 @@ All endpoints are guarded by `JwtAuthGuard`, `EmailVerifiedGuard`, and `StudentR
 
 `Quiz` reads are done directly via `PrismaService`.
 
+## Auto-scoring
+
+`POST /api/student/attempts/:attemptId/submit` triggers `ScoringService.scoreAttempt()` inside `AttemptsService.submit`, which:
+
+- Compares each `AttemptAnswer.selectedOptionId` against `Question.correctAnswer` and sets `AttemptAnswer.isCorrect`.
+- Computes `Attempt.score` and `Attempt.maxScore` and persists them.
+- Upserts a `Result` row with `score`, `maxScore`, `percentage`, `passed`, `gradedAt`.
+
+The student-facing response carries the scored `score`, `maxScore`, per-answer `isCorrect`, and the `Result` summary as `response.result = { percentage, passed, gradedAt }`. `result` is `null` while the attempt is `IN_PROGRESS` and for `TIMED_OUT` attempts (where `ScoringService` was not called). The frontend does not need a separate `GET /api/results/:attemptId` call.
+
 ## Tests
 
 ```bash

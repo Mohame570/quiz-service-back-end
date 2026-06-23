@@ -152,6 +152,8 @@ const runLive = process.env.LIVE_TESTS === '1';
 
 ## Related docs
 
+- `docs/testing/student-live-testing.md` — L4 student API walkthrough
+- `docs/testing/quiz-live-testing.md` — admin quiz API walkthrough
 - `docs/testing/notifications-live-testing.md` — L7 notifications walkthrough
 - `CONTRIBUTING.md` — branch workflow and quality gates
 - `prisma/README.md` — migrations and Prisma CLI

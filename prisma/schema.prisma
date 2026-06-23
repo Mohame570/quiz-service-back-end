@@ -60,7 +60,7 @@ enum QuestionType {
 // -----------------------------------------------------------------------
 
 model Attempt {
-  id        String        @id @default(uuid())
+  id        String        @id @default(cuid())
   quizId    String
   quiz      Quiz          @relation(fields: [quizId], references: [id])
   studentId String
@@ -227,7 +227,7 @@ model Question {
   @@map("questions")
 }
 
-// Result model — populated by ScoringService after submission
+// Result model ï¿½ populated by ScoringService after submission
 model Result {
   id         String   @id @default(cuid())
   attemptId  String   @unique
