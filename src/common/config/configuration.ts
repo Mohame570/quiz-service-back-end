@@ -12,6 +12,7 @@ export default () => ({
   },
   frontend: {
     baseUrl: process.env.FRONTEND_BASE_URL ?? 'http://localhost:3001',
+    allowedOrigins: (process.env.FRONTEND_ALLOWED_ORIGINS ?? 'http://localhost:3001,http://localhost:3000').split(',').map((s) => s.trim()),
   },
   mail: {
     host: process.env.SMTP_HOST ?? 'localhost',

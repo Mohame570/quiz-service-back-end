@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { AttemptStatus, QuizStatus } from '../../../generated/prisma/client';
 import {

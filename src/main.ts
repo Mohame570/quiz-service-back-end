@@ -11,7 +11,7 @@ async function bootstrap(): Promise<void> {
   const configService = app.get(ConfigService);
   const apiPrefix = configService.get<string>('app.apiPrefix') ?? 'api';
   const port = configService.get<number>('app.port') ?? 3000;
-  const frontendBaseUrl = configService.get<string>('frontend.baseUrl');
+  const frontendAllowedOrigins = configService.get<string[]>('frontend.allowedOrigins') ?? [];
 
   app.setGlobalPrefix(apiPrefix);
   app.enableShutdownHooks();
@@ -22,14 +22,10 @@ async function bootstrap(): Promise<void> {
       forbidUnknownValues: false,
     }),
   );
-  app.enableCors(
-    frontendBaseUrl
-      ? {
-          origin: [frontendBaseUrl],
-          credentials: true,
-        }
-      : undefined,
-  );
+  app.enableCors({
+    origin: frontendAllowedOrigins.length > 0 ? frontendAllowedOrigins : true,
+    credentials: true,
+  });
 
   await app.listen(port);
 }
