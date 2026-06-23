@@ -100,7 +100,9 @@ async function main(): Promise<void> {
   console.log(`  admin:   ${admin.email} / Password123!`);
   console.log(`  student: ${student.email} / Password123!`);
   console.log(`  quiz:    ${quiz.title} (${quiz.id})`);
-  console.log(`  failed delivery log correlationId: ${LIVE_TEST_CORRELATION_ID}`);
+  console.log(
+    `  failed delivery log correlationId: ${LIVE_TEST_CORRELATION_ID}`,
+  );
 
   await prisma.$disconnect();
 }
