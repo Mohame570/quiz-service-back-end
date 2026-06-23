@@ -10,6 +10,7 @@ import {
   Post,
   Query,
   Request,
+  UseGuards,
 } from '@nestjs/common';
 import { StartAttemptDto } from '../dto/start-attempt.dto';
 import { SaveAnswersDto } from '../dto/save-answers.dto';
@@ -20,13 +21,15 @@ import {
   AttemptSummaryDto,
 } from '../dto/attempt-response.dto';
 import { AttemptsService } from '../services/attempts.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { EmailVerifiedGuard } from '../../auth/guards/email-verified.guard';
 
 // ---------------------------------------------------------------------------
 // NOTE: @UseGuards(AuthGuard) and @Request() req.user are stubbed below.
 // Wire up the real JWT guard from L1 once auth is available.
 // The authenticated student ID is read from req.user.sub per JWT convention.
 // ---------------------------------------------------------------------------
-
+@UseGuards(JwtAuthGuard, EmailVerifiedGuard)
 @Controller('attempts')
 export class AttemptsController {
   constructor(private readonly attemptsService: AttemptsService) {}
@@ -40,7 +43,7 @@ export class AttemptsController {
     @Body() dto: StartAttemptDto,
     @Request() req: any,
   ): Promise<AttemptResponseDto> {
-    const studentId: string = req.user?.sub ?? 'stub-student-id';
+    const studentId: string = req.user?.sub ;
     return this.attemptsService.start(dto.quizId, studentId);
   }
 

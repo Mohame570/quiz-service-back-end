@@ -60,7 +60,7 @@ enum QuestionType {
 // -----------------------------------------------------------------------
 
 model Attempt {
-  id        String        @id @default(cuid())
+  id        String        @id @default(uuid())
   quizId    String
   quiz      Quiz          @relation(fields: [quizId], references: [id])
   studentId String

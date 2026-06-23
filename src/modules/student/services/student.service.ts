@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { AttemptStatus, QuizStatus } from '../../../generated/prisma/client';
 import {
@@ -102,9 +101,7 @@ export class StudentService {
     return {
       ...listItem,
       canStart: inWindow,
-      reasonIfBlocked: inWindow
-        ? null
-        : this.reasonForBlockedWindow(quiz, now),
+      reasonIfBlocked: inWindow ? null : this.reasonForBlockedWindow(quiz, now),
       ...(latestActiveAttempt
         ? { attemptId: latestActiveAttempt.id }
         : { attemptId: listItem.attemptId }),

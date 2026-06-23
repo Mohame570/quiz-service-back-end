@@ -1,12 +1,14 @@
 import {
   IsString,
-  IsOptional,
   IsEnum,
   IsInt,
   IsDateString,
   IsNotEmpty,
+  Min,
+  Validate,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { QuizDateRangeConstraint } from './quiz-date-range.validator';
 
 export enum CreateQuizStatusEnum {
   DRAFT = 'draft',
@@ -18,34 +20,31 @@ export class CreateQuizDto {
   @IsNotEmpty()
   title!: string;
 
-  @IsOptional()
   @IsString()
-  description?: string;
+  @IsNotEmpty()
+  description!: string;
 
-  @IsOptional()
   @Transform(({ value }) =>
     typeof value === 'string' ? value.toLowerCase() : value,
   )
   @IsEnum(CreateQuizStatusEnum)
-  status?: CreateQuizStatusEnum;
+  status!: CreateQuizStatusEnum;
 
-  @IsOptional()
+  @Type(() => Number)
   @IsInt()
-  durationMinutes?: number;
+  @Min(1)
+  durationMinutes!: number;
 
-  @IsOptional()
   @IsInt()
-  passingScore?: number;
+  passingScore!: number;
 
-  @IsOptional()
   @IsDateString()
-  startsAt?: string;
+  startsAt!: string;
 
-  @IsOptional()
   @IsDateString()
-  endsAt?: string;
+  @Validate(QuizDateRangeConstraint)
+  endsAt!: string;
 
-  @IsOptional()
   @IsString()
-  createdById?: string;
+  createdById!: string;
 }

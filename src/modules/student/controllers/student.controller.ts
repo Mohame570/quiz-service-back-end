@@ -1,16 +1,14 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Request,
-} from '@nestjs/common';
+import { Controller, Get, Param, Request, UseGuards } from '@nestjs/common';
 
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { StudentService } from '../services/student.service';
 import {
   StudentActiveAttemptResponseDto,
   StudentQuizInstructionsDto,
   StudentQuizListResponseDto,
 } from '../dto';
+
+import { EmailVerifiedGuard } from '../../auth/guards/email-verified.guard';
 
 // ---------------------------------------------------------------------------
 // NOTE: @UseGuards(AuthGuard) and @Request() req.user are stubbed below.
@@ -20,11 +18,9 @@ import {
 //   - If absent, a stub id is used so the endpoint is testable in isolation.
 // ---------------------------------------------------------------------------
 
-function resolveStudentId(req: any): string {
-  return req.user?.sub ?? 'stub-student-id';
-}
-
+@UseGuards(JwtAuthGuard, EmailVerifiedGuard)
 @Controller('student')
+@UseGuards(JwtAuthGuard)
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
@@ -34,7 +30,7 @@ export class StudentController {
    */
   @Get('quizzes')
   async listQuizzes(@Request() req: any): Promise<StudentQuizListResponseDto> {
-    return this.studentService.listQuizzesForStudent(resolveStudentId(req));
+    return this.studentService.listQuizzesForStudent(req.user!.sub);
   }
 
   /**
@@ -47,10 +43,8 @@ export class StudentController {
     @Param('id') id: string,
     @Request() req: any,
   ): Promise<StudentQuizInstructionsDto> {
-    return this.studentService.getQuizInstructions(
-      resolveStudentId(req),
-      id,
-    );
+    return this.studentService.getQuizInstructions(req.user!.sub, id);
+    return this.studentService.getQuizInstructions(req.user!.sub, id);
   }
 
   /**
@@ -63,9 +57,8 @@ export class StudentController {
   async getActiveAttempt(
     @Request() req: any,
   ): Promise<StudentActiveAttemptResponseDto> {
-    const attempt = await this.studentService.getActiveAttempt(
-      resolveStudentId(req),
-    );
+    const attempt = await this.studentService.getActiveAttempt(req.user!.sub);
+    const attempt = await this.studentService.getActiveAttempt(req.user!.sub);
     return { attempt };
   }
 }
