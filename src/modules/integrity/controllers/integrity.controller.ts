@@ -16,7 +16,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { IsEnum, IsISO8601, IsObject, IsOptional, IsString } from 'class-validator';
-import { CheatingEventType } from '../../../generated/prisma/client';
+import { CheatingEventType, Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { IntegrityService } from '../services/integrity.service';
@@ -41,7 +41,7 @@ class RecordCheatingEventBody implements RecordCheatingEventDto {
 
   @IsOptional()
   @IsObject()
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
 }
 
 @Controller('integrity')
