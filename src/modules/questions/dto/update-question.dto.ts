@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsArray, ArrayMinSize } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsArray, ArrayMinSize, IsInt, Min, ArrayUnique } from 'class-validator';
 import { QuestionType } from '../../../generated/prisma/client';
 
 export class UpdateQuestionDto {
@@ -13,10 +13,21 @@ export class UpdateQuestionDto {
   @IsOptional()
   @IsArray()
   @ArrayMinSize(2)
+  @ArrayUnique()
   @IsString({ each: true })
   options?: string[];
 
   @IsOptional()
   @IsString()
   correctAnswer?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  points?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
 }

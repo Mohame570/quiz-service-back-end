@@ -28,6 +28,8 @@ This contract defines the API for managing questions within quizzes. It provides
 - `text`: `string`
 - `options`: `string[]` (optional, used for MCQ)
 - `correctAnswer`: `string`
+- `points`: `number` (optional, min 1, default 1)
+- `order`: `number` (optional, min 0, default 0)
 
 ### Update Question Endpoint
 
@@ -39,6 +41,8 @@ This contract defines the API for managing questions within quizzes. It provides
 - `text`: `string` (optional)
 - `options`: `string[]` (optional, used for MCQ)
 - `correctAnswer`: `string` (optional)
+- `points`: `number` (optional, min 1)
+- `order`: `number` (optional, min 0)
 
 ### Delete Question Endpoint
 
@@ -58,6 +62,8 @@ Returns the newly created `Question` record containing:
 - `text`: `string`
 - `options`: `string[]`
 - `correctAnswer`: `string`
+- `points`: `number`
+- `order`: `number`
 - `createdAt`: `DateTime`
 - `updatedAt`: `DateTime`
 
@@ -66,10 +72,13 @@ Returns the newly created `Question` record containing:
 - `quizId` must be a non-empty string.
 - `type` must be a valid `QuestionType` enum value (`MCQ` or `TRUE_FALSE`).
 - `text` must be a non-empty string.
-- `options` is required and must be an array with at least 2 items if `type` is `MCQ`.
+- `options` is required and must be an array with at least 2 unique items if `type` is `MCQ`.
 - `correctAnswer` must not be empty.
   - If `type` is `TRUE_FALSE`, `correctAnswer` must be exactly `"True"` or `"False"`.
   - If `type` is `MCQ`, `correctAnswer` must be one of the strings provided in the `options` array.
+- `points` must be an integer >= 1.
+- `order` must be an integer >= 0.
+- **PUBLISHED Quiz Guard**: Creation, modification, or deletion of questions will return `403 Forbidden` if the associated `Quiz` has `status === 'PUBLISHED'`.
 
 ## Auth Or Access Rules
 
@@ -118,6 +127,8 @@ Content-Type: application/json
   "text": "What is the capital of France?",
   "options": ["London", "Paris", "Berlin", "Madrid"],
   "correctAnswer": "Paris",
+  "points": 1,
+  "order": 0,
   "createdAt": "2026-06-11T00:00:00.000Z",
   "updatedAt": "2026-06-11T00:00:00.000Z"
 }

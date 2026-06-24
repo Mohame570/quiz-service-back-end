@@ -54,6 +54,8 @@ erDiagram
     string text
     string[] options
     string correctAnswer
+    int points
+    int order
   }
 
   Attempt {
@@ -189,6 +191,8 @@ Question bank entries belonging to a quiz.
 | `text` | `TEXT` | Question prompt |
 | `options` | `TEXT[]` | MCQ option labels (string array for MVP) |
 | `correctAnswer` | `TEXT` | Correct option value |
+| `points` | `INT` | Question weight (default 1) |
+| `order` | `INT` | Question sequence (default 0) |
 | `createdAt` | `TIMESTAMP` | |
 | `updatedAt` | `TIMESTAMP` | |
 

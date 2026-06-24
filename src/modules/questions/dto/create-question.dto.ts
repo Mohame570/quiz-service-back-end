@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsArray, ArrayMinSize, ValidateIf, Validate } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsArray, ArrayMinSize, ValidateIf, Validate, IsInt, IsOptional, Min, ArrayUnique } from 'class-validator';
 import { ValidatorConstraint, ValidatorConstraintInterface, ValidationArguments } from 'class-validator';
 import { QuestionType } from '../../../generated/prisma/client';
 
@@ -40,6 +40,7 @@ export class CreateQuestionDto {
   @ValidateIf(o => o.type === QuestionType.MCQ)
   @IsArray()
   @ArrayMinSize(2)
+  @ArrayUnique()
   @IsString({ each: true })
   options?: string[];
 
@@ -47,4 +48,14 @@ export class CreateQuestionDto {
   @IsNotEmpty()
   @Validate(IsValidCorrectAnswerConstraint)
   correctAnswer!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  points?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
 }

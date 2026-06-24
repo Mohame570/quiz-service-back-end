@@ -22,7 +22,10 @@ describe('QuestionsController (e2e)', () => {
     // We mock PrismaService to avoid DB connection issues if Docker is not available in the environment
     jest.spyOn(prisma.quiz, 'findUnique').mockImplementation((async (args: any): Promise<any> => {
       if (args.where.id === 'valid-quiz-id') {
-        return { id: 'valid-quiz-id', title: 'Test', creatorId: 'user-id', createdAt: new Date(), updatedAt: new Date(), description: '' };
+        return { id: 'valid-quiz-id', title: 'Test', creatorId: 'user-id', status: 'DRAFT', createdAt: new Date(), updatedAt: new Date(), description: '' };
+      }
+      if (args.where.id === 'published-quiz-id') {
+        return { id: 'published-quiz-id', title: 'Test', creatorId: 'user-id', status: 'PUBLISHED', createdAt: new Date(), updatedAt: new Date(), description: '' };
       }
       return null;
     }) as any);
@@ -33,7 +36,16 @@ describe('QuestionsController (e2e)', () => {
 
     jest.spyOn(prisma.question, 'findUnique').mockImplementation((async (args: any): Promise<any> => {
       if (args.where.id === 'valid-q-id') {
-        return { id: 'valid-q-id', quizId: 'valid-quiz-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', createdAt: new Date(), updatedAt: new Date() };
+        return { 
+          id: 'valid-q-id', quizId: 'valid-quiz-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', points: 1, order: 0, createdAt: new Date(), updatedAt: new Date(),
+          quiz: { status: 'DRAFT' }
+        };
+      }
+      if (args.where.id === 'published-q-id') {
+        return { 
+          id: 'published-q-id', quizId: 'published-quiz-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', points: 1, order: 0, createdAt: new Date(), updatedAt: new Date(),
+          quiz: { status: 'PUBLISHED' }
+        };
       }
       return null;
     }) as any);
@@ -165,5 +177,58 @@ describe('QuestionsController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/questions/invalid-id')
       .expect(404);
+  });
+
+  it('/questions (POST) - Fail if quiz is PUBLISHED', () => {
+    return request(app.getHttpServer())
+      .post('/questions')
+      .send({
+        quizId: 'published-quiz-id',
+        type: 'MCQ',
+        text: 'What is 2+2?',
+        options: ['3', '4', '5'],
+        correctAnswer: '4'
+      })
+      .expect(403);
+  });
+
+  it('/questions/:id (PATCH) - Fail if quiz is PUBLISHED', () => {
+    return request(app.getHttpServer())
+      .patch('/questions/published-q-id')
+      .send({ text: 'Updated text' })
+      .expect(403);
+  });
+
+  it('/questions/:id (DELETE) - Fail if quiz is PUBLISHED', () => {
+    return request(app.getHttpServer())
+      .delete('/questions/published-q-id')
+      .expect(403);
+  });
+
+  it('/questions (POST) - Fail MCQ duplicate options', () => {
+    return request(app.getHttpServer())
+      .post('/questions')
+      .send({
+        quizId: 'valid-quiz-id',
+        type: 'MCQ',
+        text: 'Duplicate options?',
+        options: ['A', 'A', 'B'],
+        correctAnswer: 'A'
+      })
+      .expect(400);
+  });
+
+  it('/questions (POST) - Success with points and order', () => {
+    return request(app.getHttpServer())
+      .post('/questions')
+      .send({
+        quizId: 'valid-quiz-id',
+        type: 'TRUE_FALSE',
+        text: 'The earth is round.',
+        correctAnswer: 'True',
+        points: 5,
+        order: 1
+      })
+      .expect(201);
   });
 });
