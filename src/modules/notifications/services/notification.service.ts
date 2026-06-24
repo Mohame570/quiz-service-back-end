@@ -25,6 +25,11 @@ import {
   NotificationServiceInterface,
 } from './notification-service.interface';
 import { MailTransportService } from './mail-transport.service';
+import {
+  DeliveryStatusCountsDto,
+  DeliverySummaryDto,
+  InvitationStatusDto,
+} from '../dto/delivery-summary.dto';
 
 interface StoredRenderedContent {
   html: string;
@@ -145,6 +150,112 @@ export class NotificationService implements NotificationServiceInterface {
         .length,
       results,
     };
+  }
+
+  // -----------------------------------------------------------------------
+  // Admin: delivery summary & invitation status
+  // -----------------------------------------------------------------------
+
+  async getDeliverySummary(): Promise<DeliverySummaryDto> {
+    const [total, sent, failed, pending] = await Promise.all([
+      this.prisma.emailDeliveryLog.count(),
+      this.prisma.emailDeliveryLog.count({
+        where: { status: EmailDeliveryStatus.SENT },
+      }),
+      this.prisma.emailDeliveryLog.count({
+        where: { status: EmailDeliveryStatus.FAILED },
+      }),
+      this.prisma.emailDeliveryLog.count({
+        where: { status: EmailDeliveryStatus.PENDING },
+      }),
+    ]);
+
+    const overall: DeliveryStatusCountsDto = { total, sent, failed, pending };
+
+    const invitations = await this.getInvitationStatus();
+
+    return { overall, invitations };
+  }
+
+  async getInvitationStatus(): Promise<InvitationStatusDto[]> {
+    // Aggregate QUIZ_INVITATION delivery logs grouped by quiz
+    // Quiz identity is inferred from correlationId (invitation:<quizId>)
+    // or from metadata.quizId if available.
+    const logs = await this.prisma.emailDeliveryLog.findMany({
+      where: { templateKey: NotificationTemplateKey.QUIZ_INVITATION },
+      select: {
+        id: true,
+        status: true,
+        correlationId: true,
+        metadata: true,
+      },
+    });
+
+    // Group by quiz identity
+    const byQuiz = new Map<
+      string,
+      { quizId: string; quizTitle?: string; total: number; sent: number; failed: number; pending: number }
+    >();
+
+    for (const log of logs) {
+      const quizId = this.extractQuizIdFromLog(log);
+      if (!quizId) continue;
+
+      let entry = byQuiz.get(quizId);
+      if (!entry) {
+        entry = { quizId, total: 0, sent: 0, failed: 0, pending: 0 };
+        byQuiz.set(quizId, entry);
+      }
+
+      entry.total++;
+      if (log.status === EmailDeliveryStatus.SENT) entry.sent++;
+      else if (log.status === EmailDeliveryStatus.FAILED) entry.failed++;
+      else if (log.status === EmailDeliveryStatus.PENDING) entry.pending++;
+    }
+
+    // Enrich with quiz titles
+    const quizIds = Array.from(byQuiz.keys());
+    const quizzes =
+      quizIds.length > 0
+        ? await this.prisma.quiz.findMany({
+            where: { id: { in: quizIds } },
+            select: { id: true, title: true },
+          })
+        : [];
+
+    const titleMap = new Map(quizzes.map((q) => [q.id, q.title]));
+
+    return Array.from(byQuiz.values()).map((e) => ({
+      quizId: e.quizId,
+      quizTitle: titleMap.get(e.quizId) ?? null,
+      totalInvited: e.total,
+      totalSent: e.sent,
+      totalFailed: e.failed,
+      totalPending: e.pending,
+    }));
+  }
+
+  private extractQuizIdFromLog(log: {
+    correlationId?: string | null;
+    metadata?: Prisma.JsonValue | null;
+  }): string | null {
+    // Try correlationId pattern: "invitation:<quizId>"
+    if (log.correlationId?.startsWith('invitation:')) {
+      return log.correlationId.slice('invitation:'.length);
+    }
+
+    // Try metadata.quizId
+    if (
+      log.metadata &&
+      typeof log.metadata === 'object' &&
+      !Array.isArray(log.metadata) &&
+      'quizId' in log.metadata &&
+      typeof (log.metadata as Record<string, unknown>).quizId === 'string'
+    ) {
+      return (log.metadata as Record<string, string>).quizId;
+    }
+
+    return null;
   }
 
   private async dispatchEmail(input: {
