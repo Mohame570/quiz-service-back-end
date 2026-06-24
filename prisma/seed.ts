@@ -26,6 +26,7 @@ async function seedLiveTestFixtures(prisma: PrismaClient): Promise<void> {
     where: { email: 'admin@live-test.example' },
     update: { passwordHash, name: 'Live Test Admin', role: UserRole.ADMIN },
     create: {
+      id: 'cmqmalcro0000zgud0fnpw5go', // fixed id referenced by quiz.live-spec.ts
       email: 'admin@live-test.example',
       passwordHash,
       name: 'Live Test Admin',

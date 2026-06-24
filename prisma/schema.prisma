@@ -223,7 +223,7 @@ model Question {
   @@map("questions")
 }
 
-// Result model — populated by ScoringService after submission
+// Result model â€” populated by ScoringService after submission
 model Result {
   id         String   @id @default(cuid())
   attemptId  String   @unique
