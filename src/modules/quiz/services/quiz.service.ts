@@ -7,11 +7,15 @@ import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { QuestionsService } from '../../questions/services/questions.service';
 import { Quiz, QuizStatus } from '../../../generated/prisma/client';
 
 @Injectable()
 export class QuizService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly questionsService: QuestionsService,
+  ) {}
 
   /**
    * Maps case-insensitive string status to Prisma QuizStatus enum
@@ -60,11 +64,9 @@ export class QuizService {
   }
 
   private async ensureQuizHasQuestions(id: string): Promise<void> {
-    const questionCount = await this.prisma.question.count({
-      where: { quizId: id } as any,
-    });
+    const hasQuestions = await this.questionsService.validateQuizHasQuestions(id);
 
-    if (questionCount < 1) {
+    if (!hasQuestions) {
       throw new BadRequestException(
         'Quiz must have at least one question before it can be published',
       );
