@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { CreateQuestionDto } from '../dto/create-question.dto';
 import { UpdateQuestionDto } from '../dto/update-question.dto';
@@ -17,6 +17,9 @@ export class QuestionsService {
     if (!quiz) {
       throw new BadRequestException('Quiz not found');
     }
+    if (quiz.status === 'PUBLISHED') {
+      throw new ForbiddenException('Cannot modify questions of a published quiz');
+    }
 
     return this.prisma.question.create({
       data: {
@@ -25,14 +28,22 @@ export class QuestionsService {
         text: data.text,
         options: data.options || [],
         correctAnswer: data.correctAnswer,
+        points: data.points ?? 1,
+        order: data.order ?? 0,
       }
     });
   }
 
   async updateQuestion(id: string, data: UpdateQuestionDto) {
-    const question = await this.prisma.question.findUnique({ where: { id } });
+    const question = await this.prisma.question.findUnique({ 
+      where: { id },
+      include: { quiz: true }
+    });
     if (!question) {
       throw new NotFoundException('Question not found');
+    }
+    if (question.quiz.status === 'PUBLISHED') {
+      throw new ForbiddenException('Cannot modify questions of a published quiz');
     }
 
     const merged = {
@@ -63,14 +74,22 @@ export class QuestionsService {
         text: data.text,
         options: data.options,
         correctAnswer: data.correctAnswer,
+        points: data.points,
+        order: data.order,
       }
     });
   }
 
   async deleteQuestion(id: string) {
-    const question = await this.prisma.question.findUnique({ where: { id } });
+    const question = await this.prisma.question.findUnique({ 
+      where: { id },
+      include: { quiz: true }
+    });
     if (!question) {
       throw new NotFoundException('Question not found');
+    }
+    if (question.quiz.status === 'PUBLISHED') {
+      throw new ForbiddenException('Cannot modify questions of a published quiz');
     }
 
     await this.prisma.question.delete({ where: { id } });
@@ -87,9 +106,14 @@ export class QuestionsService {
 
   async getQuestions(quizId?: string) {
     if (quizId) {
-      return this.prisma.question.findMany({ where: { quizId } });
+      return this.prisma.question.findMany({ 
+        where: { quizId },
+        orderBy: { order: 'asc' }
+      });
     }
-    return this.prisma.question.findMany();
+    return this.prisma.question.findMany({
+      orderBy: { order: 'asc' }
+    });
   }
 
   /**

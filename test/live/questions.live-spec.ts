@@ -4,7 +4,7 @@ const runLiveTests = process.env.LIVE_TESTS === '1';
 
 (runLiveTests ? describe : describe.skip)('Live server — questions', () => {
   let createdQuestionId: string;
-  const quizId = 'seed-live-test-quiz';
+  const quizId = 'quiz-3'; // DRAFT quiz
 
   beforeAll(async () => {
     await waitForApi();
@@ -65,6 +65,21 @@ const runLiveTests = process.env.LIVE_TESTS === '1';
 
     expect(response.status).toBe(200);
     expect(body.text).toBe('What is the capital of France (updated)?');
+  });
+
+  it('fails to create an MCQ question with duplicate options', async () => {
+    const response = await fetch(`${LIVE_API_BASE_URL}/questions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quizId,
+        type: 'MCQ',
+        text: 'Duplicate?',
+        options: ['A', 'A', 'B'],
+        correctAnswer: 'A',
+      }),
+    });
+    expect(response.status).toBe(400);
   });
 
   it('deletes the created question', async () => {
