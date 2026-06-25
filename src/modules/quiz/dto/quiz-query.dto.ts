@@ -4,6 +4,8 @@ import { IsOptional, IsEnum } from 'class-validator';
 export enum QuizQueryStatusEnum {
   DRAFT = 'draft',
   PUBLISHED = 'published',
+  CLOSED = 'closed',
+  ARCHIVED = 'archived',
 }
 
 export class QuizQueryDto {

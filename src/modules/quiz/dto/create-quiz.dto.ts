@@ -13,6 +13,8 @@ import { QuizDateRangeConstraint } from './quiz-date-range.validator';
 export enum CreateQuizStatusEnum {
   DRAFT = 'draft',
   PUBLISHED = 'published',
+  CLOSED = 'closed',
+  ARCHIVED = 'archived',
 }
 
 export class CreateQuizDto {
