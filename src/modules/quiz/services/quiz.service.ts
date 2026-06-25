@@ -21,6 +21,8 @@ export class QuizService {
     const statusLower = status.toLowerCase();
     if (statusLower === 'draft') return QuizStatus.DRAFT;
     if (statusLower === 'published') return QuizStatus.PUBLISHED;
+    if (statusLower === 'closed') return QuizStatus.CLOSED;
+    if (statusLower === 'archived') return QuizStatus.ARCHIVED;
     return undefined;
   }
 
@@ -247,6 +249,43 @@ export class QuizService {
       data: {
         status: QuizStatus.DRAFT,
       },
+    });
+  }
+
+  /**
+   * Duplicate an existing quiz with all its questions.
+   * The copy always starts as DRAFT with title prefixed "Copy of ".
+   */
+  async copy(id: string): Promise<Quiz> {
+    const original = await this.prisma.quiz.findUnique({
+      where: { id },
+      include: { questions: true },
+    });
+
+    if (!original) {
+      throw new NotFoundException(`Quiz with id ${id} not found`);
+    }
+
+    return this.prisma.quiz.create({
+      data: {
+        title: `Copy of ${original.title}`,
+        description: original.description,
+        status: QuizStatus.DRAFT,
+        durationMinutes: original.durationMinutes,
+        passingScore: original.passingScore,
+        startsAt: original.startsAt,
+        endsAt: original.endsAt,
+        createdById: original.createdById,
+        questions: {
+          create: original.questions.map((q) => ({
+            type: q.type,
+            text: q.text,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+          })),
+        },
+      },
+      include: { questions: true },
     });
   }
 }

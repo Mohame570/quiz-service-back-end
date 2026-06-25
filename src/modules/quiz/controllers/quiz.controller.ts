@@ -30,6 +30,16 @@ export class QuizController {
   }
 
   /**
+   * POST /api/admin/quizzes/:id/copy
+   * Duplicate a quiz and all its questions; copy starts as DRAFT
+   */
+  @Post(':id/copy')
+  @HttpCode(HttpStatus.CREATED)
+  async copy(@Param('id') id: string): Promise<Quiz> {
+    return this.quizService.copy(id);
+  }
+
+  /**
    * POST /api/admin/quizzes/:id/publish
    * Publish a quiz after verifying it has at least one question
    */
