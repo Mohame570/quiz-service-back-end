@@ -111,6 +111,41 @@ Returns:
 }
 ```
 
+## Admin HTTP Endpoints (Sprint 3)
+
+Require a valid admin JWT (`role: ADMIN`).
+
+### `GET /api/admin/notifications/delivery-summary`
+
+Aggregated delivery statistics across all template types plus a per-quiz invitation breakdown.
+
+```json
+{
+  "overall": {
+    "total": 50,
+    "sent": 42,
+    "failed": 5,
+    "pending": 3
+  },
+  "invitations": [
+    {
+      "quizId": "quiz-1",
+      "quizTitle": "Sprint 1 Assessment",
+      "totalInvited": 15,
+      "totalSent": 13,
+      "totalFailed": 2,
+      "totalPending": 0
+    }
+  ]
+}
+```
+
+### `GET /api/admin/notifications/invitation-status`
+
+Quiz-grouped invitation delivery breakdown only.
+
+Returns: `InvitationStatusDto[]` — same shape as the `invitations` array above.
+
 ## Delivery Log Schema
 
 Table: `email_delivery_logs`

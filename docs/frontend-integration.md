@@ -146,4 +146,21 @@ Frontend should read Nest's default error shape:
 - [ ] Wire quiz solving UI to `/api/attempts` start/save/submit flow
 - [ ] Add tab-switch hook calling integrity endpoint (contract with L5/L7)
 
+## Sprint 3 Frontend Checklist
+
+- [ ] Admin email delivery & invitation status page at `/admin/dashboard/notifications`
+  - Calls `GET /api/admin/notifications/delivery-summary` and `/invitation-status`
+  - Owner: L7 (Mohamed Waleed)
+- [ ] Admin suspicious-attempts integrity view at `/admin/dashboard/integrity`
+  - Calls `GET /api/admin/integrity/suspicious?threshold=N` and `GET /api/admin/integrity/attempts/:id/events`
+  - Configurable threshold slider; expandable event details
+  - Owner: L7 (Mohamed Waleed)
+- [ ] Admin sidebar updated with Notifications and Integrity nav items
+  - Owner: L7 (Mohamed Waleed)
+- [ ] Analytics filters and insights (L6 — Buthaina)
+- [ ] Quiz duplication and lifecycle badges (L2 — Mohamed Zaki)
+- [ ] Question bank hardening and tests (L3 — Mohyeldin)
+- [ ] Timed solving with countdown timer (L4 — Hesham)
+- [ ] Scoring/attempt history tests (L5 — Mahmoud)
+
 For API payload details, always check the matching file in `docs/api/` before implementing a screen.
