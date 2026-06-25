@@ -15,6 +15,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
+interface Request {
+  headers: { authorization?: string };
+  user?: unknown;
+}
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
