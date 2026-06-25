@@ -32,7 +32,6 @@ import { StudentService } from '../services/student.service';
 
 @UseGuards(JwtAuthGuard, EmailVerifiedGuard, StudentRoleGuard)
 @Controller('student')
-@UseGuards(JwtAuthGuard)
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
