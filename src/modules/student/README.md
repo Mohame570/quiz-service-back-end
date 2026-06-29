@@ -4,41 +4,73 @@ Owner: Learner 4 — Student Quiz Solving & Email Link Flow.
 
 ## Scope of this iteration
 
-Three read-only endpoints that power the student dashboard and quiz
-instruction screen:
+The student module is the **public API surface for the frontend**. It exposes the full quiz-solving flow under `/api/student` and orchestrates the internal `AttemptsService` and `QuestionsService` via `StudentAttemptOrchestrator`. Frontend must call only `/api/auth` and `/api/student` — never `/api/attempts`, `/api/questions`, or `/api/admin/quizzes` directly.
 
-| Method | Path                            | Purpose                                  |
-|--------|---------------------------------|------------------------------------------|
-| GET    | `/api/student/quizzes`          | List PUBLISHED quizzes the student can take |
-| GET    | `/api/student/quizzes/:id`      | Quiz instruction screen                  |
-| GET    | `/api/student/attempts/active`  | Resume the current in-progress attempt   |
+## Endpoints
+
+| Method | Path                                            | Purpose                                   |
+|--------|-------------------------------------------------|-------------------------------------------|
+| GET    | `/api/student/quizzes`                          | List PUBLISHED quizzes the student can take |
+| GET    | `/api/student/quizzes/:quizId`                  | Quiz instruction screen                   |
+| POST   | `/api/student/quizzes/:quizId/start`            | Start an attempt (stamps `expiresAt`)     |
+| GET    | `/api/student/attempts/active`                  | Resume the current in-progress attempt    |
+| GET    | `/api/student/attempts/:attemptId/questions`    | Get the attempt's questions (no `correctAnswer`) |
+| PATCH  | `/api/student/attempts/:attemptId/answers`      | Incrementally save / update answers       |
+| POST   | `/api/student/attempts/:attemptId/submit`       | Finalise the attempt                      |
+| GET    | `/api/student/attempts/:attemptId/result`       | Read the result (works after timeout)     |
+
+All endpoints are guarded by `JwtAuthGuard`, `EmailVerifiedGuard`, and `StudentRoleGuard`.
+
+## Timer & auto-submit semantics
+
+- `expiresAt = startedAt + quiz.durationMinutes * 60_000` is persisted at start.
+- Every read/mutate endpoint runs `autoFinalizeIfExpired(attempt)`:
+  - If `status === IN_PROGRESS` and `now >= expiresAt`, the row is updated to `status: 'TIMED_OUT'`, `submittedAt: now`.
+  - Expired attempts are no longer modifiable; their results are still readable.
+- `GET /api/student/attempts/active` returns `{ attempt: null }` once the active attempt has been auto-finalised.
 
 ## Schema dependency
 
-This module reads **only** the existing `Quiz`, `Question`, and `Attempt`
-models from the current `prisma/schema.prisma`. No schema changes are
-introduced and no migrations are added.
+- New field on `Attempt`: `expiresAt DateTime` (matches the column added by migration `20260623120000_quiz_duration_attempt_expiration`).
+- The DB column already existed before this change; the schema was updated to match.
 
-Out of scope for this iteration (handled by other modules or future work):
+## Internal services used
 
-- The solving flow itself (start / save / submit / result) → owned by L5
-  in `src/modules/attempts/`.
-- Timer + auto-submit → later L4 sprint.
-- Cheating-event capture → owned by L7 in `src/modules/integrity/`.
-- Invitation flow (per-student filtering) → not present in the current
-  schema; L4 lists all PUBLISHED quizzes inside their active time
-  window. When L2 adds the `Invitation` model, the service can be
-  extended without breaking this contract.
-- Auth: student id is stubbed as `req.user?.sub ?? 'stub-student-id'`
-  (mirrors L5's `AttemptsController`).
+| Service | Source | Used for |
+|---|---|---|
+| `AttemptsService` | `src/modules/attempts/` | start, save answers, submit, get result |
+| `QuestionsService` | `src/modules/questions/` | list quiz questions |
+| `PrismaService` | `src/common/prisma/` | direct reads, ownership checks, timer writes |
+
+`Quiz` reads are done directly via `PrismaService`.
+
+## Auto-scoring
+
+`POST /api/student/attempts/:attemptId/submit` triggers `ScoringService.scoreAttempt()` inside `AttemptsService.submit`, which:
+
+- Compares each `AttemptAnswer.selectedOptionId` against `Question.correctAnswer` and sets `AttemptAnswer.isCorrect`.
+- Computes `Attempt.score` and `Attempt.maxScore` and persists them.
+- Upserts a `Result` row with `score`, `maxScore`, `percentage`, `passed`, `gradedAt`.
+
+The student-facing response carries the scored `score`, `maxScore`, per-answer `isCorrect`, and the `Result` summary as `response.result = { percentage, passed, gradedAt }`. `result` is `null` while the attempt is `IN_PROGRESS` and for `TIMED_OUT` attempts (where `ScoringService` was not called). The frontend does not need a separate `GET /api/results/:attemptId` call.
 
 ## Tests
 
-- `test/student.e2e-spec.ts` — unit tests of `StudentService` with a
-  mocked `PrismaService` (same pattern as `test/attempts.e2e-spec.ts`).
-- `test/student-http.e2e-spec.ts` — HTTP-level e2e tests with
-  `INestApplication` and a mocked `PrismaService`
-  (same pattern as `test/quiz-admin.e2e-spec.ts`).
+```bash
+npm test -- --testPathPatterns=student
+```
+
+`test/student.e2e-spec.ts` — service-level tests of `StudentService` with mocked `PrismaService`, `AttemptsService` (via the orchestrator), and `QuestionsService`. Covers:
+
+- 12 tests for `listQuizzesForStudent`
+- 6 tests for `getQuizInstructions`
+- 4 tests for `getActiveAttempt` (including auto-finalise)
+- 4 tests for `startAttempt` (including `expiresAt` stamping)
+- 5 tests for `getAttemptQuestions` (including `correctAnswer` stripped)
+- 6 tests for `saveAttemptAnswers`
+- 3 tests for `submitAttempt` (including auto-finalise returns `TIMED_OUT`)
+- 4 tests for `getAttemptResult`
+- 6 timer utility tests
 
 Run with:
 
@@ -47,3 +79,7 @@ npm run lint
 npm run build
 npm test
 ```
+
+## Postman collection
+
+`docs/postman/quiz-platform.postman_collection.json` covers the full flow with example payloads, success and error responses, and auto-populated collection variables.

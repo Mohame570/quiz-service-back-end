@@ -3,7 +3,9 @@
 **Owner:** L5  
 **Module:** `src/modules/attempts/`  
 **Sprint:** 1  
-**Consumed by:** L4 (Student solving flow), L6 (Analytics)
+**Consumed by:** L4 (Student solving flow, internal only), L6 (Analytics)
+
+> **Internal use only.** These endpoints are not part of the public frontend API. The student-facing flow now lives under `/api/student` (see `docs/api/student.md`). External callers should not call `/api/attempts` directly.
 
 ---
 

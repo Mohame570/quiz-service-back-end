@@ -1,22 +1,62 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { AttemptStatus, QuizStatus } from '../../../generated/prisma/client';
 import {
+  AttemptAnswerResponseDto,
+  AttemptResponseDto,
+} from '../../attempts/dto/attempt-response.dto';
+import { SaveAnswerItemDto } from '../../attempts/dto/save-answers.dto';
+import {
   StudentActiveAttemptDto,
+  StudentActiveAttemptResponseDto,
+  StudentAttemptQuestionDto,
+  StudentAttemptQuestionsResponseDto,
   StudentQuizInstructionsDto,
   StudentQuizListItemDto,
   StudentQuizListResponseDto,
   deriveAttemptStatus,
 } from '../dto';
+import { StudentAttemptOrchestrator } from './student-attempt-orchestrator';
+import {
+  computeExpiresAt,
+  isExpired,
+  remainingSeconds,
+} from './attempt-timer.util';
+
+/// Student-facing response shape: the attempts module's full response with
+/// the student-only `expiresAt` field and the `Result` summary appended.
+/// The service returns the orchestrator's `AttemptResponseDto` and merges
+/// `expiresAt` + the `Result` row on top of it.
+export interface StudentAttemptResultSummary {
+  percentage: number;
+  passed: boolean;
+  gradedAt: Date;
+}
+
+type StudentAttemptResponse = AttemptResponseDto & {
+  expiresAt: Date;
+  result: StudentAttemptResultSummary | null;
+};
 
 interface AttemptRow {
   id: string;
   quizId: string;
   studentId: string;
   startedAt: Date;
+  expiresAt: Date;
   submittedAt: Date | null;
   status: AttemptStatus;
-  durationMinutes?: number | null;
+  score: number | null;
+  maxScore: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  answers?: AttemptAnswerResponseDto[];
 }
 
 interface QuizRow {
@@ -31,9 +71,22 @@ interface QuizRow {
   questions?: { id: string }[];
 }
 
+interface QuestionRow {
+  id: string;
+  quizId: string;
+  type: 'MCQ' | 'TRUE_FALSE';
+  text: string;
+  options: string[];
+  correctAnswer: string;
+  createdAt: Date;
+}
+
 @Injectable()
 export class StudentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly orchestrator: StudentAttemptOrchestrator,
+  ) {}
 
   // -------------------------------------------------------------------------
   // GET /api/student/quizzes
@@ -114,41 +167,257 @@ export class StudentService {
 
   async getActiveAttempt(
     studentId: string,
-  ): Promise<StudentActiveAttemptDto | null> {
+  ): Promise<StudentActiveAttemptResponseDto> {
     const attempt = await this.prisma.attempt.findFirst({
       where: { studentId, status: AttemptStatus.IN_PROGRESS },
       orderBy: { startedAt: 'desc' },
     });
 
     if (!attempt) {
-      return null;
+      return { attempt: null };
     }
 
-    let expiresAt: Date | null = null;
-    if (attempt.startedAt) {
-      const quiz = await this.prisma.quiz.findUnique({
-        where: { id: attempt.quizId },
-        select: { durationMinutes: true },
-      });
-
-      if (quiz?.durationMinutes) {
-        expiresAt = new Date(
-          attempt.startedAt.getTime() + quiz.durationMinutes * 60_000,
-        );
-      }
+    const refreshed = await this.autoFinalizeIfExpired(attempt);
+    if (!refreshed || refreshed.status !== AttemptStatus.IN_PROGRESS) {
+      return { attempt: null };
     }
+
+    const dto: StudentActiveAttemptDto = {
+      attemptId: refreshed.id,
+      quizId: refreshed.quizId,
+      startedAt: refreshed.startedAt,
+      expiresAt: refreshed.expiresAt,
+    };
+    return { attempt: dto };
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /api/student/quizzes/:quizId/start
+  // -------------------------------------------------------------------------
+
+  async startAttempt(
+    studentId: string,
+    quizId: string,
+  ): Promise<StudentAttemptResponse> {
+    const quiz = await this.prisma.quiz.findFirst({
+      where: {
+        id: quizId,
+        status: QuizStatus.PUBLISHED,
+        students: { some: { userId: studentId } },
+      },
+    });
+
+    if (!quiz || !this.isWithinWindow(quiz, new Date())) {
+      throw new NotFoundException('Quiz not found or not available.');
+    }
+
+    const existing = await this.prisma.attempt.findFirst({
+      where: {
+        studentId,
+        quizId,
+        status: AttemptStatus.IN_PROGRESS,
+      },
+    });
+    if (existing) {
+      throw new ConflictException(
+        'You already have an active attempt for this quiz.',
+      );
+    }
+
+    const created = await this.orchestrator.startAttempt(quizId, studentId);
+    const expiresAt = computeExpiresAt(
+      created.startedAt,
+      quiz.durationMinutes ?? 30,
+    );
+
+    await this.prisma.attempt.update({
+      where: { id: created.id },
+      data: { expiresAt },
+    });
+
+    return { ...created, expiresAt, result: null };
+  }
+
+  // -------------------------------------------------------------------------
+  // GET /api/student/attempts/:attemptId/questions
+  // -------------------------------------------------------------------------
+
+  async getAttemptQuestions(
+    studentId: string,
+    attemptId: string,
+  ): Promise<StudentAttemptQuestionsResponseDto> {
+    const attempt = await this.findAttemptForStudent(attemptId, studentId);
+    const refreshed = await this.autoFinalizeIfExpired(attempt);
+
+    if (refreshed.status !== AttemptStatus.IN_PROGRESS) {
+      throw new ConflictException('Attempt is no longer in progress.');
+    }
+
+    const questions = (await this.orchestrator.listQuizQuestions(
+      refreshed.quizId,
+    )) as QuestionRow[];
+
+    const ordered = questions
+      .slice()
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map(
+        (q, idx): StudentAttemptQuestionDto => ({
+          id: q.id,
+          type: q.type,
+          text: q.text,
+          options: q.options,
+          order: idx,
+        }),
+      );
 
     return {
-      attemptId: attempt.id,
-      quizId: attempt.quizId,
-      startedAt: attempt.startedAt,
-      expiresAt,
+      attemptId: refreshed.id,
+      quizId: refreshed.quizId,
+      expiresAt: refreshed.expiresAt,
+      remainingSeconds: remainingSeconds(refreshed.expiresAt),
+      questions: ordered,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // PATCH /api/student/attempts/:attemptId/answers
+  // -------------------------------------------------------------------------
+
+  async saveAttemptAnswers(
+    studentId: string,
+    attemptId: string,
+    items: SaveAnswerItemDto[],
+  ): Promise<AttemptAnswerResponseDto[]> {
+    const attempt = await this.findAttemptForStudent(attemptId, studentId);
+    const refreshed = await this.autoFinalizeIfExpired(attempt);
+
+    if (refreshed.status !== AttemptStatus.IN_PROGRESS) {
+      throw new ConflictException(
+        `Cannot modify a '${refreshed.status.toLowerCase()}' attempt.`,
+      );
+    }
+
+    await this.assertQuestionsBelongToQuiz(refreshed.quizId, items);
+
+    const normalized = items.map((i) => ({
+      questionId: i.questionId,
+      selectedOptionId: i.selectedOptionId ?? null,
+    }));
+
+    return this.orchestrator.saveAnswers(attemptId, studentId, normalized);
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /api/student/attempts/:attemptId/submit
+  // -------------------------------------------------------------------------
+
+  async submitAttempt(
+    studentId: string,
+    attemptId: string,
+    items: SaveAnswerItemDto[],
+  ): Promise<StudentAttemptResponse> {
+    const attempt = await this.findAttemptForStudent(attemptId, studentId);
+    const refreshed = await this.autoFinalizeIfExpired(attempt);
+
+    if (refreshed.status === AttemptStatus.SUBMITTED) {
+      throw new ConflictException(
+        `Cannot submit a '${refreshed.status.toLowerCase()}' attempt.`,
+      );
+    }
+
+    if (refreshed.status === AttemptStatus.TIMED_OUT) {
+      return this.withAttemptMetadata(
+        attemptId,
+        await this.orchestrator.getResult(attemptId, studentId),
+      );
+    }
+
+    if (items.length > 0) {
+      await this.assertQuestionsBelongToQuiz(refreshed.quizId, items);
+      await this.orchestrator.saveAnswers(attemptId, studentId, items);
+    }
+
+    return this.withAttemptMetadata(
+      attemptId,
+      await this.orchestrator.submit(attemptId, studentId, []),
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // GET /api/student/attempts/:attemptId/result
+  // -------------------------------------------------------------------------
+
+  async getAttemptResult(
+    studentId: string,
+    attemptId: string,
+  ): Promise<StudentAttemptResponse> {
+    const attempt = await this.findAttemptForStudent(attemptId, studentId);
+    const refreshed = await this.autoFinalizeIfExpired(attempt);
+
+    if (refreshed.status === AttemptStatus.IN_PROGRESS) {
+      throw new ConflictException('Attempt has not been submitted yet.');
+    }
+
+    return this.withAttemptMetadata(
+      attemptId,
+      await this.orchestrator.getResult(attemptId, studentId),
+    );
   }
 
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  private async findAttemptForStudent(
+    attemptId: string,
+    studentId: string,
+  ): Promise<AttemptRow> {
+    const attempt = await this.prisma.attempt.findUnique({
+      where: { id: attemptId },
+    });
+    if (!attempt) {
+      throw new NotFoundException('Attempt not found.');
+    }
+    if (attempt.studentId !== studentId) {
+      throw new ForbiddenException('Access denied.');
+    }
+    return attempt as AttemptRow;
+  }
+
+  private async autoFinalizeIfExpired(
+    attempt: AttemptRow,
+  ): Promise<AttemptRow> {
+    if (attempt.status !== AttemptStatus.IN_PROGRESS) {
+      return attempt;
+    }
+    if (!isExpired(attempt.expiresAt)) {
+      return attempt;
+    }
+    const updated = await this.prisma.attempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: AttemptStatus.TIMED_OUT,
+        submittedAt: new Date(),
+      },
+    });
+    return updated as AttemptRow;
+  }
+
+  private async assertQuestionsBelongToQuiz(
+    quizId: string,
+    items: SaveAnswerItemDto[],
+  ): Promise<void> {
+    const ids = Array.from(new Set(items.map((i) => i.questionId)));
+    const found = await this.prisma.question.findMany({
+      where: { id: { in: ids }, quizId },
+      select: { id: true },
+    });
+    if (found.length !== ids.length) {
+      throw new BadRequestException(
+        'One or more questionIds do not belong to this quiz.',
+      );
+    }
+  }
 
   private isWithinWindow(quiz: QuizRow, now: Date): boolean {
     if (quiz.startsAt && quiz.startsAt.getTime() > now.getTime()) {
@@ -211,5 +480,32 @@ export class StudentService {
       return aTime - bTime;
     }
     return a.id.localeCompare(b.id);
+  }
+
+  private async withAttemptMetadata(
+    attemptId: string,
+    attempt: AttemptResponseDto,
+  ): Promise<StudentAttemptResponse> {
+    const [attemptRow, resultRow] = await Promise.all([
+      this.prisma.attempt.findUnique({
+        where: { id: attemptId },
+        select: { expiresAt: true },
+      }),
+      this.prisma.result.findUnique({ where: { attemptId } }),
+    ]);
+    if (!attemptRow) {
+      throw new NotFoundException('Attempt not found.');
+    }
+    return {
+      ...attempt,
+      expiresAt: attemptRow.expiresAt,
+      result: resultRow
+        ? {
+            percentage: resultRow.percentage,
+            passed: resultRow.passed,
+            gradedAt: resultRow.gradedAt,
+          }
+        : null,
+    };
   }
 }

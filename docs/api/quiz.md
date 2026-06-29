@@ -1,5 +1,7 @@
 # Quiz Admin API Contract
 
+> **Admin only.** These endpoints are used by the admin quiz editor. The student-facing flow reads quizzes via `/api/student/quizzes` and never calls `/api/admin/quizzes` directly.
+
 ## Contract Name
 
 - owner module: quiz
