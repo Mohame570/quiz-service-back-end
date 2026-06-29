@@ -48,6 +48,8 @@ enum CheatingEventType {
 enum QuizStatus {
   DRAFT
   PUBLISHED
+  CLOSED
+  ARCHIVED
 }
 
 enum QuestionType {

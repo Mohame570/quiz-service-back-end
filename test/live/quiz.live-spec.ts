@@ -6,7 +6,7 @@ type CreatedQuiz = {
   id: string;
   title: string;
   description: string | null;
-  status: 'DRAFT' | 'PUBLISHED';
+  status: 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED';
   durationMinutes: number | null;
   passingScore: number | null;
   startsAt: string | null;

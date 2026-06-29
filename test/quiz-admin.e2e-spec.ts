@@ -100,6 +100,12 @@ describe('Quiz admin endpoints', () => {
       .post('/api/admin/quizzes')
       .send({
         title: 'Sprint 1 Quiz',
+        description: 'Admin-created quiz',
+        durationMinutes: 45,
+        passingScore: 80,
+        startsAt: '2026-06-15T00:00:00Z',
+        endsAt: '2026-06-20T00:00:00Z',
+        createdById: 'admin-1',
         status: 'published',
       });
 
@@ -115,6 +121,12 @@ describe('Quiz admin endpoints', () => {
       .post('/api/admin/quizzes')
       .send({
         title: '',
+        description: 'Admin-created quiz',
+        durationMinutes: 45,
+        passingScore: 80,
+        startsAt: '2026-06-15T00:00:00Z',
+        endsAt: '2026-06-20T00:00:00Z',
+        createdById: 'admin-1',
       });
 
     expect(response.status).toBe(400);
@@ -126,7 +138,12 @@ describe('Quiz admin endpoints', () => {
       .post('/api/admin/quizzes')
       .send({
         title: 'Sprint 1 Quiz',
+        description: 'Admin-created quiz',
         durationMinutes: 0,
+        passingScore: 80,
+        startsAt: '2026-06-15T00:00:00Z',
+        endsAt: '2026-06-20T00:00:00Z',
+        createdById: 'admin-1',
       });
 
     expect(response.status).toBe(400);
@@ -138,8 +155,37 @@ describe('Quiz admin endpoints', () => {
       .post('/api/admin/quizzes')
       .send({
         title: 'Sprint 1 Quiz',
+        description: 'Admin-created quiz',
+        durationMinutes: 45,
+        passingScore: 80,
         startsAt: '2026-06-20T00:00:00Z',
         endsAt: '2026-06-20T00:00:00Z',
+        createdById: 'admin-1',
+      });
+
+    expect(response.status).toBe(400);
+    expect(prismaMock.quiz.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a quiz when required fields are missing', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/admin/quizzes')
+      .send({ title: 'Sprint 1 Quiz' });
+
+    expect(response.status).toBe(400);
+    expect(prismaMock.quiz.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a quiz when description is missing', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/admin/quizzes')
+      .send({
+        title: 'Sprint 1 Quiz',
+        durationMinutes: 45,
+        passingScore: 80,
+        startsAt: '2026-06-15T00:00:00Z',
+        endsAt: '2026-06-20T00:00:00Z',
+        createdById: 'admin-1',
       });
 
     expect(response.status).toBe(400);

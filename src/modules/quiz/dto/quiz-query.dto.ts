@@ -1,16 +1,12 @@
 import { Transform } from 'class-transformer';
 import { IsOptional, IsEnum } from 'class-validator';
-
-export enum QuizQueryStatusEnum {
-  DRAFT = 'draft',
-  PUBLISHED = 'published',
-}
+import { QuizStatusEnum } from './quiz-status.enum';
 
 export class QuizQueryDto {
   @IsOptional()
   @Transform(({ value }) =>
     typeof value === 'string' ? value.toLowerCase() : value,
   )
-  @IsEnum(QuizQueryStatusEnum)
-  status?: QuizQueryStatusEnum;
+  @IsEnum(QuizStatusEnum)
+  status?: QuizStatusEnum;
 }

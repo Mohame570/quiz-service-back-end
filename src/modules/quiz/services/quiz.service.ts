@@ -7,11 +7,15 @@ import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { QuestionsService } from '../../questions/services/questions.service';
 import { Quiz, QuizStatus } from '../../../generated/prisma/client';
 
 @Injectable()
 export class QuizService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly questionsService: QuestionsService,
+  ) {}
 
   /**
    * Maps case-insensitive string status to Prisma QuizStatus enum
@@ -21,6 +25,8 @@ export class QuizService {
     const statusLower = status.toLowerCase();
     if (statusLower === 'draft') return QuizStatus.DRAFT;
     if (statusLower === 'published') return QuizStatus.PUBLISHED;
+    if (statusLower === 'closed') return QuizStatus.CLOSED;
+    if (statusLower === 'archived') return QuizStatus.ARCHIVED;
     return undefined;
   }
 
@@ -58,11 +64,9 @@ export class QuizService {
   }
 
   private async ensureQuizHasQuestions(id: string): Promise<void> {
-    const questionCount = await this.prisma.question.count({
-      where: { quizId: id } as any,
-    });
+    const hasQuestions = await this.questionsService.validateQuizHasQuestions(id);
 
-    if (questionCount < 1) {
+    if (!hasQuestions) {
       throw new BadRequestException(
         'Quiz must have at least one question before it can be published',
       );
@@ -247,6 +251,43 @@ export class QuizService {
       data: {
         status: QuizStatus.DRAFT,
       },
+    });
+  }
+
+  /**
+   * Duplicate an existing quiz with all its questions.
+   * The copy always starts as DRAFT with title prefixed "Copy of ".
+   */
+  async copy(id: string): Promise<Quiz> {
+    const original = await this.prisma.quiz.findUnique({
+      where: { id },
+      include: { questions: true },
+    });
+
+    if (!original) {
+      throw new NotFoundException(`Quiz with id ${id} not found`);
+    }
+
+    return this.prisma.quiz.create({
+      data: {
+        title: `Copy of ${original.title}`,
+        description: original.description,
+        status: QuizStatus.DRAFT,
+        durationMinutes: original.durationMinutes,
+        passingScore: original.passingScore,
+        startsAt: original.startsAt,
+        endsAt: original.endsAt,
+        createdById: original.createdById,
+        questions: {
+          create: original.questions.map((q) => ({
+            type: q.type,
+            text: q.text,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+          })),
+        },
+      },
+      include: { questions: true },
     });
   }
 }

@@ -10,11 +10,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { QuizDateRangeConstraint } from './quiz-date-range.validator';
-
-export enum UpdateQuizStatusEnum {
-  DRAFT = 'draft',
-  PUBLISHED = 'published',
-}
+import { QuizStatusEnum } from './quiz-status.enum';
 
 export class UpdateQuizDto {
   @IsOptional()
@@ -30,8 +26,8 @@ export class UpdateQuizDto {
   @Transform(({ value }) =>
     typeof value === 'string' ? value.toLowerCase() : value,
   )
-  @IsEnum(UpdateQuizStatusEnum)
-  status?: UpdateQuizStatusEnum;
+  @IsEnum(QuizStatusEnum)
+  status?: QuizStatusEnum;
 
   @IsOptional()
   @Type(() => Number)
