@@ -1,0 +1,528 @@
+{
+  "info": {
+    "name": "PitIQ — Sprint 4 API Collection",
+    "description": "Complete API collection for the PitIQ quiz platform. Covers auth, quizzes, questions, attempts, scoring, analytics, notifications, integrity, and student endpoints.\n\n**Owner:** L7 (Mohamed Waleed) — Sprint 4 Handover\n**Base URL:** http://localhost:3002/api\n\n## Auth Setup\n1. Send `POST /api/auth/login` with admin credentials\n2. Copy the `accessToken` from the response\n3. Set it as a collection variable `token`\n\nOr use the pre-request script on the Login request which auto-sets the variable.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3002/api"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@live-test.example"
+    },
+    {
+      "key": "adminPassword",
+      "value": "Password123!"
+    },
+    {
+      "key": "studentEmail",
+      "value": "student@live-test.example"
+    },
+    {
+      "key": "studentPassword",
+      "value": "Password123!"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints — register, login, verify email, resend verification.",
+      "item": [
+        {
+          "name": "Login (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var data = JSON.parse(responseBody);",
+                  "pm.collectionVariables.set('token', data.tokens.accessToken);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Has access token', () => pm.expect(data.tokens.accessToken).to.be.a('string'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"Demo123!\",\n  \"name\": \"Demo User\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/verify-email",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"<verification-token>\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Resend Verification",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/resend-verification",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quizzes (Admin)",
+      "description": "Admin quiz CRUD — create, list, get, update, delete, publish/unpublish.",
+      "item": [
+        {
+          "name": "List Quizzes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/quizzes",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Quiz",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/quizzes/{{quizId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Create Quiz",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/admin/quizzes",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"New Demo Quiz\",\n  \"description\": \"Created via Postman\",\n  \"durationMinutes\": 30,\n  \"passingScore\": 60\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Quiz",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/admin/quizzes/{{quizId}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Quiz Title\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Publish Quiz",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/admin/quizzes/{{quizId}}/publish",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Unpublish Quiz",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/admin/quizzes/{{quizId}}/unpublish",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Delete Quiz",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/admin/quizzes/{{quizId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Questions",
+      "description": "Question bank CRUD — list, get, create, update, delete questions.",
+      "item": [
+        {
+          "name": "List Questions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/questions",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Question",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/questions/{{questionId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Create Question",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/questions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quizId\": \"{{quizId}}\",\n  \"type\": \"MCQ\",\n  \"text\": \"What is 2+2?\",\n  \"options\": [\"3\", \"4\", \"5\", \"6\"],\n  \"correctAnswer\": \"4\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Question",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/questions/{{questionId}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Updated question text\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Question",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/questions/{{questionId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Attempts & Scoring",
+      "description": "Quiz attempts — start, answer, submit, get results.",
+      "item": [
+        {
+          "name": "Start Attempt",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/attempts",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quizId\": \"{{quizId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List My Attempts",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/attempts",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Attempt",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/attempts/{{attemptId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Save Answer",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/attempts/{{attemptId}}/answers",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionId\": \"{{questionId}}\",\n  \"answer\": \"Paris\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Submit Attempt",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/attempts/{{attemptId}}/submit",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Result",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/attempts/{{attemptId}}/result",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "List Results",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/results",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Integrity (Admin)",
+      "description": "Suspicious attempts monitoring — flag attempts exceeding cheating-event threshold, view event timelines.",
+      "item": [
+        {
+          "name": "Log Cheating Event",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/integrity/events",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attemptId\": \"{{attemptId}}\",\n  \"eventType\": \"TAB_HIDDEN\",\n  \"description\": \"Student switched to another tab\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Suspicious Attempts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "var data = JSON.parse(responseBody);",
+                  "pm.test('Returns array', () => pm.expect(data).to.be.an('array'));",
+                  "pm.test('Attempts have required fields', () => {",
+                  "  if (data.length > 0) {",
+                  "    pm.expect(data[0]).to.have.property('attemptId');",
+                  "    pm.expect(data[0]).to.have.property('studentName');",
+                  "    pm.expect(data[0]).to.have.property('eventCount');",
+                  "    pm.expect(data[0]).to.have.property('events');",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/integrity/suspicious?threshold=3",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "integrity", "suspicious"],
+              "query": [
+                { "key": "threshold", "value": "3" },
+                { "key": "quizId", "value": "", "disabled": true }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Attempt Cheating Events",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/integrity/attempts/{{attemptId}}/events",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications (Admin)",
+      "description": "Email delivery monitoring — delivery summary stats, per-quiz invitation status.",
+      "item": [
+        {
+          "name": "Get Delivery Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "var data = JSON.parse(responseBody);",
+                  "pm.test('Has overall stats', () => {",
+                  "  pm.expect(data.overall).to.have.property('total');",
+                  "  pm.expect(data.overall).to.have.property('sent');",
+                  "  pm.expect(data.overall).to.have.property('failed');",
+                  "  pm.expect(data.overall).to.have.property('pending');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/notifications/delivery-summary",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Invitation Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/notifications/invitation-status",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "List Delivery Logs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/notifications/delivery-logs",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Resend Failed",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/notifications/delivery-logs/resend-failed",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateKey\": \"VERIFICATION\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Student",
+      "description": "Student-facing endpoints — available quizzes, active attempts.",
+      "item": [
+        {
+          "name": "List Available Quizzes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/student/quizzes",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Quiz Details",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/student/quizzes/{{quizId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Active Attempts",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/student/attempts/active",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "description": "Admin analytics — quiz stats, attempts, events.",
+      "item": [
+        {
+          "name": "Get Analytics",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/analytics",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Quiz Attempts",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/analytics/quizzes/{{quizTitle}}/attempts",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Analytics Events",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/analytics/events",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "description": "Health check endpoint.",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Service OK', () => {",
+                  "  var data = JSON.parse(responseBody);",
+                  "  pm.expect(data.status).to.eql('ok');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    }
+  ]
+}
