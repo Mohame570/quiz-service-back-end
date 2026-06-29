@@ -159,7 +159,7 @@ async function seedFeatureTestData(prisma: PrismaClient): Promise<void> {
 
   // Remove previously generated feature data so rerunning the seed does not
   // duplicate questions, attempts, answers, or notification logs.
-  const featureQuizIds = ['quiz-1', 'quiz-2', 'quiz-3', 'quiz-4'];
+  const featureQuizIds = ['quiz-1', 'quiz-2', 'quiz-3', 'quiz-4', 'quiz-5', 'quiz-6'];
   await prisma.attempt.deleteMany({
     where: { quizId: { in: featureQuizIds } },
   });
@@ -235,6 +235,36 @@ async function seedFeatureTestData(prisma: PrismaClient): Promise<void> {
       endsAt: new Date('2026-01-31T23:59:59Z'),
       createdById: admin1.id,
       students: { connect: [{ userId: student2.id }] },
+    },
+  });
+
+  await prisma.quiz.upsert({
+    where: { id: 'quiz-5' },
+    update: {},
+    create: {
+      id: 'quiz-5',
+      title: 'Closed Sprint Quiz',
+      description: 'This quiz has been closed and is no longer accepting submissions',
+      status: QuizStatus.CLOSED,
+      durationMinutes: 25,
+      passingScore: 60,
+      startsAt: new Date('2025-01-01T00:00:00Z'),
+      endsAt: new Date('2025-06-30T23:59:59Z'),
+      createdById: admin1.id,
+    },
+  });
+
+  await prisma.quiz.upsert({
+    where: { id: 'quiz-6' },
+    update: {},
+    create: {
+      id: 'quiz-6',
+      title: 'Archived Onboarding Quiz',
+      description: 'This quiz has been archived and is kept for historical reference',
+      status: QuizStatus.ARCHIVED,
+      durationMinutes: 10,
+      passingScore: 50,
+      createdById: admin1.id,
     },
   });
 
@@ -499,6 +529,8 @@ async function seedFeatureTestData(prisma: PrismaClient): Promise<void> {
   console.log(`    quiz-2: Practice Quiz (PUBLISHED, no window, 3 questions)`);
   console.log(`    quiz-3: Draft Quiz (DRAFT, no questions)`);
   console.log(`    quiz-4: Closed Quiz (PUBLISHED, closed window, 2 questions)`);
+  console.log(`    quiz-5: Closed Sprint Quiz (CLOSED, no questions)`);
+  console.log(`    quiz-6: Archived Onboarding Quiz (ARCHIVED, no questions)`);
   console.log('');
   console.log('  Attempts:');
   console.log(`    student1 → quiz-1: IN_PROGRESS`);
