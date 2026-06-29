@@ -7,8 +7,8 @@ import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { Quiz, QuizStatus, Prisma } from '../../../generated/prisma/client';
 import { QuestionsService } from '../../questions/services/questions.service';
-import { Quiz, QuizStatus } from '../../../generated/prisma/client';
 
 @Injectable()
 export class QuizService {
@@ -64,7 +64,8 @@ export class QuizService {
   }
 
   private async ensureQuizHasQuestions(id: string): Promise<void> {
-    const hasQuestions = await this.questionsService.validateQuizHasQuestions(id);
+    const hasQuestions =
+      await this.questionsService.validateQuizHasQuestions(id);
 
     if (!hasQuestions) {
       throw new BadRequestException(
@@ -201,15 +202,16 @@ export class QuizService {
    * Get all quizzes, optionally filtered by status
    */
   async findAll(queryDto: QuizQueryDto): Promise<Quiz[]> {
-    const where: any = {};
+    const where: Prisma.QuizWhereInput = {};
+    if (queryDto.search?.trim()) {
+      where.title = { contains: queryDto.search.trim(), mode: 'insensitive' };
+    }
 
     if (queryDto.status) {
       where.status = this.mapStatusToEnum(queryDto.status);
     }
 
-    return this.prisma.quiz.findMany({
-      where,
-    });
+    return this.prisma.quiz.findMany({ where });
   }
 
   /**

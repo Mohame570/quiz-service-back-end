@@ -7,7 +7,7 @@
 - owner module: quiz
 - sprint: internship-round-1
 - status: active
-- last updated: 2026-06-25
+- last updated: 2026-06-29
 
 ## Purpose
 
@@ -278,6 +278,11 @@ Same as Create Quiz response.
 **Query Parameters:**
 
 ```
+search: optional string
+  - Case-insensitive substring match on the quiz title
+  - Leading/trailing whitespace is trimmed before matching
+  - If omitted, no title filter is applied
+
 status: optional, case-insensitive
   - Accepted values: "draft", "published", "closed", or "archived"
   - If omitted, all quizzes are returned regardless of status
@@ -307,11 +312,13 @@ status: optional, case-insensitive
 
 **Behavior:**
 
-- Without `status`: returns all quizzes in any status.
+- Without any parameters: returns all quizzes in any status.
+- With `search`: filters quizzes whose title contains the search string (case-insensitive).
 - With `status=draft`: returns only quizzes with status `DRAFT`.
 - With `status=published`: returns only quizzes with status `PUBLISHED`.
 - With `status=closed`: returns only quizzes with status `CLOSED`.
 - With `status=archived`: returns only quizzes with status `ARCHIVED`.
+- Both `search` and `status` can be combined to filter by title and status simultaneously.
 
 **Status Code:**
 
