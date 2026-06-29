@@ -41,8 +41,8 @@ services:
       API_PREFIX: ${API_PREFIX:-api}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3001}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-quiz_service}?schema=public
-      SMTP_HOST: ${SMTP_HOST:-mailhog}
-      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@example.com}

@@ -5,7 +5,6 @@ import {
   Controller,
   Get,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -67,7 +66,7 @@ export class AttemptsController {
    */
   @Get(':id')
   findOne(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Request() req: any,
   ): Promise<AttemptResponseDto> {
     const studentId: string = req.user?.sub ?? 'stub-student-id';
@@ -81,7 +80,7 @@ export class AttemptsController {
    */
   @Patch(':id/answers')
   saveAnswers(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() dto: SaveAnswersDto,
     @Request() req: any,
   ): Promise<AttemptAnswerResponseDto[]> {
@@ -97,7 +96,7 @@ export class AttemptsController {
    */
   @Post(':id/submit')
   submit(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() dto: SubmitAttemptDto,
     @Request() req: any,
   ): Promise<AttemptResponseDto> {
@@ -112,7 +111,7 @@ export class AttemptsController {
    */
   @Get(':id/result')
   getResult(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Request() req: any,
   ): Promise<AttemptResponseDto> {
     const studentId: string = req.user?.sub ?? 'stub-student-id';
