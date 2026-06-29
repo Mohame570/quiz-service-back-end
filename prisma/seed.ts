@@ -814,6 +814,56 @@ await prisma.user.upsert({
     },
   });
 
+  // ---- Cheating Event Logs (for admin integrity demo) ----
+  // Attempt 1 (IN_PROGRESS) — 8 events, flagged at threshold ≤ 8
+  const cheatingEvents = [
+    { attemptId: attempt1StartedAt, eventType: 'TAB_HIDDEN' as const, description: 'Student switched tab during quiz' },
+    { eventType: 'WINDOW_BLUR' as const, description: 'Quiz window lost focus' },
+    { eventType: 'WINDOW_FOCUS' as const, description: 'Quiz window regained focus' },
+    { eventType: 'TAB_HIDDEN' as const, description: 'Student switched tab again' },
+    { eventType: 'FULLSCREEN_EXIT' as const, description: 'Exited fullscreen mode' },
+    { eventType: 'TAB_HIDDEN' as const, description: 'Tab hidden a third time' },
+    { eventType: 'WINDOW_BLUR' as const, description: 'Window lost focus again' },
+    { eventType: 'COPY_PASTE' as const, description: 'Student attempted to copy text' },
+  ];
+
+  for (const evt of cheatingEvents) {
+    await prisma.cheatingEventLog.create({
+      data: {
+        attemptId: (await prisma.attempt.findFirst({ where: { studentId: student1.id, quizId: quiz1.id, status: 'IN_PROGRESS' }, select: { id: true } }))!.id,
+        eventType: evt.eventType,
+        description: evt.description,
+        occurredAt: new Date(Date.now() - Math.random() * 60 * 60 * 1000),
+      },
+    });
+  }
+
+  // Attempt 2 (SUBMITTED, 80/100) — 2 events, not flagged at default threshold
+  for (let i = 0; i < 2; i++) {
+    await prisma.cheatingEventLog.create({
+      data: {
+        attemptId: attempt2.id,
+        eventType: i === 0 ? 'TAB_HIDDEN' : 'COPY_PASTE',
+        description: i === 0 ? 'Quick tab switch' : 'Copy attempt during quiz',
+        occurredAt: new Date(Date.now() - (2 + i) * 60 * 60 * 1000),
+      },
+    });
+  }
+
+  // Attempt 3 (SUBMITTED, 100/100) — 0 events, clean student
+  // Attempt 5 (SUBMITTED, 60/100) — 12 events, severe case
+  const severeEventTypes = ['TAB_HIDDEN', 'WINDOW_BLUR', 'COPY_PASTE', 'FULLSCREEN_EXIT', 'WINDOW_FOCUS'];
+  for (let i = 0; i < 12; i++) {
+    await prisma.cheatingEventLog.create({
+      data: {
+        attemptId: attempt5.id,
+        eventType: severeEventTypes[i % severeEventTypes.length],
+        description: `Suspicious activity #${i + 1}`,
+        occurredAt: new Date(Date.now() - (120 + i * 10) * 60 * 1000),
+      },
+    });
+  }
+
   console.log('  ✓ Feature test data seeded');
   console.log('');
 
