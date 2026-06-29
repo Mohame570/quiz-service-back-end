@@ -203,7 +203,6 @@ export class QuizService {
    */
   async findAll(queryDto: QuizQueryDto): Promise<Quiz[]> {
     const where: Prisma.QuizWhereInput = {};
-    console.log({ queryDto });
     if (queryDto.search?.trim()) {
       where.title = { contains: queryDto.search.trim(), mode: 'insensitive' };
     }
