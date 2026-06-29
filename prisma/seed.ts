@@ -144,6 +144,20 @@ async function seedFeatureTestData(prisma: PrismaClient): Promise<void> {
     },
   });
 
+  // Inactive user for live auth tests
+await prisma.user.upsert({
+  where: { email: 'inactive@live-test.example' },
+  update: { passwordHash, isActive: false },
+  create: {
+    email: 'inactive@live-test.example',
+    passwordHash,
+    name: 'Live Test Inactive',
+    role: UserRole.STUDENT,
+    emailVerified: true,
+    isActive: false,
+  },
+});
+
   // Ensure student profiles exist
   await prisma.studentProfile.upsert({
     where: { userId: student1.id },
