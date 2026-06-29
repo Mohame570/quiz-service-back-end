@@ -9,13 +9,18 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
+  Request,
+  ForbiddenException,
 } from '@nestjs/common';
 import { QuizService } from '../services/quiz.service';
 import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
 import { Quiz } from '../../../generated/prisma/client';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('admin/quizzes')
 export class QuizController {
   constructor(private readonly quizService: QuizService) {}
@@ -25,7 +30,11 @@ export class QuizController {
    * Create a new quiz
    */
   @Post()
-  async create(@Body() createQuizDto: CreateQuizDto): Promise<Quiz> {
+  async create(
+    @Body() createQuizDto: CreateQuizDto,
+    @Request() req: any,
+  ): Promise<Quiz> {
+    this.assertAdmin(req);
     return this.quizService.create(createQuizDto);
   }
 
@@ -35,7 +44,8 @@ export class QuizController {
    */
   @Post(':id/copy')
   @HttpCode(HttpStatus.CREATED)
-  async copy(@Param('id') id: string): Promise<Quiz> {
+  async copy(@Param('id') id: string, @Request() req: any): Promise<Quiz> {
+    this.assertAdmin(req);
     return this.quizService.copy(id);
   }
 
@@ -45,7 +55,8 @@ export class QuizController {
    */
   @Post(':id/publish')
   @HttpCode(HttpStatus.OK)
-  async publish(@Param('id') id: string): Promise<Quiz> {
+  async publish(@Param('id') id: string, @Request() req: any): Promise<Quiz> {
+    this.assertAdmin(req);
     return this.quizService.publish(id);
   }
 
@@ -55,7 +66,8 @@ export class QuizController {
    */
   @Post(':id/unpublish')
   @HttpCode(HttpStatus.OK)
-  async unpublish(@Param('id') id: string): Promise<Quiz> {
+  async unpublish(@Param('id') id: string, @Request() req: any): Promise<Quiz> {
+    this.assertAdmin(req);
     return this.quizService.unpublish(id);
   }
 
@@ -67,7 +79,9 @@ export class QuizController {
   async update(
     @Param('id') id: string,
     @Body() updateQuizDto: UpdateQuizDto,
+    @Request() req: any,
   ): Promise<Quiz> {
+    this.assertAdmin(req);
     return this.quizService.update(id, updateQuizDto);
   }
 
@@ -78,7 +92,9 @@ export class QuizController {
   @Delete(':id')
   async delete(
     @Param('id') id: string,
+    @Request() req: any,
   ): Promise<{ deleted: boolean; id: string }> {
+    this.assertAdmin(req);
     return this.quizService.delete(id);
   }
 
@@ -87,7 +103,8 @@ export class QuizController {
    * Get a single quiz by ID
    */
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<Quiz> {
+  async findOne(@Param('id') id: string, @Request() req: any): Promise<Quiz> {
+    this.assertAdmin(req);
     return this.quizService.findOne(id);
   }
 
@@ -96,7 +113,18 @@ export class QuizController {
    * Get all quizzes, optionally filtered by status
    */
   @Get()
-  async findAll(@Query() queryDto: QuizQueryDto): Promise<Quiz[]> {
+  async findAll(
+    @Query() queryDto: QuizQueryDto,
+    @Request() req: any,
+  ): Promise<Quiz[]> {
+    this.assertAdmin(req);
     return this.quizService.findAll(queryDto);
+  }
+
+  private assertAdmin(req: any): void {
+    if (req.user?.role !== 'ADMIN') {
+      console.log('user role:', req.user?.role);
+      throw new ForbiddenException('Admin access required.');
+    }
   }
 }
