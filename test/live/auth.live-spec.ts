@@ -22,12 +22,24 @@ const runLiveTests = process.env.LIVE_TESTS === '1';
         password: 'Password123!',
       }),
     });
- 
     const body = (await response.json()) as any;
  
     expect(response.status).toBe(201);
     expect(body.user.emailVerified).toBe(true);
     expect(body.tokens.accessToken).toBeDefined();
+  });
+
+    it('blocks login for an inactive account with 401', async () => {
+    const response = await fetch(`${LIVE_API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'inactive@live-test.example',
+        password: 'Password123!',
+      }),
+    });
+
+    expect(response.status).toBe(401);
   });
  
   it('registers a new user as unverified', async () => {
@@ -48,6 +60,23 @@ const runLiveTests = process.env.LIVE_TESTS === '1';
     expect(response.status).toBe(201);
     expect(body.user.emailVerified).toBe(false);
   });
+
+  it('registered user always gets STUDENT role', async () => {
+    const response = await fetch(`${LIVE_API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Role Test User',
+        email: `role-test-${Date.now()}@example.com`,
+        password: 'StrongPass123!',
+    }),
+  });
+
+  const body = (await response.json()) as any;
+
+  expect(response.status).toBe(201);
+  expect(body.user.role).toBe('STUDENT');
+});
  
   it('sends a real verification email containing a working token', async () => {
     const message = await waitForMailToRecipient(registeredEmail);

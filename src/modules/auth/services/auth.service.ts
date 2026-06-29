@@ -49,8 +49,10 @@ export class AuthService {
 
     const verificationToken = randomUUID();
 
-    const role = dto.role ?? UserRole.STUDENT;
+    const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
+    const role =  UserRole.STUDENT;
+    
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
@@ -59,6 +61,7 @@ export class AuthService {
         role,
         emailVerified: false,
         verificationToken,
+        verificationTokenExpiresAt,
         ...(role === UserRole.STUDENT
           ? { studentProfile: { create: {} } }
           : {}),
@@ -93,6 +96,10 @@ export class AuthService {
     });
 
     if (!user) {
+      return null;
+    }
+
+    if (!user.isActive) {
       return null;
     }
 
@@ -139,12 +146,21 @@ export class AuthService {
     return { success: true };
   }
 
-  // 4. Update user as verified
+  //4. checks verificationTokenExpiresAt 
+  if (
+    user.verificationTokenExpiresAt &&
+    user.verificationTokenExpiresAt < new Date()
+  ) {
+    throw new UnauthorizedException('invalid or expired verification token');
+  }
+
+  // 5. Update user as verified
   await this.prisma.user.update({
     where: { id: user.id },
     data: {
       emailVerified: true,
       verificationToken: null,
+      verificationTokenExpiresAt: null,
     },
   });
 
@@ -170,11 +186,14 @@ async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean
   // 4. Generate new token
   const verificationToken = randomUUID();
 
+  const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
   // 5. Update user with new token
   await this.prisma.user.update({
     where: { id: user.id },
     data: {
       verificationToken,
+      verificationTokenExpiresAt,
     },
   });
 
