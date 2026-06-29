@@ -651,7 +651,7 @@ async function seedFeatureTestData(prisma: PrismaClient): Promise<void> {
       studentId: student1.id,
       status: AttemptStatus.IN_PROGRESS,
       startedAt: attempt1StartedAt,
-      expiresAt: new Date(attempt1StartedAt.getTime() + quiz1.durationMinutes * 60_000),
+      expiresAt: new Date(attempt1StartedAt.getTime() + (quiz1.durationMinutes ?? 30) * 60_000),
     },
   });
 
@@ -663,7 +663,7 @@ async function seedFeatureTestData(prisma: PrismaClient): Promise<void> {
       studentId: student1.id,
       status: AttemptStatus.SUBMITTED,
       startedAt: attempt2StartedAt,
-      expiresAt: new Date(attempt2StartedAt.getTime() + quiz2.durationMinutes * 60_000),
+      expiresAt: new Date(attempt2StartedAt.getTime() + (quiz2.durationMinutes ?? 15) * 60_000),
       submittedAt: new Date(Date.now() - 24 * 60 * 60 * 1000 + 10 * 60 * 1000),
       score: 80,
       maxScore: 100,
@@ -686,7 +686,7 @@ async function seedFeatureTestData(prisma: PrismaClient): Promise<void> {
       studentId: student2.id,
       status: AttemptStatus.SUBMITTED,
       startedAt: attempt3StartedAt,
-      expiresAt: new Date(attempt3StartedAt.getTime() + quiz1.durationMinutes * 60_000),
+      expiresAt: new Date(attempt3StartedAt.getTime() + (quiz1.durationMinutes ?? 30) * 60_000),
       submittedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000 + 25 * 60 * 1000),
       score: 100,
       maxScore: 100,
@@ -711,7 +711,7 @@ async function seedFeatureTestData(prisma: PrismaClient): Promise<void> {
       studentId: student2.id,
       status: AttemptStatus.TIMED_OUT,
       startedAt: attempt4StartedAt,
-      expiresAt: new Date(attempt4StartedAt.getTime() + quiz4.durationMinutes * 60_000),
+      expiresAt: new Date(attempt4StartedAt.getTime() + (quiz4.durationMinutes ?? 20) * 60_000),
     },
   });
 
@@ -723,7 +723,7 @@ async function seedFeatureTestData(prisma: PrismaClient): Promise<void> {
       studentId: student2.id,
       status: AttemptStatus.SUBMITTED,
       startedAt: attempt5StartedAt,
-      expiresAt: new Date(attempt5StartedAt.getTime() + quiz1.durationMinutes * 60_000),
+      expiresAt: new Date(attempt5StartedAt.getTime() + (quiz1.durationMinutes ?? 30) * 60_000),
       submittedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000 + 20 * 60 * 1000),
       score: 60,
       maxScore: 100,
