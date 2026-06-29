@@ -772,6 +772,8 @@ await prisma.user.upsert({
       templateKey: NotificationTemplateKey.QUIZ_INVITATION,
       status: EmailDeliveryStatus.SENT,
       attemptCount: 1,
+      correlationId: 'invitation:quiz-1',
+      metadata: { quizId: 'quiz-1' },
     },
   });
 
@@ -782,6 +784,33 @@ await prisma.user.upsert({
       templateKey: NotificationTemplateKey.QUIZ_INVITATION,
       status: EmailDeliveryStatus.PENDING,
       attemptCount: 0,
+      correlationId: 'invitation:quiz-2',
+      metadata: { quizId: 'quiz-2' },
+    },
+  });
+
+  await prisma.emailDeliveryLog.create({
+    data: {
+      recipientEmail: 'student1@example.com',
+      subject: 'Quiz invitation: JavaScript Fundamentals',
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+      status: EmailDeliveryStatus.SENT,
+      attemptCount: 1,
+      correlationId: 'invitation:new-quiz-1',
+      metadata: { quizId: 'new-quiz-1' },
+    },
+  });
+
+  await prisma.emailDeliveryLog.create({
+    data: {
+      recipientEmail: 'student2@example.com',
+      subject: 'Quiz invitation: Database Basics',
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+      status: EmailDeliveryStatus.FAILED,
+      attemptCount: 3,
+      errorMessage: 'Connection timeout after 30s',
+      correlationId: 'invitation:new-quiz-3',
+      metadata: { quizId: 'new-quiz-3' },
     },
   });
 
