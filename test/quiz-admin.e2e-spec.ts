@@ -1,8 +1,10 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigModule } from '@nestjs/config';
 import request from 'supertest';
 
 import { PrismaService } from '../src/common/prisma/prisma.service';
+import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
 import { QuizModule } from '../src/modules/quiz/quiz.module';
 
 describe('Quiz admin endpoints', () => {
@@ -15,18 +17,27 @@ describe('Quiz admin endpoints', () => {
       delete: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     question: {
       count: jest.fn(),
     },
+    $transaction: jest.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
   };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [QuizModule],
+      imports: [ConfigModule.forRoot({ ignoreEnvFile: true }), QuizModule],
     })
       .overrideProvider(PrismaService)
       .useValue(prismaMock)
+      .overrideGuard(JwtAuthGuard)
+      .useValue({
+        canActivate: (ctx: any) => {
+          ctx.switchToHttp().getRequest().user = { role: 'ADMIN' };
+          return true;
+        },
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -508,6 +519,7 @@ describe('Quiz admin endpoints', () => {
         updatedAt: '2026-06-10T00:00:00.000Z',
       },
     ]);
+    prismaMock.quiz.count.mockResolvedValueOnce(1);
 
     const response = await request(app.getHttpServer()).get(
       '/api/admin/quizzes?status=Draft',
@@ -516,8 +528,10 @@ describe('Quiz admin endpoints', () => {
     expect(response.status).toBe(200);
     expect(prismaMock.quiz.findMany).toHaveBeenCalledWith({
       where: { status: 'DRAFT' },
+      skip: 0,
+      take: 10,
     });
-    expect(response.body).toHaveLength(1);
+    expect(response.body.items).toHaveLength(1);
   });
 
   it('returns 404 when a requested quiz does not exist', async () => {
