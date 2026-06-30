@@ -4,6 +4,7 @@ import {
   IsInt,
   IsDateString,
   IsNotEmpty,
+  IsOptional,
   Min,
   Validate,
 } from 'class-validator';
@@ -34,12 +35,14 @@ export class CreateQuizDto {
   @IsInt()
   passingScore!: number;
 
+  @IsOptional()
   @IsDateString()
-  startsAt!: string;
+  startsAt?: string;
 
+  @IsOptional()
   @IsDateString()
   @Validate(QuizDateRangeConstraint)
-  endsAt!: string;
+  endsAt?: string;
 
   @IsString()
   createdById!: string;
