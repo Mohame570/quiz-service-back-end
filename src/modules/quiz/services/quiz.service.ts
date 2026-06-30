@@ -6,6 +6,7 @@ import {
 import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
+import { QuizListResponseDto } from '../dto/quiz-list-response.dto';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { Quiz, QuizStatus, Prisma } from '../../../generated/prisma/client';
 import { QuestionsService } from '../../questions/services/questions.service';
@@ -201,7 +202,7 @@ export class QuizService {
   /**
    * Get all quizzes, optionally filtered by status
    */
-  async findAll(queryDto: QuizQueryDto): Promise<Quiz[]> {
+  async findAll(queryDto: QuizQueryDto): Promise<QuizListResponseDto> {
     const where: Prisma.QuizWhereInput = {};
     if (queryDto.search?.trim()) {
       where.title = { contains: queryDto.search.trim(), mode: 'insensitive' };
@@ -211,7 +212,26 @@ export class QuizService {
       where.status = this.mapStatusToEnum(queryDto.status);
     }
 
-    return this.prisma.quiz.findMany({ where });
+    const page = queryDto.page ?? 1;
+    const pageSize = queryDto.pageSize ?? 10;
+    const skip = (page - 1) * pageSize;
+
+    const [items, totalItems] = await this.prisma.$transaction([
+      this.prisma.quiz.findMany({ where, skip, take: pageSize }),
+      this.prisma.quiz.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(totalItems / pageSize);
+
+    return {
+      items,
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    };
   }
 
   /**

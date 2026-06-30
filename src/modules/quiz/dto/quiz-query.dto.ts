@@ -1,5 +1,5 @@
-import { Transform } from 'class-transformer';
-import { IsOptional, IsEnum, IsString } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
+import { IsOptional, IsEnum, IsString, IsInt, Min, Max } from 'class-validator';
 import { QuizStatusEnum } from './quiz-status.enum';
 
 export class QuizQueryDto {
@@ -14,4 +14,17 @@ export class QuizQueryDto {
   )
   @IsEnum(QuizStatusEnum)
   status?: QuizStatusEnum;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number = 10;
 }

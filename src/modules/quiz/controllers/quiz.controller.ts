@@ -17,6 +17,7 @@ import { QuizService } from '../services/quiz.service';
 import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
+import { QuizListResponseDto } from '../dto/quiz-list-response.dto';
 import { Quiz } from '../../../generated/prisma/client';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
@@ -116,7 +117,7 @@ export class QuizController {
   async findAll(
     @Query() queryDto: QuizQueryDto,
     @Request() req: any,
-  ): Promise<Quiz[]> {
+  ): Promise<QuizListResponseDto> {
     this.assertAdmin(req);
     return this.quizService.findAll(queryDto);
   }
