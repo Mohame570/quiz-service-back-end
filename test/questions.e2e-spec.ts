@@ -20,38 +20,47 @@ describe('QuestionsController (e2e)', () => {
     prisma = app.get<PrismaService>(PrismaService);
     
     // We mock PrismaService to avoid DB connection issues if Docker is not available in the environment
-    jest.spyOn(prisma.quiz, 'findUnique').mockImplementation((async (args: any): Promise<any> => {
-      if (args.where.id === 'valid-quiz-id') {
-        return { id: 'valid-quiz-id', title: 'Test', creatorId: 'user-id', status: 'DRAFT', createdAt: new Date(), updatedAt: new Date(), description: '' };
+    jest.spyOn(prisma.quiz, 'findMany').mockImplementation((async (args: any): Promise<any> => {
+      const ids = args.where?.id?.in || [];
+      if (ids.includes('valid-quiz-id')) {
+        return [{ id: 'valid-quiz-id', title: 'Test', creatorId: 'user-id', status: 'DRAFT', createdAt: new Date(), updatedAt: new Date(), description: '' }];
       }
-      if (args.where.id === 'published-quiz-id') {
-        return { id: 'published-quiz-id', title: 'Test', creatorId: 'user-id', status: 'PUBLISHED', createdAt: new Date(), updatedAt: new Date(), description: '' };
+      if (ids.includes('published-quiz-id')) {
+        return [{ id: 'published-quiz-id', title: 'Test', creatorId: 'user-id', status: 'PUBLISHED', createdAt: new Date(), updatedAt: new Date(), description: '' }];
       }
-      return null;
+      return [];
     }) as any);
 
     jest.spyOn(prisma.question, 'create').mockImplementation((async (args: any): Promise<any> => {
-      return { id: 'new-q-id', ...args.data, createdAt: new Date(), updatedAt: new Date() };
+      const { quizQuestions, ...rest } = args.data;
+      return { 
+        id: 'new-q-id', 
+        ...rest,
+        quizQuestions: quizQuestions?.create ? quizQuestions.create.map((c: any) => ({ quizId: c.quizId, quiz: { id: c.quizId } })) : [],
+        createdAt: new Date(), 
+        updatedAt: new Date() 
+      };
     }) as any);
 
     jest.spyOn(prisma.question, 'findUnique').mockImplementation((async (args: any): Promise<any> => {
       if (args.where.id === 'valid-q-id') {
         return { 
-          id: 'valid-q-id', quizId: 'valid-quiz-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', points: 1, order: 0, createdAt: new Date(), updatedAt: new Date(),
-          quiz: { status: 'DRAFT' }
+          id: 'valid-q-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', points: 1, createdAt: new Date(), updatedAt: new Date(),
+          quizQuestions: [{ quiz: { status: 'DRAFT' } }]
         };
       }
       if (args.where.id === 'published-q-id') {
         return { 
-          id: 'published-q-id', quizId: 'published-quiz-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', points: 1, order: 0, createdAt: new Date(), updatedAt: new Date(),
-          quiz: { status: 'PUBLISHED' }
+          id: 'published-q-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', points: 1, createdAt: new Date(), updatedAt: new Date(),
+          quizQuestions: [{ quiz: { status: 'PUBLISHED' } }]
         };
       }
       return null;
     }) as any);
 
     jest.spyOn(prisma.question, 'update').mockImplementation((async (args: any): Promise<any> => {
-      return { id: args.where.id, ...args.data, createdAt: new Date(), updatedAt: new Date() };
+      const { quizQuestions, ...rest } = args.data;
+      return { id: args.where.id, ...rest, quizQuestions: [], createdAt: new Date(), updatedAt: new Date() };
     }) as any);
 
     jest.spyOn(prisma.question, 'delete').mockImplementation((async (args: any): Promise<any> => {
@@ -59,8 +68,8 @@ describe('QuestionsController (e2e)', () => {
     }) as any);
 
     jest.spyOn(prisma.question, 'findMany').mockImplementation((async (args: any): Promise<any> => {
-      if (args?.where?.quizId === 'valid-quiz-id') {
-        return [{ id: 'valid-q-id', quizId: 'valid-quiz-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', createdAt: new Date(), updatedAt: new Date() }];
+      if (args?.where?.quizQuestions?.some?.quizId === 'valid-quiz-id') {
+        return [{ id: 'valid-q-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', createdAt: new Date(), updatedAt: new Date(), quizQuestions: [{ quizId: 'valid-quiz-id', quiz: { id: 'valid-quiz-id', status: 'DRAFT' } }] }];
       }
       return [];
     }) as any);
@@ -74,7 +83,7 @@ describe('QuestionsController (e2e)', () => {
     return request(app.getHttpServer())
       .post('/questions')
       .send({
-        quizId: 'valid-quiz-id',
+        quizIds: ['valid-quiz-id'],
         type: 'MCQ',
         text: 'What is 2+2?',
         options: ['3', '4', '5'],
@@ -90,7 +99,7 @@ describe('QuestionsController (e2e)', () => {
     return request(app.getHttpServer())
       .post('/questions')
       .send({
-        quizId: 'valid-quiz-id',
+        quizIds: ['valid-quiz-id'],
         type: 'MCQ',
         text: 'What is 2+2?',
         options: ['3', '4', '5'],
@@ -103,7 +112,7 @@ describe('QuestionsController (e2e)', () => {
     return request(app.getHttpServer())
       .post('/questions')
       .send({
-        quizId: 'valid-quiz-id',
+        quizIds: ['valid-quiz-id'],
         type: 'TRUE_FALSE',
         text: 'The earth is flat.',
         correctAnswer: 'False'
@@ -115,7 +124,7 @@ describe('QuestionsController (e2e)', () => {
     return request(app.getHttpServer())
       .post('/questions')
       .send({
-        quizId: 'valid-quiz-id',
+        quizIds: ['valid-quiz-id'],
         type: 'TRUE_FALSE',
         text: 'The earth is flat.',
         correctAnswer: 'No' // Must be 'True' or 'False'
@@ -159,7 +168,7 @@ describe('QuestionsController (e2e)', () => {
       .expect((res: any) => {
         expect(Array.isArray(res.body)).toBeTruthy();
         expect(res.body.length).toBe(1);
-        expect(res.body[0].quizId).toBe('valid-quiz-id');
+        expect(res.body[0].quizzes[0].id).toBe('valid-quiz-id');
       });
   });
 
@@ -183,7 +192,7 @@ describe('QuestionsController (e2e)', () => {
     return request(app.getHttpServer())
       .post('/questions')
       .send({
-        quizId: 'published-quiz-id',
+        quizIds: ['published-quiz-id'],
         type: 'MCQ',
         text: 'What is 2+2?',
         options: ['3', '4', '5'],
@@ -209,7 +218,7 @@ describe('QuestionsController (e2e)', () => {
     return request(app.getHttpServer())
       .post('/questions')
       .send({
-        quizId: 'valid-quiz-id',
+        quizIds: ['valid-quiz-id'],
         type: 'MCQ',
         text: 'Duplicate options?',
         options: ['A', 'A', 'B'],
@@ -222,12 +231,11 @@ describe('QuestionsController (e2e)', () => {
     return request(app.getHttpServer())
       .post('/questions')
       .send({
-        quizId: 'valid-quiz-id',
+        quizIds: ['valid-quiz-id'],
         type: 'TRUE_FALSE',
         text: 'The earth is round.',
         correctAnswer: 'True',
-        points: 5,
-        order: 1
+        points: 5
       })
       .expect(201);
   });

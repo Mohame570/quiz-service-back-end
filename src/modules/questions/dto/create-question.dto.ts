@@ -26,9 +26,10 @@ export class IsValidCorrectAnswerConstraint implements ValidatorConstraintInterf
 }
 
 export class CreateQuestionDto {
-  @IsString()
-  @IsNotEmpty()
-  quizId!: string;
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  quizIds?: string[];
 
   @IsEnum(QuestionType)
   type!: QuestionType;
@@ -54,8 +55,4 @@ export class CreateQuestionDto {
   @Min(1)
   points?: number;
 
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  order?: number;
 }
