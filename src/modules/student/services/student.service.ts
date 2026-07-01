@@ -68,12 +68,11 @@ interface QuizRow {
   passingScore: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
-  questions?: { id: string }[];
+  quizQuestions?: { questionId: string }[];
 }
 
 interface QuestionRow {
   id: string;
-  quizId: string;
   type: 'MCQ' | 'TRUE_FALSE';
   text: string;
   options: string[];
@@ -100,7 +99,7 @@ export class StudentService {
         status: QuizStatus.PUBLISHED,
         students: { some: { userId: studentId } },
       },
-      include: { questions: { select: { id: true } } },
+      include: { quizQuestions: { select: { questionId: true } } },
     });
 
     const now = new Date();
@@ -134,7 +133,7 @@ export class StudentService {
         status: QuizStatus.PUBLISHED,
         students: { some: { userId: studentId } },
       },
-      include: { questions: { select: { id: true } } },
+      include: { quizQuestions: { select: { questionId: true } } },
     });
 
     if (!quiz) {
@@ -408,9 +407,9 @@ export class StudentService {
     items: SaveAnswerItemDto[],
   ): Promise<void> {
     const ids = Array.from(new Set(items.map((i) => i.questionId)));
-    const found = await this.prisma.question.findMany({
-      where: { id: { in: ids }, quizId },
-      select: { id: true },
+    const found = await this.prisma.quizQuestion.findMany({
+      where: { quizId, questionId: { in: ids } },
+      select: { questionId: true },
     });
     if (found.length !== ids.length) {
       throw new BadRequestException(
@@ -455,7 +454,7 @@ export class StudentService {
       passingScore: quiz.passingScore,
       startsAt: quiz.startsAt,
       endsAt: quiz.endsAt,
-      questionCount: quiz.questions?.length ?? 0,
+      questionCount: quiz.quizQuestions?.length ?? 0,
       attemptStatus,
       attemptId: latestActive ? latestActive.id : null,
     };

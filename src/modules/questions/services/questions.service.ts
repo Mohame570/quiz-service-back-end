@@ -211,6 +211,17 @@ export class QuestionsService {
     return count > 0;
   }
 
+  async assertQuestionsExist(ids: string[]): Promise<void> {
+    const questions = await this.prisma.question.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+
+    if (questions.length !== ids.length) {
+      throw new BadRequestException('One or more questions not found');
+    }
+  }
+
   private mapQuestionResponse(question: any) {
     const { quizQuestions, ...rest } = question;
     return {
