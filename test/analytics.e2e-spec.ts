@@ -16,6 +16,10 @@ describe('Analytics endpoint', () => {
         id: 'quiz_abc123',
         title: 'Sample Quiz',
       }),
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'quiz_abc123',
+        title: 'Sample Quiz',
+      }),
     },
     user: {
       count: jest.fn().mockResolvedValue(0),
