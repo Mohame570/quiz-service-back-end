@@ -216,7 +216,7 @@ export class QuizService {
     const pageSize = queryDto.pageSize ?? 10;
     const skip = (page - 1) * pageSize;
 
-    const [items, totalItems] = await this.prisma.$transaction([
+    const [quizzes, totalItems] = await this.prisma.$transaction([
       this.prisma.quiz.findMany({ where, skip, take: pageSize }),
       this.prisma.quiz.count({ where }),
     ]);
@@ -224,7 +224,7 @@ export class QuizService {
     const totalPages = Math.ceil(totalItems / pageSize);
 
     return {
-      items,
+      quizzes,
       page,
       pageSize,
       totalItems,

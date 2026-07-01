@@ -1,7 +1,7 @@
 import { Quiz } from '../../../generated/prisma/client';
 
 export class QuizListResponseDto {
-  items!: Quiz[];
+  quizzes!: Quiz[];
   page!: number;
   pageSize!: number;
   totalItems!: number;
