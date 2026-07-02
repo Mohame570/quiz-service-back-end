@@ -40,6 +40,6 @@ export class StudentAttemptOrchestrator {
   }
 
   listQuizQuestions(quizId: string) {
-    return this.questions.getQuestions(quizId);
+    return this.questions.findByQuiz(quizId);
   }
 }

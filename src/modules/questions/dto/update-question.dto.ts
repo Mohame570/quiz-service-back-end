@@ -26,8 +26,4 @@ export class UpdateQuestionDto {
   @Min(1)
   points?: number;
 
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  order?: number;
 }

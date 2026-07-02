@@ -20,7 +20,12 @@ describe('Quiz admin endpoints', () => {
       count: jest.fn(),
     },
     question: {
+      findMany: jest.fn(),
+    },
+    quizQuestion: {
       count: jest.fn(),
+      findMany: jest.fn(),
+      createMany: jest.fn(),
     },
     $transaction: jest.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
   };
@@ -207,7 +212,7 @@ describe('Quiz admin endpoints', () => {
     prismaMock.quiz.findUnique.mockResolvedValueOnce({
       id: 'quiz-1',
     });
-    prismaMock.question.count.mockResolvedValueOnce(1);
+    prismaMock.quizQuestion.count.mockResolvedValueOnce(1);
     prismaMock.quiz.update.mockResolvedValueOnce({
       id: 'quiz-1',
       title: 'Sprint 1 Quiz',
@@ -229,7 +234,7 @@ describe('Quiz admin endpoints', () => {
       });
 
     expect(response.status).toBe(200);
-    expect(prismaMock.question.count).toHaveBeenCalledWith({
+    expect(prismaMock.quizQuestion.count).toHaveBeenCalledWith({
       where: { quizId: 'quiz-1' },
     });
     expect(prismaMock.quiz.update).toHaveBeenCalledWith({
@@ -276,7 +281,7 @@ describe('Quiz admin endpoints', () => {
     prismaMock.quiz.findUnique.mockResolvedValueOnce({
       id: 'quiz-1',
     });
-    prismaMock.question.count.mockResolvedValueOnce(0);
+    prismaMock.quizQuestion.count.mockResolvedValueOnce(0);
 
     const response = await request(app.getHttpServer())
       .patch('/api/admin/quizzes/quiz-1')
@@ -316,7 +321,7 @@ describe('Quiz admin endpoints', () => {
       });
 
     expect(response.status).toBe(200);
-    expect(prismaMock.question.count).not.toHaveBeenCalled();
+    expect(prismaMock.quizQuestion.count).not.toHaveBeenCalled();
     expect(prismaMock.quiz.update).toHaveBeenCalledWith({
       where: { id: 'quiz-1' },
       data: {
@@ -350,7 +355,7 @@ describe('Quiz admin endpoints', () => {
       });
 
     expect(response.status).toBe(200);
-    expect(prismaMock.question.count).not.toHaveBeenCalled();
+    expect(prismaMock.quizQuestion.count).not.toHaveBeenCalled();
     expect(prismaMock.quiz.update).toHaveBeenCalledWith({
       where: { id: 'quiz-1' },
       data: {
@@ -363,7 +368,7 @@ describe('Quiz admin endpoints', () => {
     prismaMock.quiz.findUnique.mockResolvedValueOnce({
       id: 'quiz-1',
     });
-    prismaMock.question.count.mockResolvedValueOnce(1);
+    prismaMock.quizQuestion.count.mockResolvedValueOnce(1);
     prismaMock.quiz.update.mockResolvedValueOnce({
       id: 'quiz-1',
       title: 'Sprint 1 Quiz',
@@ -383,7 +388,7 @@ describe('Quiz admin endpoints', () => {
     );
 
     expect(response.status).toBe(200);
-    expect(prismaMock.question.count).toHaveBeenCalledWith({
+    expect(prismaMock.quizQuestion.count).toHaveBeenCalledWith({
       where: { quizId: 'quiz-1' },
     });
     expect(prismaMock.quiz.update).toHaveBeenCalledWith({
@@ -399,7 +404,7 @@ describe('Quiz admin endpoints', () => {
     prismaMock.quiz.findUnique.mockResolvedValueOnce({
       id: 'quiz-1',
     });
-    prismaMock.question.count.mockResolvedValueOnce(0);
+    prismaMock.quizQuestion.count.mockResolvedValueOnce(0);
 
     const response = await request(app.getHttpServer()).post(
       '/api/admin/quizzes/quiz-1/publish',
@@ -421,7 +426,7 @@ describe('Quiz admin endpoints', () => {
 
     expect(response.status).toBe(404);
     expect(response.body.message).toContain('Quiz with id missing-quiz not found');
-    expect(prismaMock.question.count).not.toHaveBeenCalled();
+    expect(prismaMock.quizQuestion.count).not.toHaveBeenCalled();
     expect(prismaMock.quiz.update).not.toHaveBeenCalled();
   });
 
@@ -543,5 +548,96 @@ describe('Quiz admin endpoints', () => {
 
     expect(response.status).toBe(404);
     expect(response.body.message).toContain('Quiz with id missing-quiz not found');
+  });
+
+  describe('POST /admin/quizzes/:id/questions', () => {
+    it('returns 404 when the quiz does not exist', async () => {
+      prismaMock.quiz.findUnique.mockResolvedValueOnce(null);
+
+      const response = await request(app.getHttpServer())
+        .post('/api/admin/quizzes/missing-quiz/questions')
+        .send({ questions: [{ questionId: 'question-1', order: 1 }] });
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toContain('Quiz with id missing-quiz not found');
+      expect(prismaMock.quizQuestion.createMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects attaching questions to a quiz that is not in draft status', async () => {
+      prismaMock.quiz.findUnique.mockResolvedValueOnce({
+        id: 'quiz-1',
+        status: 'PUBLISHED',
+      });
+
+      const response = await request(app.getHttpServer())
+        .post('/api/admin/quizzes/quiz-1/questions')
+        .send({ questions: [{ questionId: 'question-1', order: 1 }] });
+
+      expect(response.status).toBe(403);
+      expect(prismaMock.quizQuestion.createMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects attaching a question that does not exist', async () => {
+      prismaMock.quiz.findUnique.mockResolvedValueOnce({
+        id: 'quiz-1',
+        status: 'DRAFT',
+      });
+      prismaMock.question.findMany.mockResolvedValueOnce([]);
+
+      const response = await request(app.getHttpServer())
+        .post('/api/admin/quizzes/quiz-1/questions')
+        .send({ questions: [{ questionId: 'missing-question', order: 1 }] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('One or more questions not found');
+      expect(prismaMock.quizQuestion.createMany).not.toHaveBeenCalled();
+    });
+
+    it('attaches existing questions to a draft quiz', async () => {
+      prismaMock.quiz.findUnique.mockResolvedValueOnce({
+        id: 'quiz-1',
+        status: 'DRAFT',
+      });
+      prismaMock.question.findMany.mockResolvedValueOnce([
+        { id: 'question-1' },
+        { id: 'question-2' },
+      ]);
+      prismaMock.quizQuestion.createMany.mockResolvedValueOnce({ count: 2 });
+      prismaMock.quizQuestion.findMany.mockResolvedValueOnce([
+        { quizId: 'quiz-1', questionId: 'question-1', order: 1 },
+        { quizId: 'quiz-1', questionId: 'question-2', order: 2 },
+      ]);
+
+      const response = await request(app.getHttpServer())
+        .post('/api/admin/quizzes/quiz-1/questions')
+        .send({
+          questions: [
+            { questionId: 'question-1', order: 1 },
+            { questionId: 'question-2', order: 2 },
+          ],
+        });
+
+      expect(response.status).toBe(201);
+      expect(prismaMock.quizQuestion.createMany).toHaveBeenCalledWith({
+        data: [
+          { quizId: 'quiz-1', questionId: 'question-1', order: 1 },
+          { quizId: 'quiz-1', questionId: 'question-2', order: 2 },
+        ],
+        skipDuplicates: true,
+      });
+      expect(response.body).toEqual([
+        { quizId: 'quiz-1', questionId: 'question-1', order: 1 },
+        { quizId: 'quiz-1', questionId: 'question-2', order: 2 },
+      ]);
+    });
+
+    it('rejects an empty questions array', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/admin/quizzes/quiz-1/questions')
+        .send({ questions: [] });
+
+      expect(response.status).toBe(400);
+      expect(prismaMock.quiz.findUnique).not.toHaveBeenCalled();
+    });
   });
 });
