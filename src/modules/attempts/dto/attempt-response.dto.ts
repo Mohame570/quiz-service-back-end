@@ -13,6 +13,7 @@ export class AttemptAnswerResponseDto {
   attemptId!: string;
   questionId!: string;
   selectedOptionId!: string | null;
+  textAnswer!: string | null;
   isCorrect!: boolean | null;
   answeredAt!: Date;
 }

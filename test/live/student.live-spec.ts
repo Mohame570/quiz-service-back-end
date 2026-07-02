@@ -46,7 +46,7 @@ type StudentActiveAttemptResponse = {
 
 type StudentAttemptQuestion = {
   id: string;
-  type: 'MCQ' | 'TRUE_FALSE';
+  type: 'MCQ' | 'TRUE_FALSE' | 'SHORT_TEXT' | 'ESSAY';
   text: string;
   options: string[];
   order: number;
@@ -66,6 +66,7 @@ type StudentAnswerResponse = {
   attemptId: string;
   questionId: string;
   selectedOptionId: string | null;
+  textAnswer: string | null;
   isCorrect: boolean | null;
   answeredAt: string;
 };

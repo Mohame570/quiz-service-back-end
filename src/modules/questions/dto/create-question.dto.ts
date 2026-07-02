@@ -4,8 +4,17 @@ import { QuestionType } from '../../../generated/prisma/client';
 
 @ValidatorConstraint({ name: 'isValidCorrectAnswer', async: false })
 export class IsValidCorrectAnswerConstraint implements ValidatorConstraintInterface {
-  validate(correctAnswer: string, args: ValidationArguments) {
-    const object = args.object as any;
+  validate(correctAnswer: string | undefined, args: ValidationArguments) {
+    const object = args.object as { type?: QuestionType; options?: string[] };
+    if (object.type === QuestionType.ESSAY) {
+      return correctAnswer === undefined || typeof correctAnswer === 'string';
+    }
+    if (typeof correctAnswer !== 'string' || correctAnswer.trim() === '') {
+      return false;
+    }
+    if (object.type === QuestionType.SHORT_TEXT) {
+      return correctAnswer.trim().length > 0;
+    }
     if (object.type === QuestionType.TRUE_FALSE) {
       return correctAnswer === 'True' || correctAnswer === 'False';
     }
@@ -17,9 +26,15 @@ export class IsValidCorrectAnswerConstraint implements ValidatorConstraintInterf
   }
 
   defaultMessage(args: ValidationArguments) {
-    const object = args.object as any;
+    const object = args.object as { type?: QuestionType };
     if (object.type === QuestionType.TRUE_FALSE) {
       return 'correctAnswer must be "True" or "False" for TRUE_FALSE questions';
+    }
+    if (object.type === QuestionType.SHORT_TEXT) {
+      return 'correctAnswer must be a non-empty string for SHORT_TEXT questions';
+    }
+    if (object.type === QuestionType.ESSAY) {
+      return 'correctAnswer must be a string for ESSAY questions';
     }
     return 'correctAnswer must be one of the provided options for MCQ questions';
   }
@@ -44,10 +59,8 @@ export class CreateQuestionDto {
   @IsString({ each: true })
   options?: string[];
 
-  @IsString()
-  @IsNotEmpty()
   @Validate(IsValidCorrectAnswerConstraint)
-  correctAnswer!: string;
+  correctAnswer?: string;
 
   @IsOptional()
   @IsInt()

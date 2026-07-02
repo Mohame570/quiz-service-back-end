@@ -144,6 +144,7 @@ export class ScoringService {
         attemptId: a.attemptId,
         questionId: a.questionId,
         selectedOptionId: a.selectedOptionId,
+        textAnswer: a.textAnswer,
         isCorrect: a.isCorrect,
         answeredAt: a.answeredAt,
       })),

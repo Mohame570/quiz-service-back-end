@@ -19,6 +19,11 @@ export class SaveAnswerItemDto {
   @IsOptional()
   @IsString()
   selectedOptionId?: string | null;
+
+  /// Free-text response for SHORT_TEXT and ESSAY questions.
+  @IsOptional()
+  @IsString()
+  textAnswer?: string | null;
 }
 
 export class SaveAnswersDto {

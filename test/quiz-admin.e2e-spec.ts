@@ -531,7 +531,7 @@ describe('Quiz admin endpoints', () => {
       skip: 0,
       take: 10,
     });
-    expect(response.body.items).toHaveLength(1);
+    expect(response.body.quizzes).toHaveLength(1);
   });
 
   it('returns 404 when a requested quiz does not exist', async () => {

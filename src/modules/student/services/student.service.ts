@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import { AttemptStatus, QuizStatus } from '../../../generated/prisma/client';
+import { AttemptStatus, QuestionType, QuizStatus } from '../../../generated/prisma/client';
 import {
   AttemptAnswerResponseDto,
   AttemptResponseDto,
@@ -297,12 +297,7 @@ export class StudentService {
       );
     }
 
-    await this.assertQuestionsBelongToQuiz(refreshed.quizId, items);
-
-    const normalized = items.map((i) => ({
-      questionId: i.questionId,
-      selectedOptionId: i.selectedOptionId ?? null,
-    }));
+    const normalized = await this.normalizeAnswerItems(refreshed.quizId, items);
 
     return this.orchestrator.saveAnswers(attemptId, studentId, normalized);
   }
@@ -333,8 +328,8 @@ export class StudentService {
     }
 
     if (items.length > 0) {
-      await this.assertQuestionsBelongToQuiz(refreshed.quizId, items);
-      await this.orchestrator.saveAnswers(attemptId, studentId, items);
+      const normalized = await this.normalizeAnswerItems(refreshed.quizId, items);
+      await this.orchestrator.saveAnswers(attemptId, studentId, normalized);
     }
 
     return this.withAttemptMetadata(
@@ -403,20 +398,54 @@ export class StudentService {
     return updated as AttemptRow;
   }
 
-  private async assertQuestionsBelongToQuiz(
+  private async normalizeAnswerItems(
     quizId: string,
     items: SaveAnswerItemDto[],
-  ): Promise<void> {
+  ): Promise<SaveAnswerItemDto[]> {
     const ids = Array.from(new Set(items.map((i) => i.questionId)));
     const found = await this.prisma.question.findMany({
       where: { id: { in: ids }, quizId },
-      select: { id: true },
+      select: { id: true, type: true },
     });
     if (found.length !== ids.length) {
       throw new BadRequestException(
         'One or more questionIds do not belong to this quiz.',
       );
     }
+
+    const typeByQuestionId = new Map(found.map((q) => [q.id, q.type]));
+
+    return items.map((item) => {
+      const type = typeByQuestionId.get(item.questionId)!;
+      const isChoiceQuestion =
+        type === QuestionType.MCQ || type === QuestionType.TRUE_FALSE;
+
+      if (isChoiceQuestion) {
+        if (item.textAnswer != null && item.textAnswer !== '') {
+          throw new BadRequestException(
+            'Choice questions must use selectedOptionId, not textAnswer.',
+          );
+        }
+        return {
+          questionId: item.questionId,
+          selectedOptionId: item.selectedOptionId ?? null,
+          textAnswer: null,
+        };
+      }
+
+      if (item.selectedOptionId != null && item.selectedOptionId !== '') {
+        throw new BadRequestException(
+          'Text questions must use textAnswer, not selectedOptionId.',
+        );
+      }
+
+      const textAnswer = item.textAnswer ?? null;
+      return {
+        questionId: item.questionId,
+        selectedOptionId: null,
+        textAnswer: textAnswer === '' ? null : textAnswer,
+      };
+    });
   }
 
   private isWithinWindow(quiz: QuizRow, now: Date): boolean {

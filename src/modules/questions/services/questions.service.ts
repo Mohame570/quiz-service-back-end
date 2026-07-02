@@ -27,7 +27,7 @@ export class QuestionsService {
         type: data.type,
         text: data.text,
         options: data.options || [],
-        correctAnswer: data.correctAnswer,
+        correctAnswer: data.correctAnswer ?? '',
         points: data.points ?? 1,
         order: data.order ?? 0,
       }
@@ -64,6 +64,10 @@ export class QuestionsService {
       }
       if (!merged.options.includes(merged.correctAnswer)) {
         throw new BadRequestException('correctAnswer must be one of the provided options for MCQ questions');
+      }
+    } else if (merged.type === QuestionType.SHORT_TEXT) {
+      if (!merged.correctAnswer.trim()) {
+        throw new BadRequestException('correctAnswer must be a non-empty string for SHORT_TEXT questions');
       }
     }
 

@@ -118,10 +118,12 @@ export class AttemptsService {
           attemptId: id,
           questionId: item.questionId,
           selectedOptionId: item.selectedOptionId ?? null,
+          textAnswer: item.textAnswer ?? null,
           answeredAt: now,
         },
         update: {
           selectedOptionId: item.selectedOptionId ?? null,
+          textAnswer: item.textAnswer ?? null,
           answeredAt: now,
         },
       }),
@@ -160,10 +162,12 @@ export class AttemptsService {
                 attemptId: id,
                 questionId: item.questionId,
                 selectedOptionId: item.selectedOptionId ?? null,
+                textAnswer: item.textAnswer ?? null,
                 answeredAt: now,
               },
               update: {
                 selectedOptionId: item.selectedOptionId ?? null,
+                textAnswer: item.textAnswer ?? null,
                 answeredAt: now,
               },
             }),
@@ -291,6 +295,7 @@ export class AttemptsService {
       attemptId: answer.attemptId,
       questionId: answer.questionId,
       selectedOptionId: answer.selectedOptionId,
+      textAnswer: answer.textAnswer,
       isCorrect: answer.isCorrect,
       answeredAt: answer.answeredAt,
     };
