@@ -135,7 +135,7 @@ describe('QuestionsController (e2e)', () => {
       .expect(201)
       .expect((res: any) => {
         expect(res.body.type).toBe('SHORT_TEXT');
-        expect(res.body.correctAnswer).toBe('Paris');
+        expect(res.body.correctAnswer).toBe('paris');
       });
   });
 

@@ -14,6 +14,7 @@ export class AttemptAnswerResponseDto {
   questionId!: string;
   selectedOptionId!: string | null;
   textAnswer!: string | null;
+  pointsEarned!: number | null;
   isCorrect!: boolean | null;
   answeredAt!: Date;
 }

@@ -106,6 +106,8 @@ const RESULT_ROW = {
   percentage: 60,
   passed: true,
   gradedAt: new Date('2026-06-23T10:25:00.500Z'),
+  gradingStatus: 'COMPLETE' as const,
+  pendingEssayCount: 0,
 };
 
 // ---------------------------------------------------------------------------
@@ -880,7 +882,7 @@ describe('StudentService', () => {
           attemptId: ATTEMPT_ID,
           questionId: Q3_ID,
           selectedOptionId: null,
-          textAnswer: 'Paris',
+          textAnswer: 'paris',
           isCorrect: null,
           answeredAt: new Date(),
         },
@@ -893,9 +895,9 @@ describe('StudentService', () => {
       expect(orchestrator.saveAnswers).toHaveBeenCalledWith(
         ATTEMPT_ID,
         STUDENT_ID,
-        [{ questionId: Q3_ID, selectedOptionId: null, textAnswer: 'Paris' }],
+        [{ questionId: Q3_ID, selectedOptionId: null, textAnswer: 'paris' }],
       );
-      expect(result[0].textAnswer).toBe('Paris');
+      expect(result[0].textAnswer).toBe('paris');
     });
 
     it('saves textAnswer for ESSAY questions', async () => {

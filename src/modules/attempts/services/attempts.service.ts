@@ -296,6 +296,7 @@ export class AttemptsService {
       questionId: answer.questionId,
       selectedOptionId: answer.selectedOptionId,
       textAnswer: answer.textAnswer,
+      pointsEarned: answer.pointsEarned ?? null,
       isCorrect: answer.isCorrect,
       answeredAt: answer.answeredAt,
     };

@@ -29,6 +29,7 @@ import {
   isExpired,
   remainingSeconds,
 } from './attempt-timer.util';
+import { normalizeShortTextAnswer } from '../../attempts/utils/text-answer.util';
 
 /// Student-facing response shape: the attempts module's full response with
 /// the student-only `expiresAt` field and the `Result` summary appended.
@@ -36,8 +37,10 @@ import {
 /// `expiresAt` + the `Result` row on top of it.
 export interface StudentAttemptResultSummary {
   percentage: number;
-  passed: boolean;
+  passed: boolean | null;
   gradedAt: Date;
+  gradingStatus: 'PARTIAL' | 'COMPLETE';
+  pendingEssayCount: number;
 }
 
 type StudentAttemptResponse = AttemptResponseDto & {
@@ -493,10 +496,18 @@ export class StudentService {
       }
 
       const textAnswer = item.textAnswer ?? null;
+      const normalizedText =
+        type === QuestionType.SHORT_TEXT
+          ? normalizeShortTextAnswer(textAnswer)
+          : textAnswer === null
+            ? null
+            : textAnswer.trim() === ''
+              ? null
+              : textAnswer.trim();
       return {
         questionId: item.questionId,
         selectedOptionId: null,
-        textAnswer: textAnswer === '' ? null : textAnswer,
+        textAnswer: normalizedText,
       };
     });
   }
@@ -586,6 +597,8 @@ export class StudentService {
             percentage: resultRow.percentage,
             passed: resultRow.passed,
             gradedAt: resultRow.gradedAt,
+            gradingStatus: resultRow.gradingStatus,
+            pendingEssayCount: resultRow.pendingEssayCount,
           }
         : null,
     };

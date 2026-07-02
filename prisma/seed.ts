@@ -6,6 +6,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import {
   AttemptStatus,
   EmailDeliveryStatus,
+  GradingStatus,
   NotificationTemplateKey,
   PrismaClient,
   QuestionType,
@@ -976,6 +977,85 @@ await prisma.user.upsert({
     ],
   });
 
+  // Attempt 6: student1 → new-quiz-5 (SUBMITTED, PARTIAL — essay pending admin grade)
+  const newQuiz5Questions = await prisma.question.findMany({
+    where: { quizId: newQuiz5.id },
+    orderBy: { order: 'asc' },
+  });
+  const attempt6StartedAt = new Date(Date.now() - 12 * 60 * 60 * 1000);
+  const attempt6 = await prisma.attempt.create({
+    data: {
+      quizId: newQuiz5.id,
+      studentId: student1.id,
+      status: AttemptStatus.SUBMITTED,
+      startedAt: attempt6StartedAt,
+      expiresAt: new Date(attempt6StartedAt.getTime() + (newQuiz5.durationMinutes ?? 45) * 60_000),
+      submittedAt: new Date(Date.now() - 12 * 60 * 60 * 1000 + 40 * 60 * 1000),
+      score: 5,
+      maxScore: 6,
+    },
+  });
+  await prisma.attemptAnswer.createMany({
+    data: [
+      {
+        attemptId: attempt6.id,
+        questionId: newQuiz5Questions[0].id,
+        selectedOptionId: 'O(log n)',
+        pointsEarned: 1,
+        isCorrect: true,
+      },
+      {
+        attemptId: attempt6.id,
+        questionId: newQuiz5Questions[1].id,
+        selectedOptionId: 'False',
+        pointsEarned: 1,
+        isCorrect: true,
+      },
+      {
+        attemptId: attempt6.id,
+        questionId: newQuiz5Questions[2].id,
+        selectedOptionId: 'O(n)',
+        pointsEarned: 1,
+        isCorrect: true,
+      },
+      {
+        attemptId: attempt6.id,
+        questionId: newQuiz5Questions[3].id,
+        selectedOptionId: 'True',
+        pointsEarned: 1,
+        isCorrect: true,
+      },
+      {
+        attemptId: attempt6.id,
+        questionId: newQuiz5Questions[4].id,
+        textAnswer: 'stack',
+        pointsEarned: 1,
+        isCorrect: true,
+      },
+      {
+        attemptId: attempt6.id,
+        questionId: newQuiz5Questions[5].id,
+        textAnswer:
+          'Linked lists can insert at the head in O(1), while arrays require shifting elements.',
+        pointsEarned: null,
+        isCorrect: null,
+      },
+    ],
+  });
+  await prisma.result.create({
+    data: {
+      attemptId: attempt6.id,
+      studentId: student1.id,
+      quizId: newQuiz5.id,
+      score: 5,
+      maxScore: 6,
+      percentage: 83.33,
+      passed: null,
+      gradingStatus: GradingStatus.PARTIAL,
+      pendingEssayCount: 1,
+    },
+  });
+
   // ---- Email Delivery Logs (3 new) ----
   await prisma.emailDeliveryLog.create({
     data: {
@@ -1151,6 +1231,7 @@ await prisma.user.upsert({
   console.log(`    student2 → quiz-1: SUBMITTED (100/100)`);
   console.log(`    student2 → quiz-1: SUBMITTED (60/100)`);
   console.log(`    student2 → quiz-4: TIMED_OUT`);
+  console.log(`    student1 → new-quiz-5: SUBMITTED (5/6, PARTIAL — essay pending admin grade)`);
 }
 
 // ---------------------------------------------------------------------------

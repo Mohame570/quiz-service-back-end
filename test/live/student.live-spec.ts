@@ -175,10 +175,15 @@ let timedOutAttemptId: string | null = null;
       'new-quiz-4',
       'new-quiz-5',
     ]);
-    for (const item of body.items.filter((q) => q.id.startsWith('new-quiz-'))) {
+    for (const item of body.items.filter(
+      (q) => q.id.startsWith('new-quiz-') && q.id !== 'new-quiz-5',
+    )) {
       expect(item.attemptStatus).toBe('NOT_STARTED');
       expect(item.attemptId).toBeNull();
     }
+    const newQuiz5 = body.items.find((q) => q.id === 'new-quiz-5');
+    expect(newQuiz5?.attemptStatus).toBe('SUBMITTED');
+    expect(newQuiz5?.attemptId).toBeDefined();
     const newQuiz2 = body.items.find((q) => q.id === 'new-quiz-2');
     expect(newQuiz2?.durationMinutes).toBe(1);
   });

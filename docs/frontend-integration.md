@@ -232,7 +232,8 @@ PATCH /api/student/attempts/:attemptId/answers
 
 - Use **only** the field that matches the question type
 - Response includes both `selectedOptionId` and `textAnswer` (unused field is `null`)
-- Auto-scoring on submit currently grades `MCQ` / `TRUE_FALSE` only; `SHORT_TEXT` / `ESSAY` answers are saved but not auto-scored yet
+- Auto-scoring on submit grades `MCQ`, `TRUE_FALSE`, and `SHORT_TEXT` (trim + case-insensitive match). `ESSAY` answers with text stay pending until an admin grades them via `/api/admin/analytics/grading/*` (see [`docs/api/analytics-grading.md`](api/analytics-grading.md)).
+- Provisional results: `result.gradingStatus` is `PARTIAL` while essays are pending; `result.passed` is `null` until grading is complete.
 
 Full contract: [`docs/api/student.md`](api/student.md)  
 Admin question creation (includes `SHORT_TEXT` / `ESSAY`): [`docs/api/questions.md`](api/questions.md)

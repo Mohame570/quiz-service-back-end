@@ -59,6 +59,11 @@ enum QuestionType {
   ESSAY
 }
 
+enum GradingStatus {
+  PARTIAL
+  COMPLETE
+}
+
 // -----------------------------------------------------------------------
 // Attempt
 // -----------------------------------------------------------------------
@@ -117,6 +122,13 @@ model AttemptAnswer {
 
   /// Populated by the scoring service; null until graded.
   isCorrect Boolean?
+
+  /// Points awarded for this answer; null while an essay awaits manual grading.
+  pointsEarned Int?
+
+  /// Admin who graded an essay answer.
+  gradedById String?
+  gradedAt   DateTime?
 
   /// Updated on every upsert so the solving module can track last save.
   answeredAt DateTime @default(now())
@@ -244,7 +256,9 @@ model Result {
   score      Int
   maxScore   Int
   percentage Float
-  passed     Boolean
+  passed     Boolean?
+  gradingStatus     GradingStatus @default(COMPLETE)
+  pendingEssayCount Int           @default(0)
   gradedAt   DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

@@ -3,6 +3,7 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 import { CreateQuestionDto } from '../dto/create-question.dto';
 import { UpdateQuestionDto } from '../dto/update-question.dto';
 import { QuestionType } from '../../../generated/prisma/client';
+import { normalizeShortText } from '../../attempts/utils/text-answer.util';
 
 @Injectable()
 export class QuestionsService {
@@ -21,13 +22,18 @@ export class QuestionsService {
       throw new ForbiddenException('Cannot modify questions of a published quiz');
     }
 
+    const correctAnswer =
+      data.type === QuestionType.SHORT_TEXT && data.correctAnswer
+        ? normalizeShortText(data.correctAnswer)
+        : data.correctAnswer ?? '';
+
     return this.prisma.question.create({
       data: {
         quizId: data.quizId,
         type: data.type,
         text: data.text,
         options: data.options || [],
-        correctAnswer: data.correctAnswer ?? '',
+        correctAnswer,
         points: data.points ?? 1,
         order: data.order ?? 0,
       }
@@ -69,6 +75,7 @@ export class QuestionsService {
       if (!merged.correctAnswer.trim()) {
         throw new BadRequestException('correctAnswer must be a non-empty string for SHORT_TEXT questions');
       }
+      merged.correctAnswer = normalizeShortText(merged.correctAnswer);
     }
 
     return this.prisma.question.update({
@@ -77,7 +84,10 @@ export class QuestionsService {
         type: data.type,
         text: data.text,
         options: data.options,
-        correctAnswer: data.correctAnswer,
+        correctAnswer:
+          data.correctAnswer !== undefined || data.type !== undefined
+            ? merged.correctAnswer
+            : undefined,
         points: data.points,
         order: data.order,
       }

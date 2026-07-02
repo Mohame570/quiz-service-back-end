@@ -706,6 +706,37 @@
             "url": "{{baseUrl}}/analytics/events",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
           }
+        },
+        {
+          "name": "Get Essay Grading Queue",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/analytics/grading/queue",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Attempt for Grading",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/analytics/grading/attempts/{{attemptId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Grade Essay Answer",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/admin/analytics/grading/attempts/{{attemptId}}/answers/{{answerId}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pointsEarned\": 1\n}"
+            }
+          }
         }
       ]
     },
