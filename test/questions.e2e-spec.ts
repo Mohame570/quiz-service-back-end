@@ -55,6 +55,12 @@ describe('QuestionsController (e2e)', () => {
           quizQuestions: [{ quiz: { status: 'PUBLISHED' } }]
         };
       }
+      if (args.where.id === 'answered-q-id') {
+        return { 
+          id: 'answered-q-id', type: 'MCQ', text: 'Answered', options: ['A', 'B'], correctAnswer: 'A', points: 1, createdAt: new Date(), updatedAt: new Date(),
+          quizQuestions: [{ quiz: { status: 'DRAFT' } }]
+        };
+      }
       return null;
     }) as any);
 
@@ -72,6 +78,11 @@ describe('QuestionsController (e2e)', () => {
         return [{ id: 'valid-q-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', createdAt: new Date(), updatedAt: new Date(), quizQuestions: [{ quizId: 'valid-quiz-id', quiz: { id: 'valid-quiz-id', status: 'DRAFT' } }] }];
       }
       return [];
+    }) as any);
+
+    jest.spyOn(prisma.attemptAnswer, 'count').mockImplementation((async (args: any): Promise<any> => {
+      if (args.where?.questionId === 'answered-q-id') return 1;
+      return 0;
     }) as any);
   });
 
@@ -188,7 +199,7 @@ describe('QuestionsController (e2e)', () => {
       .expect(404);
   });
 
-  it('/questions (POST) - Fail if quiz is PUBLISHED', () => {
+  it('/questions (POST) - Fail if quiz is non-DRAFT', () => {
     return request(app.getHttpServer())
       .post('/questions')
       .send({
@@ -201,16 +212,29 @@ describe('QuestionsController (e2e)', () => {
       .expect(403);
   });
 
-  it('/questions/:id (PATCH) - Fail if quiz is PUBLISHED', () => {
+  it('/questions/:id (PATCH) - Fail if quiz is non-DRAFT', () => {
     return request(app.getHttpServer())
       .patch('/questions/published-q-id')
       .send({ text: 'Updated text' })
       .expect(403);
   });
 
-  it('/questions/:id (DELETE) - Fail if quiz is PUBLISHED', () => {
+  it('/questions/:id (DELETE) - Fail if quiz is non-DRAFT', () => {
     return request(app.getHttpServer())
       .delete('/questions/published-q-id')
+      .expect(403);
+  });
+
+  it('/questions/:id (PATCH) - Fail if answered', () => {
+    return request(app.getHttpServer())
+      .patch('/questions/answered-q-id')
+      .send({ text: 'Updated text' })
+      .expect(403);
+  });
+
+  it('/questions/:id (DELETE) - Fail if answered', () => {
+    return request(app.getHttpServer())
+      .delete('/questions/answered-q-id')
       .expect(403);
   });
 
