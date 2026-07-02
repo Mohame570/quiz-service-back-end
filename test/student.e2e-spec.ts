@@ -85,6 +85,7 @@ function makePrismaMock() {
       findMany: jest.fn(),
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     attempt: {
       findMany: jest.fn(),
@@ -431,6 +432,68 @@ describe('StudentService', () => {
 
       expect(result.attemptId).toBe('newest');
       expect(result.attemptStatus).toBe('IN_PROGRESS');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // acceptQuizInvitation()
+  // -------------------------------------------------------------------------
+
+  describe('acceptQuizInvitation()', () => {
+    it('connects the student when not yet assigned', async () => {
+      prisma.quiz.findFirst
+        .mockResolvedValueOnce({
+          id: QUIZ_PUBLISHED_ACTIVE,
+          title: 'Active Quiz',
+        })
+        .mockResolvedValueOnce(null);
+      prisma.quiz.update.mockResolvedValueOnce({});
+
+      const result = await service.acceptQuizInvitation(
+        STUDENT_ID,
+        QUIZ_PUBLISHED_ACTIVE,
+      );
+
+      expect(prisma.quiz.update).toHaveBeenCalledWith({
+        where: { id: QUIZ_PUBLISHED_ACTIVE },
+        data: { students: { connect: { userId: STUDENT_ID } } },
+      });
+      expect(result).toEqual({
+        quizId: QUIZ_PUBLISHED_ACTIVE,
+        title: 'Active Quiz',
+        assigned: true,
+        alreadyAssigned: false,
+      });
+    });
+
+    it('returns alreadyAssigned without connecting again', async () => {
+      prisma.quiz.findFirst
+        .mockResolvedValueOnce({
+          id: QUIZ_PUBLISHED_ACTIVE,
+          title: 'Active Quiz',
+        })
+        .mockResolvedValueOnce({ id: QUIZ_PUBLISHED_ACTIVE });
+
+      const result = await service.acceptQuizInvitation(
+        STUDENT_ID,
+        QUIZ_PUBLISHED_ACTIVE,
+      );
+
+      expect(prisma.quiz.update).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        quizId: QUIZ_PUBLISHED_ACTIVE,
+        title: 'Active Quiz',
+        assigned: false,
+        alreadyAssigned: true,
+      });
+    });
+
+    it('throws NotFoundException for a missing or non-PUBLISHED quiz', async () => {
+      prisma.quiz.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        service.acceptQuizInvitation(STUDENT_ID, QUIZ_DRAFT),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "PitIQ — Sprint 4 API Collection",
-    "description": "Complete API collection for the PitIQ quiz platform. Covers auth, quizzes, questions, attempts, scoring, analytics, notifications, integrity, and student endpoints.\n\n**Owner:** L7 (Mohamed Waleed) — Sprint 4 Handover\n**Base URL:** http://localhost:3002/api\n\n## Auth Setup\n1. Send `POST /api/auth/login` with admin credentials\n2. Copy the `accessToken` from the response\n3. Set it as a collection variable `token`\n\nOr use the pre-request script on the Login request which auto-sets the variable.",
+    "description": "Complete API collection for the PitIQ quiz platform. Covers auth, quizzes, questions (MCQ, TRUE_FALSE, SHORT_TEXT, ESSAY), attempts, scoring, analytics, notifications, integrity, and student endpoints.\n\n**Base URL:** http://localhost:3002/api\n\n## Question types\n| Type | Create (admin) | Save answer (student) |\n|------|----------------|----------------------|\n| MCQ | options + correctAnswer | selectedOptionId |\n| TRUE_FALSE | options [True, False] | selectedOptionId |\n| SHORT_TEXT | correctAnswer required | textAnswer |\n| ESSAY | correctAnswer optional | textAnswer |\n\nAuto-scoring on submit grades MCQ/TRUE_FALSE only.\n\n## Auth Setup\n1. Send `POST /auth/login` with admin or student credentials\n2. Token is auto-saved to `{{token}}` on Login requests\n3. Set `{{quizId}}`, `{{attemptId}}`, `{{questionId}}` as you run the flow\n\nSeeded accounts: admin@live-test.example / student@live-test.example — Password123!",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -28,6 +28,26 @@
     {
       "key": "studentPassword",
       "value": "Password123!"
+    },
+    {
+      "key": "quizId",
+      "value": "invite-quiz-1"
+    },
+    {
+      "key": "attemptId",
+      "value": ""
+    },
+    {
+      "key": "questionId",
+      "value": ""
+    },
+    {
+      "key": "questionIdShortText",
+      "value": ""
+    },
+    {
+      "key": "questionIdEssay",
+      "value": ""
     }
   ],
   "item": [
@@ -176,7 +196,7 @@
     },
     {
       "name": "Questions",
-      "description": "Question bank CRUD — list, get, create, update, delete questions.",
+      "description": "Question bank CRUD. Types: MCQ, TRUE_FALSE, SHORT_TEXT, ESSAY. See docs/api/questions.md.",
       "item": [
         {
           "name": "List Questions",
@@ -195,7 +215,7 @@
           }
         },
         {
-          "name": "Create Question",
+          "name": "Create Question (MCQ)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/questions",
@@ -205,7 +225,52 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"quizId\": \"{{quizId}}\",\n  \"type\": \"MCQ\",\n  \"text\": \"What is 2+2?\",\n  \"options\": [\"3\", \"4\", \"5\", \"6\"],\n  \"correctAnswer\": \"4\"\n}"
+              "raw": "{\n  \"quizId\": \"{{quizId}}\",\n  \"type\": \"MCQ\",\n  \"text\": \"What is the capital of France?\",\n  \"options\": [\"London\", \"Paris\", \"Berlin\", \"Madrid\"],\n  \"correctAnswer\": \"Paris\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Question (TRUE_FALSE)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/questions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quizId\": \"{{quizId}}\",\n  \"type\": \"TRUE_FALSE\",\n  \"text\": \"The Earth is flat.\",\n  \"options\": [\"True\", \"False\"],\n  \"correctAnswer\": \"False\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Question (SHORT_TEXT)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/questions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quizId\": \"{{quizId}}\",\n  \"type\": \"SHORT_TEXT\",\n  \"text\": \"Name the capital of France.\",\n  \"correctAnswer\": \"Paris\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Question (ESSAY)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/questions",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quizId\": \"{{quizId}}\",\n  \"type\": \"ESSAY\",\n  \"text\": \"Explain REST in your own words.\"\n}"
             }
           }
         },
@@ -270,7 +335,7 @@
           }
         },
         {
-          "name": "Save Answer",
+          "name": "Save Answers (Choice — MCQ/TRUE_FALSE)",
           "request": {
             "method": "PATCH",
             "url": "{{baseUrl}}/attempts/{{attemptId}}/answers",
@@ -280,7 +345,22 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"questionId\": \"{{questionId}}\",\n  \"answer\": \"Paris\"\n}"
+              "raw": "{\n  \"answers\": [\n    { \"questionId\": \"{{questionId}}\", \"selectedOptionId\": \"Paris\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Save Answers (Text — SHORT_TEXT/ESSAY)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/attempts/{{attemptId}}/answers",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"questionId\": \"{{questionIdShortText}}\", \"textAnswer\": \"Paris\" },\n    { \"questionId\": \"{{questionIdEssay}}\", \"textAnswer\": \"REST is an architectural style for building APIs.\" }\n  ]\n}"
             }
           }
         },
@@ -438,8 +518,33 @@
     },
     {
       "name": "Student",
-      "description": "Student-facing endpoints — available quizzes, active attempts.",
+      "description": "Student-facing endpoints. Use Login (Student) first. Question types: MCQ/TRUE_FALSE → selectedOptionId; SHORT_TEXT/ESSAY → textAnswer.",
       "item": [
+        {
+          "name": "Login (Student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var data = JSON.parse(responseBody);",
+                  "pm.collectionVariables.set('token', data.tokens.accessToken);",
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{studentEmail}}\",\n  \"password\": \"{{studentPassword}}\"\n}"
+            }
+          }
+        },
         {
           "name": "List Available Quizzes",
           "request": {
@@ -449,10 +554,118 @@
           }
         },
         {
+          "name": "Accept Quiz Invitation",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/student/quizzes/{{quizId}}/accept-invitation",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
           "name": "Get Quiz Details",
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/student/quizzes/{{quizId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Start Quiz Attempt",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var data = JSON.parse(responseBody);",
+                  "pm.collectionVariables.set('attemptId', data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/student/quizzes/{{quizId}}/start",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Attempt Questions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var data = JSON.parse(responseBody);",
+                  "if (data.questions && data.questions.length > 0) {",
+                  "  var mcq = data.questions.find(function(q) { return q.type === 'MCQ'; }) || data.questions[0];",
+                  "  var shortText = data.questions.find(function(q) { return q.type === 'SHORT_TEXT'; });",
+                  "  var essay = data.questions.find(function(q) { return q.type === 'ESSAY'; });",
+                  "  pm.collectionVariables.set('questionId', mcq.id);",
+                  "  if (shortText) pm.collectionVariables.set('questionIdShortText', shortText.id);",
+                  "  if (essay) pm.collectionVariables.set('questionIdEssay', essay.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/student/attempts/{{attemptId}}/questions",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Save Answers (Choice — MCQ/TRUE_FALSE)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/student/attempts/{{attemptId}}/answers",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"questionId\": \"{{questionId}}\", \"selectedOptionId\": \"let\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Save Answers (Text — SHORT_TEXT/ESSAY)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/student/attempts/{{attemptId}}/answers",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"questionId\": \"{{questionIdShortText}}\", \"textAnswer\": \"object\" },\n    { \"questionId\": \"{{questionIdEssay}}\", \"textAnswer\": \"let is block-scoped; var is function-scoped.\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Submit Attempt",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/student/attempts/{{attemptId}}/submit",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": []\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Attempt Result",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/student/attempts/{{attemptId}}/result",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
           }
         },

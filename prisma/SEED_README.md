@@ -21,18 +21,37 @@ All passwords: `Password123!`
 | admin@live-test.example | ADMIN | - |
 | student@live-test.example | STUDENT | seed-live-test-quiz |
 | admin1@example.com | ADMIN | - |
-| student1@example.com | STUDENT | quiz-1, quiz-2 |
-| student2@example.com | STUDENT | quiz-1, quiz-4 |
+| student1@example.com | STUDENT | quiz-1, quiz-2, new-quiz-1 … new-quiz-5 |
+| student2@example.com | STUDENT | quiz-1, quiz-4, new-quiz-1 … new-quiz-5 |
+
+## Question Types
+
+Seeded data includes all four `QuestionType` values:
+
+| Type | Save field | Auto-scored |
+|------|------------|-------------|
+| MCQ | `selectedOptionId` | Yes |
+| TRUE_FALSE | `selectedOptionId` | Yes |
+| SHORT_TEXT | `textAnswer` | No (stored only) |
+| ESSAY | `textAnswer` | No (stored only) |
 
 ## Quizzes
 
-| ID | Title | Status | Questions | Window |
-|----|-------|--------|-----------|--------|
-| seed-live-test-quiz | Live Test Quiz | PUBLISHED | 0 | - |
-| quiz-1 | Sprint 1 Assessment | PUBLISHED | 5 | 2026 (active) |
-| quiz-2 | Practice Quiz | PUBLISHED | 3 | Always open |
-| quiz-3 | Draft Quiz | DRAFT | 0 | - |
-| quiz-4 | Closed Quiz | PUBLISHED | 2 | Jan 2026 (closed) |
+| ID | Title | Status | Questions | Types | Window |
+|----|-------|--------|-----------|-------|--------|
+| seed-live-test-quiz | Live Test Quiz | PUBLISHED | 3 | MCQ, SHORT_TEXT, ESSAY | - |
+| quiz-1 | Sprint 1 Assessment | PUBLISHED | 7 | MCQ, TF, SHORT_TEXT, ESSAY | 2026 (active) |
+| quiz-2 | Practice Quiz | PUBLISHED | 5 | MCQ, TF, SHORT_TEXT, ESSAY | Always open |
+| quiz-3 | Draft Quiz | DRAFT | 2 | SHORT_TEXT, ESSAY | - |
+| quiz-4 | Closed Quiz | PUBLISHED | 3 | MCQ, TF, SHORT_TEXT | Jan 2026 (closed) |
+| new-quiz-1 | JavaScript Fundamentals | PUBLISHED | 4 | MCQ, TF, SHORT_TEXT | Active |
+| new-quiz-2 | World Geography | PUBLISHED | 4 | MCQ, TF, SHORT_TEXT | Always open (1 min) |
+| new-quiz-3 | Database Basics | PUBLISHED | 5 | MCQ, TF, ESSAY | Active |
+| new-quiz-4 | Web Development | PUBLISHED | 5 | MCQ, TF, SHORT_TEXT | Active |
+| new-quiz-5 | Algorithms & DS | PUBLISHED | 6 | MCQ, TF, SHORT_TEXT, ESSAY | Active |
+| invite-quiz-1 | Invitation Demo Quiz | PUBLISHED | 4 | MCQ, TF, SHORT_TEXT, ESSAY | Active — **not assigned** to any student |
+
+Use **`invite-quiz-1`** to test `POST /student/quizzes/:quizId/accept-invitation` (works for both `student1` and `student2`). **`quiz-2`** is also unassigned to `student2` only (used by live tests). Re-seeding clears `invite-quiz-1` roster assignments.
 
 ## Attempts
 

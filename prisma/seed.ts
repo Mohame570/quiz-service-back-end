@@ -74,6 +74,36 @@ async function seedLiveTestFixtures(prisma: PrismaClient): Promise<void> {
     },
   });
 
+  await prisma.question.deleteMany({ where: { quizId: 'seed-live-test-quiz' } });
+  await prisma.question.createMany({
+    data: [
+      {
+        quizId: 'seed-live-test-quiz',
+        type: QuestionType.MCQ,
+        text: 'Which HTTP status code means OK?',
+        options: ['200', '201', '404', '500'],
+        correctAnswer: '200',
+        order: 0,
+      },
+      {
+        quizId: 'seed-live-test-quiz',
+        type: QuestionType.SHORT_TEXT,
+        text: 'What does REST stand for?',
+        options: [],
+        correctAnswer: 'Representational State Transfer',
+        order: 1,
+      },
+      {
+        quizId: 'seed-live-test-quiz',
+        type: QuestionType.ESSAY,
+        text: 'Describe one benefit of using JWT for authentication.',
+        options: [],
+        correctAnswer: '',
+        order: 2,
+      },
+    ],
+  });
+
   await prisma.emailDeliveryLog.deleteMany({
     where: { correlationId: LIVE_TEST_CORRELATION_ID },
   });
@@ -176,6 +206,7 @@ await prisma.user.upsert({
   const cleanupQuizIds = [
     'quiz-1', 'quiz-2', 'quiz-3', 'quiz-4',
     'new-quiz-1', 'new-quiz-2', 'new-quiz-3', 'new-quiz-4', 'new-quiz-5',
+    'invite-quiz-1',
   ];
   await prisma.attempt.deleteMany({
     where: { quizId: { in: cleanupQuizIds } },
@@ -350,6 +381,33 @@ await prisma.user.upsert({
     },
   });
 
+  // invite-quiz-1: published with questions, no roster — use POST accept-invitation to assign
+  const inviteQuiz1 = await prisma.quiz.upsert({
+    where: { id: 'invite-quiz-1' },
+    update: {
+      title: 'Invitation Demo Quiz',
+      description: 'Not pre-assigned — accept invitation to join the roster',
+      status: QuizStatus.PUBLISHED,
+      durationMinutes: 20,
+      passingScore: 60,
+      startsAt: new Date('2026-01-01T00:00:00Z'),
+      endsAt: new Date('2026-12-31T23:59:59Z'),
+      createdById: admin1.id,
+      students: { set: [] },
+    },
+    create: {
+      id: 'invite-quiz-1',
+      title: 'Invitation Demo Quiz',
+      description: 'Not pre-assigned — accept invitation to join the roster',
+      status: QuizStatus.PUBLISHED,
+      durationMinutes: 20,
+      passingScore: 60,
+      startsAt: new Date('2026-01-01T00:00:00Z'),
+      endsAt: new Date('2026-12-31T23:59:59Z'),
+      createdById: admin1.id,
+    },
+  });
+
   // ---- Questions ----
   // Quiz 1: 5 questions (3 MCQ + 2 TRUE_FALSE)
   const q1_1 = await prisma.question.create({
@@ -402,7 +460,29 @@ await prisma.user.upsert({
     },
   });
 
-  // Quiz 2: 3 questions (2 MCQ + 1 TRUE_FALSE)
+  await prisma.question.create({
+    data: {
+      quizId: quiz1.id,
+      type: QuestionType.SHORT_TEXT,
+      text: 'What is the chemical symbol for gold?',
+      options: [],
+      correctAnswer: 'Au',
+      order: 5,
+    },
+  });
+
+  await prisma.question.create({
+    data: {
+      quizId: quiz1.id,
+      type: QuestionType.ESSAY,
+      text: 'Explain why the sky appears blue on a clear day.',
+      options: [],
+      correctAnswer: '',
+      order: 6,
+    },
+  });
+
+  // Quiz 2: 5 questions (2 MCQ + 1 TRUE_FALSE + 1 SHORT_TEXT + 1 ESSAY)
   const q2_1 = await prisma.question.create({
     data: {
       quizId: quiz2.id,
@@ -433,7 +513,52 @@ await prisma.user.upsert({
     },
   });
 
-  // Quiz 4: 2 questions (1 MCQ + 1 TRUE_FALSE)
+  await prisma.question.create({
+    data: {
+      quizId: quiz2.id,
+      type: QuestionType.SHORT_TEXT,
+      text: 'What keyword declares a constant in JavaScript?',
+      options: [],
+      correctAnswer: 'const',
+      order: 3,
+    },
+  });
+
+  await prisma.question.create({
+    data: {
+      quizId: quiz2.id,
+      type: QuestionType.ESSAY,
+      text: 'Describe one difference between let and var in JavaScript.',
+      options: [],
+      correctAnswer: '',
+      order: 4,
+    },
+  });
+
+  // Quiz 3 (DRAFT): sample text question types for admin editing demos
+  await prisma.question.create({
+    data: {
+      quizId: 'quiz-3',
+      type: QuestionType.SHORT_TEXT,
+      text: 'Name any one relational database.',
+      options: [],
+      correctAnswer: 'PostgreSQL',
+      order: 0,
+    },
+  });
+
+  await prisma.question.create({
+    data: {
+      quizId: 'quiz-3',
+      type: QuestionType.ESSAY,
+      text: 'What is normalization in database design?',
+      options: [],
+      correctAnswer: '',
+      order: 1,
+    },
+  });
+
+  // Quiz 4: 3 questions (1 MCQ + 1 TRUE_FALSE + 1 SHORT_TEXT)
   await prisma.question.create({
     data: {
       quizId: quiz4.id,
@@ -454,8 +579,19 @@ await prisma.user.upsert({
     },
   });
 
+  await prisma.question.create({
+    data: {
+      quizId: quiz4.id,
+      type: QuestionType.SHORT_TEXT,
+      text: 'What galaxy contains our solar system?',
+      options: [],
+      correctAnswer: 'Milky Way',
+      order: 2,
+    },
+  });
+
   // ---- New questions ----
-  // new-quiz-1: JavaScript Fundamentals — 4 questions (3 MCQ + 1 TF)
+  // new-quiz-1: JavaScript Fundamentals — 4 questions (2 MCQ + 1 TF + 1 SHORT_TEXT)
   await prisma.question.create({
     data: {
       quizId: newQuiz1.id,
@@ -463,15 +599,6 @@ await prisma.user.upsert({
       text: 'Which keyword declares a block-scoped variable in JavaScript?',
       options: ['var', 'let', 'const', 'static'],
       correctAnswer: 'let',
-    },
-  });
-  await prisma.question.create({
-    data: {
-      quizId: newQuiz1.id,
-      type: QuestionType.MCQ,
-      text: 'What does `typeof null` return in JavaScript?',
-      options: ['null', 'undefined', 'object', 'number'],
-      correctAnswer: 'object',
     },
   });
   await prisma.question.create({
@@ -492,8 +619,18 @@ await prisma.user.upsert({
       correctAnswer: 'True',
     },
   });
+  await prisma.question.create({
+    data: {
+      quizId: newQuiz1.id,
+      type: QuestionType.SHORT_TEXT,
+      text: 'What does `typeof null` return in JavaScript?',
+      options: [],
+      correctAnswer: 'object',
+      order: 3,
+    },
+  });
 
-  // new-quiz-2: World Geography — 3 questions (2 MCQ + 1 TF) — 1 min duration
+  // new-quiz-2: World Geography — 4 questions (2 MCQ + 1 TF + 1 SHORT_TEXT)
   await prisma.question.create({
     data: {
       quizId: newQuiz2.id,
@@ -521,8 +658,18 @@ await prisma.user.upsert({
       correctAnswer: 'True',
     },
   });
+  await prisma.question.create({
+    data: {
+      quizId: newQuiz2.id,
+      type: QuestionType.SHORT_TEXT,
+      text: 'What is the capital of Egypt?',
+      options: [],
+      correctAnswer: 'Cairo',
+      order: 3,
+    },
+  });
 
-  // new-quiz-3: Database Basics — 4 questions (3 MCQ + 1 TF)
+  // new-quiz-3: Database Basics — 5 questions (3 MCQ + 1 TF + 1 ESSAY)
   await prisma.question.create({
     data: {
       quizId: newQuiz3.id,
@@ -550,22 +697,34 @@ await prisma.user.upsert({
     data: {
       quizId: newQuiz3.id,
       type: QuestionType.MCQ,
-      text: 'A foreign key can reference a unique index in another table.',
-      options: ['True', 'False'],
-      correctAnswer: 'True',
+      text: 'Which type of index is generally the fastest for equality lookups?',
+      options: ['B-tree', 'Hash', 'GIN', 'GIST'],
+      correctAnswer: 'Hash',
+      order: 2,
     },
   });
   await prisma.question.create({
     data: {
       quizId: newQuiz3.id,
-      type: QuestionType.MCQ,
-      text: 'Which type of index is generally the fastest for equality lookups?',
-      options: ['B-tree', 'Hash', 'GIN', 'GIST'],
-      correctAnswer: 'Hash',
+      type: QuestionType.TRUE_FALSE,
+      text: 'A foreign key can reference a unique index in another table.',
+      options: ['True', 'False'],
+      correctAnswer: 'True',
+      order: 3,
+    },
+  });
+  await prisma.question.create({
+    data: {
+      quizId: newQuiz3.id,
+      type: QuestionType.ESSAY,
+      text: 'Explain when you would choose a B-tree index over a hash index.',
+      options: [],
+      correctAnswer: '',
+      order: 4,
     },
   });
 
-  // new-quiz-4: Web Development — 5 questions (4 MCQ + 1 TF)
+  // new-quiz-4: Web Development — 5 questions (3 MCQ + 1 TF + 1 SHORT_TEXT)
   await prisma.question.create({
     data: {
       quizId: newQuiz4.id,
@@ -610,14 +769,15 @@ await prisma.user.upsert({
   await prisma.question.create({
     data: {
       quizId: newQuiz4.id,
-      type: QuestionType.MCQ,
+      type: QuestionType.SHORT_TEXT,
       text: 'Which CSS property changes the text color of an element?',
-      options: ['background', 'font-color', 'text-color', 'color'],
+      options: [],
       correctAnswer: 'color',
+      order: 4,
     },
   });
 
-  // new-quiz-5: Algorithms & Data Structures — 4 questions (3 MCQ + 1 TF)
+  // new-quiz-5: Algorithms & Data Structures — 6 questions (3 MCQ + 1 TF + 1 SHORT_TEXT + 1 ESSAY)
   await prisma.question.create({
     data: {
       quizId: newQuiz5.id,
@@ -652,6 +812,68 @@ await prisma.user.upsert({
       text: 'A hash table provides O(1) average-case lookup time.',
       options: ['True', 'False'],
       correctAnswer: 'True',
+    },
+  });
+  await prisma.question.create({
+    data: {
+      quizId: newQuiz5.id,
+      type: QuestionType.SHORT_TEXT,
+      text: 'What data structure uses LIFO ordering?',
+      options: [],
+      correctAnswer: 'stack',
+      order: 4,
+    },
+  });
+  await prisma.question.create({
+    data: {
+      quizId: newQuiz5.id,
+      type: QuestionType.ESSAY,
+      text: 'Compare arrays and linked lists for insertions at the beginning.',
+      options: [],
+      correctAnswer: '',
+      order: 5,
+    },
+  });
+
+  // invite-quiz-1: 4 questions — unassigned until accept-invitation (all question types)
+  await prisma.question.create({
+    data: {
+      quizId: inviteQuiz1.id,
+      type: QuestionType.MCQ,
+      text: 'Which protocol do browsers use to fetch web pages?',
+      options: ['FTP', 'HTTP', 'SMTP', 'SSH'],
+      correctAnswer: 'HTTP',
+      order: 0,
+    },
+  });
+  await prisma.question.create({
+    data: {
+      quizId: inviteQuiz1.id,
+      type: QuestionType.TRUE_FALSE,
+      text: 'JSON is a text-based data format.',
+      options: ['True', 'False'],
+      correctAnswer: 'True',
+      order: 1,
+    },
+  });
+  await prisma.question.create({
+    data: {
+      quizId: inviteQuiz1.id,
+      type: QuestionType.SHORT_TEXT,
+      text: 'What does API stand for?',
+      options: [],
+      correctAnswer: 'Application Programming Interface',
+      order: 2,
+    },
+  });
+  await prisma.question.create({
+    data: {
+      quizId: inviteQuiz1.id,
+      type: QuestionType.ESSAY,
+      text: 'Why might a team choose microservices over a monolith?',
+      options: [],
+      correctAnswer: '',
+      order: 3,
     },
   });
 
@@ -803,6 +1025,18 @@ await prisma.user.upsert({
 
   await prisma.emailDeliveryLog.create({
     data: {
+      recipientEmail: 'student1@example.com',
+      subject: 'Quiz invitation: Invitation Demo Quiz',
+      templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+      status: EmailDeliveryStatus.SENT,
+      attemptCount: 1,
+      correlationId: 'invitation:invite-quiz-1',
+      metadata: { quizId: 'invite-quiz-1' },
+    },
+  });
+
+  await prisma.emailDeliveryLog.create({
+    data: {
       recipientEmail: 'student2@example.com',
       subject: 'Quiz invitation: Database Basics',
       templateKey: NotificationTemplateKey.QUIZ_INVITATION,
@@ -896,17 +1130,20 @@ await prisma.user.upsert({
   console.log(`    admin1@example.com   (ADMIN)`);
   console.log(`    student1@example.com (STUDENT) → new-quiz-1, new-quiz-2, new-quiz-3, new-quiz-4, new-quiz-5, quiz-1, quiz-2`);
   console.log(`    student2@example.com (STUDENT) → new-quiz-1, new-quiz-2, new-quiz-3, new-quiz-4, new-quiz-5, quiz-1, quiz-4`);
+  console.log(`    (invite-quiz-1: unassigned to all students — invitation demo)`);
+  console.log(`    (quiz-2: unassigned to student2 only — live invitation test)`);
   console.log('');
   console.log('  Quizzes:');
-  console.log(`    quiz-1:      Sprint 1 Assessment      (PUBLISHED, active, 5 questions)`);
-  console.log(`    quiz-2:      Practice Quiz            (PUBLISHED, no window, 3 questions)`);
-  console.log(`    quiz-3:      Draft Quiz              (DRAFT, no questions)`);
-  console.log(`    quiz-4:      Closed Quiz             (PUBLISHED, closed window, 2 questions)`);
-  console.log(`    new-quiz-1:  JavaScript Fundamentals  (PUBLISHED, active, 30 min, 4 questions)`);
-  console.log(`    new-quiz-2:  World Geography          (PUBLISHED, no window, 1 min, 3 questions)  ← timeout test`);
-  console.log(`    new-quiz-3:  Database Basics          (PUBLISHED, active, 25 min, 4 questions)`);
-  console.log(`    new-quiz-4:  Web Development         (PUBLISHED, active, 30 min, 5 questions)`);
-  console.log(`    new-quiz-5:  Algorithms & DS         (PUBLISHED, active, 45 min, 4 questions)`);
+  console.log(`    invite-quiz-1: Invitation Demo Quiz   (PUBLISHED, active, 20 min, 4 questions, NO roster)  ← invitation test`);
+  console.log(`    quiz-1:      Sprint 1 Assessment      (PUBLISHED, active, 7 questions: MCQ/TF/SHORT_TEXT/ESSAY)`);
+  console.log(`    quiz-2:      Practice Quiz            (PUBLISHED, no window, 5 questions: MCQ/TF/SHORT_TEXT/ESSAY)`);
+  console.log(`    quiz-3:      Draft Quiz              (DRAFT, 2 questions: SHORT_TEXT/ESSAY)`);
+  console.log(`    quiz-4:      Closed Quiz             (PUBLISHED, closed window, 3 questions: MCQ/TF/SHORT_TEXT)`);
+  console.log(`    new-quiz-1:  JavaScript Fundamentals  (PUBLISHED, active, 30 min, 4 questions: MCQ/TF/SHORT_TEXT)`);
+  console.log(`    new-quiz-2:  World Geography          (PUBLISHED, no window, 1 min, 4 questions: MCQ/TF/SHORT_TEXT)  ← timeout test`);
+  console.log(`    new-quiz-3:  Database Basics          (PUBLISHED, active, 25 min, 5 questions: MCQ/TF/ESSAY)`);
+  console.log(`    new-quiz-4:  Web Development         (PUBLISHED, active, 30 min, 5 questions: MCQ/TF/SHORT_TEXT)`);
+  console.log(`    new-quiz-5:  Algorithms & DS         (PUBLISHED, active, 45 min, 6 questions: MCQ/TF/SHORT_TEXT/ESSAY)`);
   console.log('');
   console.log('  Attempts (pre-seeded, for the 4 old quizzes only — new quizzes have 0 attempts):');
   console.log(`    student1 → quiz-1: IN_PROGRESS`);

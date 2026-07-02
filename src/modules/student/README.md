@@ -12,6 +12,7 @@ The student module is the **public API surface for the frontend**. It exposes th
 |--------|-------------------------------------------------|-------------------------------------------|
 | GET    | `/api/student/quizzes`                          | List PUBLISHED quizzes the student can take |
 | GET    | `/api/student/quizzes/:quizId`                  | Quiz instruction screen                   |
+| POST   | `/api/student/quizzes/:quizId/accept-invitation` | Accept invitation and join quiz roster   |
 | POST   | `/api/student/quizzes/:quizId/start`            | Start an attempt (stamps `expiresAt`)     |
 | GET    | `/api/student/attempts/active`                  | Resume the current in-progress attempt    |
 | GET    | `/api/student/attempts/:attemptId/questions`    | Get the attempt's questions (no `correctAnswer`) |
@@ -20,6 +21,23 @@ The student module is the **public API surface for the frontend**. It exposes th
 | GET    | `/api/student/attempts/:attemptId/result`       | Read the result (works after timeout)     |
 
 All endpoints are guarded by `JwtAuthGuard`, `EmailVerifiedGuard`, and `StudentRoleGuard`.
+
+## Invitation link flow
+
+When a student opens an invitation URL (`/student/quizzes/:quizId`), the frontend must call:
+
+`POST /api/student/quizzes/:quizId/accept-invitation`
+
+This adds the student to the quiz roster if not already assigned. See [`docs/api/student.md`](../../docs/api/student.md) for the full contract.
+
+## Question types and saving answers
+
+| Type | Save field |
+|---|---|
+| `MCQ`, `TRUE_FALSE` | `selectedOptionId` |
+| `SHORT_TEXT`, `ESSAY` | `textAnswer` |
+
+Answer responses include both fields; the unused one is `null`. Auto-scoring on submit currently applies to choice questions only.
 
 ## Timer & auto-submit semantics
 

@@ -18,6 +18,7 @@ import {
   StudentAttemptQuestionDto,
   StudentAttemptQuestionsResponseDto,
   StudentQuizInstructionsDto,
+  StudentQuizInvitationResponseDto,
   StudentQuizListItemDto,
   StudentQuizListResponseDto,
   deriveAttemptStatus,
@@ -158,6 +159,58 @@ export class StudentService {
       ...(latestActiveAttempt
         ? { attemptId: latestActiveAttempt.id }
         : { attemptId: listItem.attemptId }),
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /api/student/quizzes/:quizId/accept-invitation
+  // -------------------------------------------------------------------------
+
+  async acceptQuizInvitation(
+    studentId: string,
+    quizId: string,
+  ): Promise<StudentQuizInvitationResponseDto> {
+    const quiz = await this.prisma.quiz.findFirst({
+      where: {
+        id: quizId,
+        status: QuizStatus.PUBLISHED,
+      },
+      select: { id: true, title: true },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found or not available.');
+    }
+
+    const alreadyAssigned = await this.prisma.quiz.findFirst({
+      where: {
+        id: quizId,
+        students: { some: { userId: studentId } },
+      },
+      select: { id: true },
+    });
+
+    if (alreadyAssigned) {
+      return {
+        quizId: quiz.id,
+        title: quiz.title,
+        assigned: false,
+        alreadyAssigned: true,
+      };
+    }
+
+    await this.prisma.quiz.update({
+      where: { id: quizId },
+      data: {
+        students: { connect: { userId: studentId } },
+      },
+    });
+
+    return {
+      quizId: quiz.id,
+      title: quiz.title,
+      assigned: true,
+      alreadyAssigned: false,
     };
   }
 

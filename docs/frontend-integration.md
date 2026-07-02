@@ -165,3 +165,74 @@ Frontend should read Nest's default error shape:
 - [ ] Scoring/attempt history tests (L5 — Mahmoud)
 
 For API payload details, always check the matching file in `docs/api/` before implementing a screen.
+
+## Student Invitation Link Flow
+
+When a student receives a quiz invitation email, the link typically points to:
+
+```text
+{FRONTEND_BASE_URL}/student/quizzes/{quizId}
+```
+
+The frontend must call the backend **accept** endpoint before showing quiz instructions:
+
+```http
+POST /api/student/quizzes/:quizId/accept-invitation
+Authorization: Bearer <accessToken>
+```
+
+**Response**
+
+```json
+{
+  "quizId": "...",
+  "title": "Quiz Title",
+  "assigned": true,
+  "alreadyAssigned": false
+}
+```
+
+| Step | Action |
+|---|---|
+| 1 | Student opens invitation URL |
+| 2 | Redirect to login/register if not authenticated |
+| 3 | Block quiz UI until `emailVerified === true` |
+| 4 | `POST /api/student/quizzes/:quizId/accept-invitation` |
+| 5 | `GET /api/student/quizzes/:quizId` → instructions / start |
+
+If `alreadyAssigned: true`, still proceed to instructions — the call is idempotent.
+
+Full contract: [`docs/api/student.md`](api/student.md)
+
+## Question Types and Saving Answers
+
+Questions returned by `GET /api/student/attempts/:attemptId/questions` can have `type`:
+
+| Type | Student UI | Save with |
+|---|---|---|
+| `MCQ` | Radio / dropdown from `options` | `selectedOptionId` |
+| `TRUE_FALSE` | True / False toggle | `selectedOptionId` (`"True"` or `"False"`) |
+| `SHORT_TEXT` | Single-line input | `textAnswer` |
+| `ESSAY` | Textarea | `textAnswer` |
+
+**Save answers**
+
+```http
+PATCH /api/student/attempts/:attemptId/answers
+```
+
+```json
+{
+  "answers": [
+    { "questionId": "...", "selectedOptionId": "Paris" },
+    { "questionId": "...", "textAnswer": "My short answer" }
+  ]
+}
+```
+
+- Use **only** the field that matches the question type
+- Response includes both `selectedOptionId` and `textAnswer` (unused field is `null`)
+- Auto-scoring on submit currently grades `MCQ` / `TRUE_FALSE` only; `SHORT_TEXT` / `ESSAY` answers are saved but not auto-scored yet
+
+Full contract: [`docs/api/student.md`](api/student.md)  
+Admin question creation (includes `SHORT_TEXT` / `ESSAY`): [`docs/api/questions.md`](api/questions.md)

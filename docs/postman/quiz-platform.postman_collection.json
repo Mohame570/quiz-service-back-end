@@ -2,7 +2,7 @@
   "info": {
     "name": "Quiz Platform — Student Flow",
     "_postman_id": "quiz-platform-student-flow-2026-06-23",
-    "description": "End-to-end student quiz flow. Frontend must use only /api/auth and /api/student. The /api/attempts, /api/questions, and /api/admin/quizzes endpoints are internal.",
+    "description": "End-to-end student quiz flow. Frontend must use only /api/auth and /api/student.\n\nQuestion types: MCQ and TRUE_FALSE use selectedOptionId; SHORT_TEXT and ESSAY use textAnswer. Auto-scoring on submit applies to MCQ/TRUE_FALSE only.\n\nSeeded login: student1@example.com / Password123! (try new-quiz-1 or quiz-2 for mixed types).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -57,6 +57,16 @@
       "key": "questionId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "questionIdShortText",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "questionIdEssay",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -77,7 +87,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"student@example.com\",\n  \"password\": \"Passw0rd!\"\n}"
+              "raw": "{\n  \"email\": \"student1@example.com\",\n  \"password\": \"Password123!\"\n}"
             }
           },
           "event": [
@@ -100,7 +110,7 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "body": "{\n  \"user\": {\n    \"id\": \"cm1student0000000000000abc\",\n    \"email\": \"student@example.com\",\n    \"role\": \"STUDENT\",\n    \"emailVerified\": true\n  },\n  \"tokens\": {\n    \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"tokenType\": \"Bearer\",\n    \"expiresIn\": \"3600s\"\n  }\n}"
+              "body": "{\n  \"user\": {\n    \"id\": \"cm1student0000000000000abc\",\n    \"email\": \"student1@example.com\",\n    \"role\": \"STUDENT\",\n    \"emailVerified\": true\n  },\n  \"tokens\": {\n    \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"tokenType\": \"Bearer\",\n    \"expiresIn\": \"3600s\"\n  }\n}"
             },
             {
               "name": "401 Invalid credentials",
@@ -148,6 +158,31 @@
               "code": 200,
               "_postman_previewlanguage": "json",
               "body": "{\n  \"items\": [\n    {\n      \"id\": \"cm1quiz00000000000000abc\",\n      \"title\": \"Sample Quiz\",\n      \"description\": null,\n      \"durationMinutes\": 30,\n      \"passingScore\": 70,\n      \"startsAt\": null,\n      \"endsAt\": null,\n      \"questionCount\": 5,\n      \"attemptStatus\": \"NOT_STARTED\",\n      \"attemptId\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /student/quizzes/:quizId/accept-invitation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/student/quizzes/:quizId/accept-invitation",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "quizzes", ":quizId", "accept-invitation"],
+              "variable": [
+                { "key": "quizId", "value": "invite-quiz-1" }
+              ]
+            },
+            "description": "Accept invitation for a quiz not yet on your roster. Seeded target: invite-quiz-1 (4 questions, unassigned to student1/student2). After 201, the quiz appears in GET /student/quizzes."
+          },
+          "response": [
+            {
+              "name": "201 Invitation accepted",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"title\": \"Sample Quiz\",\n  \"assigned\": true,\n  \"alreadyAssigned\": false\n}"
             }
           ]
         },
@@ -285,7 +320,12 @@
                 "exec": [
                   "const json = pm.response.json();",
                   "if (json.questions && json.questions.length > 0) {",
-                  "  pm.collectionVariables.set('questionId', json.questions[0].id);",
+                  "  const mcq = json.questions.find((q) => q.type === 'MCQ') || json.questions[0];",
+                  "  const shortText = json.questions.find((q) => q.type === 'SHORT_TEXT');",
+                  "  const essay = json.questions.find((q) => q.type === 'ESSAY');",
+                  "  pm.collectionVariables.set('questionId', mcq.id);",
+                  "  if (shortText) pm.collectionVariables.set('questionIdShortText', shortText.id);",
+                  "  if (essay) pm.collectionVariables.set('questionIdEssay', essay.id);",
                   "}"
                 ]
               }
@@ -297,7 +337,7 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "body": "{\n  \"attemptId\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"remainingSeconds\": 1740,\n  \"questions\": [\n    {\n      \"id\": \"cm1question0000000000000a\",\n      \"type\": \"MCQ\",\n      \"text\": \"What is the capital of France?\",\n      \"options\": [\"London\", \"Paris\", \"Berlin\", \"Madrid\"],\n      \"order\": 0\n    }\n  ]\n}"
+              "body": "{\n  \"attemptId\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"remainingSeconds\": 1740,\n  \"questions\": [\n    {\n      \"id\": \"cm1question0000000000000a\",\n      \"type\": \"MCQ\",\n      \"text\": \"What is the capital of France?\",\n      \"options\": [\"London\", \"Paris\", \"Berlin\", \"Madrid\"],\n      \"order\": 0\n    },\n    {\n      \"id\": \"cm1question0000000000000b\",\n      \"type\": \"SHORT_TEXT\",\n      \"text\": \"Name the capital of France.\",\n      \"options\": [],\n      \"order\": 1\n    },\n    {\n      \"id\": \"cm1question0000000000000c\",\n      \"type\": \"ESSAY\",\n      \"text\": \"Explain REST in your own words.\",\n      \"options\": [],\n      \"order\": 2\n    }\n  ]\n}"
             },
             {
               "name": "403 Cross-student access",
@@ -332,8 +372,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"answers\": [\n    { \"questionId\": \"{{questionId}}\", \"selectedOptionId\": \"Paris\" }\n  ]\n}"
-            }
+              "raw": "{\n  \"answers\": [\n    { \"questionId\": \"{{questionId}}\", \"selectedOptionId\": \"Paris\" },\n    { \"questionId\": \"{{questionIdShortText}}\", \"textAnswer\": \"Paris\" },\n    { \"questionId\": \"{{questionIdEssay}}\", \"textAnswer\": \"REST is an architectural style for building APIs.\" }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Save answers by question type:\n- MCQ / TRUE_FALSE → selectedOptionId (option text)\n- SHORT_TEXT / ESSAY → textAnswer\n\nRemove unused entries from the array if the quiz has no text questions. Run GET questions first to populate {{questionId}}, {{questionIdShortText}}, and {{questionIdEssay}}."
           },
           "response": [
             {
@@ -341,7 +387,7 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "body": "[\n  {\n    \"id\": \"cm1answer00000000000000abc\",\n    \"attemptId\": \"cm1attempt0000000000000abc\",\n    \"questionId\": \"{{questionId}}\",\n    \"selectedOptionId\": \"Paris\",\n    \"isCorrect\": null,\n    \"answeredAt\": \"2026-06-23T10:05:00.000Z\"\n  }\n]"
+              "body": "[\n  {\n    \"id\": \"cm1answer00000000000000abc\",\n    \"attemptId\": \"cm1attempt0000000000000abc\",\n    \"questionId\": \"cm1question0000000000000a\",\n    \"selectedOptionId\": \"Paris\",\n    \"textAnswer\": null,\n    \"isCorrect\": null,\n    \"answeredAt\": \"2026-06-23T10:05:00.000Z\"\n  },\n  {\n    \"id\": \"cm1answer00000000000000abd\",\n    \"attemptId\": \"cm1attempt0000000000000abc\",\n    \"questionId\": \"cm1question0000000000000b\",\n    \"selectedOptionId\": null,\n    \"textAnswer\": \"Paris\",\n    \"isCorrect\": null,\n    \"answeredAt\": \"2026-06-23T10:06:00.000Z\"\n  }\n]"
             },
             {
               "name": "409 Submitted attempt",
@@ -385,7 +431,7 @@
               "status": "Created",
               "code": 201,
               "_postman_previewlanguage": "json",
-              "body": "{\n  \"id\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"studentId\": \"cm1student0000000000000abc\",\n  \"startedAt\": \"2026-06-23T10:00:00.000Z\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"submittedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"status\": \"SUBMITTED\",\n  \"score\": 3,\n  \"maxScore\": 5,\n  \"createdAt\": \"2026-06-23T10:00:00.000Z\",\n  \"updatedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"answers\": [\n    {\n      \"id\": \"cm1answer00000000000000a1\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"{{questionId}}\",\n      \"selectedOptionId\": \"Paris\",\n      \"isCorrect\": true,\n      \"answeredAt\": \"2026-06-23T10:05:00.000Z\"\n    },\n    {\n      \"id\": \"cm1answer00000000000000a2\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"cm1question0000000000000b\",\n      \"selectedOptionId\": \"Berlin\",\n      \"isCorrect\": false,\n      \"answeredAt\": \"2026-06-23T10:07:00.000Z\"\n    }\n  ],\n  \"result\": {\n    \"percentage\": 60.0,\n    \"passed\": true,\n    \"gradedAt\": \"2026-06-23T10:25:00.500Z\"\n  }\n}"
+              "body": "{\n  \"id\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"studentId\": \"cm1student0000000000000abc\",\n  \"startedAt\": \"2026-06-23T10:00:00.000Z\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"submittedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"status\": \"SUBMITTED\",\n  \"score\": 3,\n  \"maxScore\": 5,\n  \"createdAt\": \"2026-06-23T10:00:00.000Z\",\n  \"updatedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"answers\": [\n    {\n      \"id\": \"cm1answer00000000000000a1\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"cm1question0000000000000a\",\n      \"selectedOptionId\": \"Paris\",\n      \"textAnswer\": null,\n      \"isCorrect\": true,\n      \"answeredAt\": \"2026-06-23T10:05:00.000Z\"\n    },\n    {\n      \"id\": \"cm1answer00000000000000a2\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"cm1question0000000000000b\",\n      \"selectedOptionId\": null,\n      \"textAnswer\": \"Paris\",\n      \"isCorrect\": null,\n      \"answeredAt\": \"2026-06-23T10:06:00.000Z\"\n    },\n    {\n      \"id\": \"cm1answer00000000000000a3\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"cm1question0000000000000c\",\n      \"selectedOptionId\": \"Berlin\",\n      \"textAnswer\": null,\n      \"isCorrect\": false,\n      \"answeredAt\": \"2026-06-23T10:07:00.000Z\"\n    }\n  ],\n  \"result\": {\n    \"percentage\": 60.0,\n    \"passed\": true,\n    \"gradedAt\": \"2026-06-23T10:25:00.500Z\"\n  }\n}"
             },
             {
               "name": "409 Already submitted",
@@ -416,7 +462,7 @@
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "body": "{\n  \"id\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"studentId\": \"cm1student0000000000000abc\",\n  \"startedAt\": \"2026-06-23T10:00:00.000Z\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"submittedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"status\": \"SUBMITTED\",\n  \"score\": 3,\n  \"maxScore\": 5,\n  \"createdAt\": \"2026-06-23T10:00:00.000Z\",\n  \"updatedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"answers\": [\n    {\n      \"id\": \"cm1answer00000000000000a1\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"{{questionId}}\",\n      \"selectedOptionId\": \"Paris\",\n      \"isCorrect\": true,\n      \"answeredAt\": \"2026-06-23T10:05:00.000Z\"\n    },\n    {\n      \"id\": \"cm1answer00000000000000a2\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"cm1question0000000000000b\",\n      \"selectedOptionId\": \"Berlin\",\n      \"isCorrect\": false,\n      \"answeredAt\": \"2026-06-23T10:07:00.000Z\"\n    }\n  ],\n  \"result\": {\n    \"percentage\": 60.0,\n    \"passed\": true,\n    \"gradedAt\": \"2026-06-23T10:25:00.500Z\"\n  }\n}"
+              "body": "{\n  \"id\": \"cm1attempt0000000000000abc\",\n  \"quizId\": \"cm1quiz00000000000000abc\",\n  \"studentId\": \"cm1student0000000000000abc\",\n  \"startedAt\": \"2026-06-23T10:00:00.000Z\",\n  \"expiresAt\": \"2026-06-23T10:30:00.000Z\",\n  \"submittedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"status\": \"SUBMITTED\",\n  \"score\": 3,\n  \"maxScore\": 5,\n  \"createdAt\": \"2026-06-23T10:00:00.000Z\",\n  \"updatedAt\": \"2026-06-23T10:25:00.000Z\",\n  \"answers\": [\n    {\n      \"id\": \"cm1answer00000000000000a1\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"cm1question0000000000000a\",\n      \"selectedOptionId\": \"Paris\",\n      \"textAnswer\": null,\n      \"isCorrect\": true,\n      \"answeredAt\": \"2026-06-23T10:05:00.000Z\"\n    },\n    {\n      \"id\": \"cm1answer00000000000000a2\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"cm1question0000000000000b\",\n      \"selectedOptionId\": null,\n      \"textAnswer\": \"Paris\",\n      \"isCorrect\": null,\n      \"answeredAt\": \"2026-06-23T10:06:00.000Z\"\n    },\n    {\n      \"id\": \"cm1answer00000000000000a3\",\n      \"attemptId\": \"cm1attempt0000000000000abc\",\n      \"questionId\": \"cm1question0000000000000c\",\n      \"selectedOptionId\": \"Berlin\",\n      \"textAnswer\": null,\n      \"isCorrect\": false,\n      \"answeredAt\": \"2026-06-23T10:07:00.000Z\"\n    }\n  ],\n  \"result\": {\n    \"percentage\": 60.0,\n    \"passed\": true,\n    \"gradedAt\": \"2026-06-23T10:25:00.500Z\"\n  }\n}"
             },
             {
               "name": "403 Cross-student access",

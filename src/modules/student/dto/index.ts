@@ -1,6 +1,7 @@
 export { StudentQuizListItemDto, StudentAttemptStatus, deriveAttemptStatus } from './student-quiz-list-item.dto';
 export { StudentQuizListResponseDto } from './student-quiz-list-response.dto';
 export { StudentQuizInstructionsDto } from './student-quiz-instructions.dto';
+export { StudentQuizInvitationResponseDto } from './student-quiz-invitation-response.dto';
 export { StudentActiveAttemptDto, StudentActiveAttemptResponseDto } from './student-active-attempt.dto';
 export { StudentAttemptQuestionDto } from './student-attempt-question.dto';
 export { StudentAttemptQuestionsResponseDto } from './student-attempt-questions-response.dto';

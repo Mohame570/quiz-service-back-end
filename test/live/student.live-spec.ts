@@ -71,6 +71,13 @@ type StudentAnswerResponse = {
   answeredAt: string;
 };
 
+type StudentQuizInvitationResponse = {
+  quizId: string;
+  title: string;
+  assigned: boolean;
+  alreadyAssigned: boolean;
+};
+
 type NestError = { statusCode: number; message: string | string[]; error: string };
 
 // ---------------------------------------------------------------------------
@@ -176,6 +183,35 @@ let timedOutAttemptId: string | null = null;
     expect(newQuiz2?.durationMinutes).toBe(1);
   });
 
+  it('accepts a quiz invitation and adds the student to the roster', async () => {
+    const token = await login(STUDENT_2.email, STUDENT_2.password);
+
+    const accept = await jsonRequest<StudentQuizInvitationResponse>(
+      token,
+      'POST',
+      '/student/quizzes/quiz-2/accept-invitation',
+    );
+    expect(accept.status).toBe(201);
+    expect(accept.body.quizId).toBe('quiz-2');
+    expect(accept.body.assigned).toBe(true);
+    expect(accept.body.alreadyAssigned).toBe(false);
+
+    const acceptAgain = await jsonRequest<StudentQuizInvitationResponse>(
+      token,
+      'POST',
+      '/student/quizzes/quiz-2/accept-invitation',
+    );
+    expect(acceptAgain.status).toBe(201);
+    expect(acceptAgain.body.assigned).toBe(false);
+    expect(acceptAgain.body.alreadyAssigned).toBe(true);
+
+    const instructions = await jsonRequest<
+      StudentQuizListItem & { questionCount: number; canStart: boolean }
+    >(token, 'GET', '/student/quizzes/quiz-2');
+    expect(instructions.status).toBe(200);
+    expect(instructions.body.id).toBe('quiz-2');
+  });
+
   it('returns quiz instructions for new-quiz-1', async () => {
     const token = await login(STUDENT_1.email, STUDENT_1.password);
     const { status, body } = await jsonRequest<
@@ -271,9 +307,10 @@ let timedOutAttemptId: string | null = null;
       expect(q).not.toHaveProperty('correctAnswer');
     }
 
-    // 4) Save 4 correct answers + 1 wrong (HTTP Q1 = "HyperText Transfer Protocol" is correct)
+    // 4) Save 4 correct answers + 1 wrong (SHORT_TEXT CSS answer is wrong on purpose)
     const answerPayload = questions.body.questions.map((q) => {
       let selectedOptionId: string | null = null;
+      let textAnswer: string | undefined;
       switch (q.text) {
         case 'What does HTTP stand for?':
           selectedOptionId = 'HyperText Transfer Protocol';
@@ -288,12 +325,16 @@ let timedOutAttemptId: string | null = null;
           selectedOptionId = 'True';
           break;
         case 'Which CSS property changes the text color of an element?':
-          selectedOptionId = 'Yellow'; // wrong on purpose
+          textAnswer = 'Yellow';
           break;
         default:
           selectedOptionId = null;
       }
-      return { questionId: q.id, selectedOptionId };
+      return {
+        questionId: q.id,
+        selectedOptionId,
+        ...(textAnswer !== undefined ? { textAnswer } : {}),
+      };
     });
     const save = await jsonRequest<StudentAnswerResponse[]>(
       token,
