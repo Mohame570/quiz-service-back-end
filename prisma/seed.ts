@@ -12,6 +12,7 @@ import {
   QuestionType,
   QuizStatus,
   UserRole,
+  CheatingEventType,
 } from '../src/generated/prisma/client';
 
 // ---------------------------------------------------------------------------
@@ -213,7 +214,11 @@ await prisma.user.upsert({
     where: { quizId: { in: cleanupQuizIds } },
   });
   await prisma.question.deleteMany({
-    where: { quizId: { in: cleanupQuizIds } },
+    where: { 
+      quizQuestions: {
+        some: { quizId: { in: cleanupQuizIds } }
+      } 
+    },
   });
   await prisma.emailDeliveryLog.deleteMany({
     where: {
@@ -415,9 +420,9 @@ await prisma.user.upsert({
     data: {
       quizId: quiz1.id,
       type: QuestionType.MCQ,
-      text: 'What is the capital of France?',
-      options: ['London', 'Paris', 'Berlin', 'Madrid'],
-      correctAnswer: 'Paris',
+      text: 'Which data structure uses LIFO (Last In, First Out) ordering?',
+      options: ['Queue', 'Stack', 'Linked List', 'Tree'],
+      correctAnswer: 'Stack',
     },
   });
 
@@ -425,9 +430,9 @@ await prisma.user.upsert({
     data: {
       quizId: quiz1.id,
       type: QuestionType.MCQ,
-      text: 'Which planet is known as the Red Planet?',
-      options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
-      correctAnswer: 'Mars',
+      text: 'In Git, which command is used to save changes to the local repository?',
+      options: ['git push', 'git commit', 'git add', 'git save'],
+      correctAnswer: 'git commit',
     },
   });
 
@@ -435,9 +440,9 @@ await prisma.user.upsert({
     data: {
       quizId: quiz1.id,
       type: QuestionType.MCQ,
-      text: 'What is 2 + 2?',
-      options: ['3', '4', '5', '6'],
-      correctAnswer: '4',
+      text: 'Which protocol is used for secure communication over a computer network?',
+      options: ['HTTP', 'FTP', 'HTTPS', 'SMTP'],
+      correctAnswer: 'HTTPS',
     },
   });
 
@@ -445,9 +450,9 @@ await prisma.user.upsert({
     data: {
       quizId: quiz1.id,
       type: QuestionType.TRUE_FALSE,
-      text: 'The Earth is flat.',
+      text: 'A primary key in a relational database must be unique for each record.',
       options: ['True', 'False'],
-      correctAnswer: 'False',
+      correctAnswer: 'True',
     },
   });
 
@@ -455,9 +460,9 @@ await prisma.user.upsert({
     data: {
       quizId: quiz1.id,
       type: QuestionType.TRUE_FALSE,
-      text: 'Water boils at 100°C at sea level.',
+      text: 'In JavaScript, the "===" operator performs type coercion before comparison.',
       options: ['True', 'False'],
-      correctAnswer: 'True',
+      correctAnswer: 'False',
     },
   });
 
@@ -488,9 +493,9 @@ await prisma.user.upsert({
     data: {
       quizId: quiz2.id,
       type: QuestionType.MCQ,
-      text: 'What color is the sky on a clear day?',
-      options: ['Blue', 'Green', 'Red', 'Yellow'],
-      correctAnswer: 'Blue',
+      text: 'Which HTTP method is typically used to create a new resource?',
+      options: ['GET', 'POST', 'PUT', 'DELETE'],
+      correctAnswer: 'POST',
     },
   });
 
@@ -498,9 +503,9 @@ await prisma.user.upsert({
     data: {
       quizId: quiz2.id,
       type: QuestionType.MCQ,
-      text: 'How many legs does a dog have?',
-      options: ['2', '4', '6', '8'],
-      correctAnswer: '4',
+      text: 'What is the standard port for HTTPS?',
+      options: ['80', '443', '21', '22'],
+      correctAnswer: '443',
     },
   });
 
@@ -508,9 +513,9 @@ await prisma.user.upsert({
     data: {
       quizId: quiz2.id,
       type: QuestionType.TRUE_FALSE,
-      text: 'JavaScript is a programming language.',
+      text: 'REST APIs always return data in XML format.',
       options: ['True', 'False'],
-      correctAnswer: 'True',
+      correctAnswer: 'False',
     },
   });
 
@@ -564,9 +569,9 @@ await prisma.user.upsert({
     data: {
       quizId: quiz4.id,
       type: QuestionType.MCQ,
-      text: 'What is the largest planet in our solar system?',
-      options: ['Earth', 'Mars', 'Jupiter', 'Saturn'],
-      correctAnswer: 'Jupiter',
+      text: 'What does CSS stand for?',
+      options: ['Cascading Style Sheets', 'Creative Style System', 'Computer Style Sheets', 'Colorful Style Sheets'],
+      correctAnswer: 'Cascading Style Sheets',
     },
   });
 
@@ -574,7 +579,7 @@ await prisma.user.upsert({
     data: {
       quizId: quiz4.id,
       type: QuestionType.TRUE_FALSE,
-      text: 'The Sun is a star.',
+      text: 'Docker containers share the host machine OS kernel.',
       options: ['True', 'False'],
       correctAnswer: 'True',
     },
@@ -909,9 +914,9 @@ await prisma.user.upsert({
 
   await prisma.attemptAnswer.createMany({
     data: [
-      { attemptId: attempt2.id, questionId: q2_1.id, selectedOptionId: 'Blue', isCorrect: true },
-      { attemptId: attempt2.id, questionId: q2_2.id, selectedOptionId: '4', isCorrect: true },
-      { attemptId: attempt2.id, questionId: q2_3.id, selectedOptionId: 'True', isCorrect: true },
+      { attemptId: attempt2.id, questionId: q2_1.id, selectedOptionId: 'POST', isCorrect: true },
+      { attemptId: attempt2.id, questionId: q2_2.id, selectedOptionId: '443', isCorrect: true },
+      { attemptId: attempt2.id, questionId: q2_3.id, selectedOptionId: 'False', isCorrect: true },
     ],
   });
 
@@ -932,11 +937,11 @@ await prisma.user.upsert({
 
   await prisma.attemptAnswer.createMany({
     data: [
-      { attemptId: attempt3.id, questionId: q1_1.id, selectedOptionId: 'Paris', isCorrect: true },
-      { attemptId: attempt3.id, questionId: q1_2.id, selectedOptionId: 'Mars', isCorrect: true },
-      { attemptId: attempt3.id, questionId: q1_3.id, selectedOptionId: '4', isCorrect: true },
-      { attemptId: attempt3.id, questionId: q1_4.id, selectedOptionId: 'False', isCorrect: true },
-      { attemptId: attempt3.id, questionId: q1_5.id, selectedOptionId: 'True', isCorrect: true },
+      { attemptId: attempt3.id, questionId: q1_1.id, selectedOptionId: 'Stack', isCorrect: true },
+      { attemptId: attempt3.id, questionId: q1_2.id, selectedOptionId: 'git commit', isCorrect: true },
+      { attemptId: attempt3.id, questionId: q1_3.id, selectedOptionId: 'HTTPS', isCorrect: true },
+      { attemptId: attempt3.id, questionId: q1_4.id, selectedOptionId: 'True', isCorrect: true },
+      { attemptId: attempt3.id, questionId: q1_5.id, selectedOptionId: 'False', isCorrect: true },
     ],
   });
 
@@ -969,11 +974,11 @@ await prisma.user.upsert({
 
   await prisma.attemptAnswer.createMany({
     data: [
-      { attemptId: attempt5.id, questionId: q1_1.id, selectedOptionId: 'Paris', isCorrect: true },
-      { attemptId: attempt5.id, questionId: q1_2.id, selectedOptionId: 'Venus', isCorrect: false },
-      { attemptId: attempt5.id, questionId: q1_3.id, selectedOptionId: '4', isCorrect: true },
-      { attemptId: attempt5.id, questionId: q1_4.id, selectedOptionId: 'True', isCorrect: false },
-      { attemptId: attempt5.id, questionId: q1_5.id, selectedOptionId: 'True', isCorrect: true },
+      { attemptId: attempt5.id, questionId: q1_1.id, selectedOptionId: 'Stack', isCorrect: true },
+      { attemptId: attempt5.id, questionId: q1_2.id, selectedOptionId: 'git push', isCorrect: false },
+      { attemptId: attempt5.id, questionId: q1_3.id, selectedOptionId: 'HTTPS', isCorrect: true },
+      { attemptId: attempt5.id, questionId: q1_4.id, selectedOptionId: 'False', isCorrect: false },
+      { attemptId: attempt5.id, questionId: q1_5.id, selectedOptionId: 'False', isCorrect: true },
     ],
   });
 
@@ -1166,7 +1171,13 @@ await prisma.user.upsert({
 
   // Attempt 3 (SUBMITTED, 100/100) — 0 events, clean student
   // Attempt 5 (SUBMITTED, 60/100) — 12 events, severe case
-  const severeEventTypes = ['TAB_HIDDEN', 'WINDOW_BLUR', 'COPY_PASTE', 'FULLSCREEN_EXIT', 'WINDOW_FOCUS'];
+  const severeEventTypes: CheatingEventType[] = [
+    CheatingEventType.TAB_HIDDEN,
+    CheatingEventType.WINDOW_BLUR,
+    CheatingEventType.COPY_PASTE,
+    CheatingEventType.FULLSCREEN_EXIT,
+    CheatingEventType.WINDOW_FOCUS
+  ];
   for (let i = 0; i < 12; i++) {
     await prisma.cheatingEventLog.create({
       data: {

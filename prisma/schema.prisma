@@ -173,7 +173,7 @@ model Quiz {
   endsAt          DateTime?
   createdById     String?
   creator         User?      @relation(fields: [createdById], references: [id])
-  questions       Question[]
+  quizQuestions   QuizQuestion[]
   attempts        Attempt[]
   students        StudentProfile[]
   createdAt       DateTime   @default(now())
@@ -230,21 +230,32 @@ model StudentProfile {
 
 model Question {
   id            String       @id @default(cuid())
-  quizId        String
-  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
   type          QuestionType
   text          String 
   options       String[]
   correctAnswer String
   points        Int          @default(1)
-  order         Int          @default(0)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
   attemptAnswers AttemptAnswer[]
+  quizQuestions  QuizQuestion[]
 
-  @@index([quizId])
   @@map("questions")
+}
+
+model QuizQuestion {
+  quizId     String
+  questionId String
+  order      Int?
+
+  quiz       Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([quizId, questionId])
+  @@index([quizId])
+  @@index([questionId])
+  @@map("quiz_questions")
 }
 
 // Result model — populated by ScoringService after submission

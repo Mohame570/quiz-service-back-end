@@ -18,7 +18,8 @@ import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
 import { QuizListResponseDto } from '../dto/quiz-list-response.dto';
-import { Quiz } from '../../../generated/prisma/client';
+import { AttachQuestionsDto } from '../dto/attach-questions.dto';
+import { Quiz, QuizQuestion } from '../../../generated/prisma/client';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @UseGuards(JwtAuthGuard)
@@ -48,6 +49,21 @@ export class QuizController {
   async copy(@Param('id') id: string, @Request() req: any): Promise<Quiz> {
     this.assertAdmin(req);
     return this.quizService.copy(id);
+  }
+
+  /**
+   * POST /api/admin/quizzes/:id/questions
+   * Attach existing questions (from the question bank) to a draft quiz
+   */
+  @Post(':id/questions')
+  @HttpCode(HttpStatus.CREATED)
+  async attachQuestions(
+    @Param('id') id: string,
+    @Body() dto: AttachQuestionsDto,
+    @Request() req: any,
+  ): Promise<QuizQuestion[]> {
+    this.assertAdmin(req);
+    return this.quizService.attachQuestions(id, dto);
   }
 
   /**

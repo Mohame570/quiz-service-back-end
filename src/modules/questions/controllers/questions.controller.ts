@@ -8,8 +8,18 @@ export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}
 
   @Get()
-  async findAll(@Query('quizId') quizId?: string) {
-    return this.questionsService.getQuestions(quizId);
+  async findAll(
+    @Query('quizId') quizId?: string,
+    @Query('unassigned') unassigned?: string,
+    @Query('type') type?: string,
+  ) {
+    if (quizId) {
+      return this.questionsService.findByQuiz(quizId, { type: type as any });
+    }
+    if (unassigned === 'true') {
+      return this.questionsService.findAllUnassigned({ type: type as any });
+    }
+    return this.questionsService.getQuestions({ type: type as any });
   }
 
   @Get(':id')

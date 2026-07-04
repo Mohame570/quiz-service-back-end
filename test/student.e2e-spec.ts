@@ -42,7 +42,7 @@ function makeQuiz(overrides: Partial<any> = {}): any {
     passingScore: 70,
     startsAt: null,
     endsAt: null,
-    questions: [],
+    quizQuestions: [],
     ...overrides,
   };
 }
@@ -94,6 +94,9 @@ function makePrismaMock() {
       update: jest.fn(),
     },
     question: {
+      findMany: jest.fn(),
+    },
+    quizQuestion: {
       findMany: jest.fn(),
     },
     result: {
@@ -208,7 +211,7 @@ describe('StudentService', () => {
 
     it('returns NOT_STARTED when no attempt exists for the student', async () => {
       prisma.quiz.findMany.mockResolvedValueOnce([
-        makeQuiz({ id: QUIZ_PUBLISHED_ACTIVE, questions: [{ id: 'q1' }] }),
+        makeQuiz({ id: QUIZ_PUBLISHED_ACTIVE, quizQuestions: [{ questionId: 'q1' }] }),
       ]);
       prisma.attempt.findMany.mockResolvedValueOnce([]);
 
@@ -289,9 +292,13 @@ describe('StudentService', () => {
       prisma.quiz.findMany.mockResolvedValueOnce([
         makeQuiz({
           id: 'q-a',
-          questions: [{ id: 'q1' }, { id: 'q2' }, { id: 'q3' }],
+          quizQuestions: [
+            { questionId: 'q1' },
+            { questionId: 'q2' },
+            { questionId: 'q3' },
+          ],
         }),
-        makeQuiz({ id: 'q-b', questions: [] }),
+        makeQuiz({ id: 'q-b', quizQuestions: [] }),
       ]);
       prisma.attempt.findMany.mockResolvedValueOnce([]);
 
@@ -354,7 +361,7 @@ describe('StudentService', () => {
         makeQuiz({
           id: QUIZ_PUBLISHED_ACTIVE,
           status: QuizStatus.PUBLISHED,
-          questions: [{ id: 'q1' }, { id: 'q2' }],
+          quizQuestions: [{ questionId: 'q1' }, { questionId: 'q2' }],
         }),
       );
       prisma.attempt.findMany.mockResolvedValueOnce([]);
@@ -759,8 +766,8 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ startedAt, expiresAt }),
       );
-      prisma.question.findMany.mockResolvedValueOnce([
-        { id: Q1_ID, type: QuestionType.MCQ },
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q1_ID, question: { type: QuestionType.MCQ } },
       ]);
       orchestrator.saveAnswers.mockResolvedValueOnce([
         {
@@ -793,8 +800,8 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ startedAt, expiresAt }),
       );
-      prisma.question.findMany.mockResolvedValueOnce([
-        { id: Q1_ID, type: QuestionType.MCQ },
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q1_ID, question: { type: QuestionType.MCQ } },
       ]);
       orchestrator.saveAnswers.mockResolvedValueOnce([]);
 
@@ -858,7 +865,7 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ startedAt, expiresAt }),
       );
-      prisma.question.findMany.mockResolvedValueOnce([]);
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([]);
 
       await expect(
         service.saveAttemptAnswers(STUDENT_ID, ATTEMPT_ID, [
@@ -873,8 +880,8 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ startedAt, expiresAt }),
       );
-      prisma.question.findMany.mockResolvedValueOnce([
-        { id: Q3_ID, type: QuestionType.SHORT_TEXT },
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q3_ID, question: { type: QuestionType.SHORT_TEXT } },
       ]);
       orchestrator.saveAnswers.mockResolvedValueOnce([
         {
@@ -906,8 +913,8 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ startedAt, expiresAt }),
       );
-      prisma.question.findMany.mockResolvedValueOnce([
-        { id: Q4_ID, type: QuestionType.ESSAY },
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q4_ID, question: { type: QuestionType.ESSAY } },
       ]);
       orchestrator.saveAnswers.mockResolvedValueOnce([
         {
@@ -945,8 +952,8 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ startedAt, expiresAt }),
       );
-      prisma.question.findMany.mockResolvedValueOnce([
-        { id: Q1_ID, type: QuestionType.MCQ },
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q1_ID, question: { type: QuestionType.MCQ } },
       ]);
 
       await expect(
@@ -962,8 +969,8 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ startedAt, expiresAt }),
       );
-      prisma.question.findMany.mockResolvedValueOnce([
-        { id: Q3_ID, type: QuestionType.SHORT_TEXT },
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q3_ID, question: { type: QuestionType.SHORT_TEXT } },
       ]);
 
       await expect(

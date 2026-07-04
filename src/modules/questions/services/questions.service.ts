@@ -10,46 +10,89 @@ export class QuestionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createQuestion(data: CreateQuestionDto) {
-    // Validate if quiz exists
-    const quiz = await this.prisma.quiz.findUnique({
-      where: { id: data.quizId }
-    });
+    if (data.quizIds && data.quizIds.length > 0) {
+      const quizzes = await this.prisma.quiz.findMany({
+        where: { id: { in: data.quizIds } }
+      });
 
-    if (!quiz) {
-      throw new BadRequestException('Quiz not found');
+      if (quizzes.length !== data.quizIds.length) {
+        throw new BadRequestException('One or more quizzes not found');
+      }
+
+      const nonDraftQuiz = quizzes.find(q => q.status !== 'DRAFT');
+      if (nonDraftQuiz) {
+        throw new ForbiddenException(`Cannot modify questions of a ${nonDraftQuiz.status.toLowerCase()} quiz`);
+      }
     }
-    if (quiz.status === 'PUBLISHED') {
-      throw new ForbiddenException('Cannot modify questions of a published quiz');
+
+    if (data.type === QuestionType.TRUE_FALSE) {
+      data.options = ['True', 'False'];
+      if (data.correctAnswer !== 'True' && data.correctAnswer !== 'False') {
+        throw new BadRequestException('correctAnswer must be "True" or "False" for TRUE_FALSE questions');
+      }
+    } else if (data.type === QuestionType.MCQ) {
+      if (!Array.isArray(data.options) || data.options.length < 2) {
+        throw new BadRequestException('MCQ must have at least 2 options');
+      }
+      const uniqueOptions = new Set(data.options);
+      if (uniqueOptions.size !== data.options.length) {
+        throw new BadRequestException('MCQ options must be unique');
+      }
+      if (!data.options.includes(data.correctAnswer)) {
+        throw new BadRequestException('correctAnswer must be one of the provided options for MCQ questions');
+      }
     }
 
-    const correctAnswer =
-      data.type === QuestionType.SHORT_TEXT && data.correctAnswer
-        ? normalizeShortText(data.correctAnswer)
-        : data.correctAnswer ?? '';
+    let correctAnswer = data.correctAnswer ?? '';
+    if (data.type === QuestionType.SHORT_TEXT) {
+      if (!correctAnswer.trim()) {
+        throw new BadRequestException('correctAnswer must be a non-empty string for SHORT_TEXT questions');
+      }
+      correctAnswer = normalizeShortText(correctAnswer);
+    }
 
-    return this.prisma.question.create({
+    const question = await this.prisma.question.create({
       data: {
-        quizId: data.quizId,
         type: data.type,
         text: data.text,
         options: data.options || [],
         correctAnswer,
         points: data.points ?? 1,
-        order: data.order ?? 0,
+        quizQuestions: data.quizIds?.length ? {
+          create: data.quizIds.map((quizId, index) => ({
+            quizId,
+            order: index
+          }))
+        } : undefined
+      },
+      include: {
+        quizQuestions: {
+          include: {
+            quiz: true
+          }
+        }
       }
     });
+    return this.mapQuestionResponse(question);
   }
 
   async updateQuestion(id: string, data: UpdateQuestionDto) {
     const question = await this.prisma.question.findUnique({ 
       where: { id },
-      include: { quiz: true }
+      include: { quizQuestions: { include: { quiz: true } } }
     });
     if (!question) {
       throw new NotFoundException('Question not found');
     }
-    if (question.quiz.status === 'PUBLISHED') {
-      throw new ForbiddenException('Cannot modify questions of a published quiz');
+
+    const attemptAnswerCount = await this.prisma.attemptAnswer.count({ where: { questionId: id } });
+    if (attemptAnswerCount > 0) {
+      throw new ForbiddenException('Cannot modify a question that has already been answered in an attempt');
+    }
+
+    const nonDraftQuiz = question.quizQuestions.find(qq => qq.quiz.status !== 'DRAFT');
+    if (nonDraftQuiz) {
+      throw new ForbiddenException(`Cannot modify questions of a ${nonDraftQuiz.quiz.status.toLowerCase()} quiz`);
     }
 
     const merged = {
@@ -59,14 +102,18 @@ export class QuestionsService {
       correctAnswer: data.correctAnswer ?? question.correctAnswer,
     };
 
-    // Validate correctAnswer against options/type
     if (merged.type === QuestionType.TRUE_FALSE) {
+      merged.options = ['True', 'False'];
       if (merged.correctAnswer !== 'True' && merged.correctAnswer !== 'False') {
         throw new BadRequestException('correctAnswer must be "True" or "False" for TRUE_FALSE questions');
       }
     } else if (merged.type === QuestionType.MCQ) {
       if (!Array.isArray(merged.options) || merged.options.length < 2) {
         throw new BadRequestException('MCQ must have at least 2 options');
+      }
+      const uniqueOptions = new Set(merged.options);
+      if (uniqueOptions.size !== merged.options.length) {
+        throw new BadRequestException('MCQ options must be unique');
       }
       if (!merged.options.includes(merged.correctAnswer)) {
         throw new BadRequestException('correctAnswer must be one of the provided options for MCQ questions');
@@ -78,7 +125,7 @@ export class QuestionsService {
       merged.correctAnswer = normalizeShortText(merged.correctAnswer);
     }
 
-    return this.prisma.question.update({
+    const updated = await this.prisma.question.update({
       where: { id },
       data: {
         type: data.type,
@@ -89,53 +136,147 @@ export class QuestionsService {
             ? merged.correctAnswer
             : undefined,
         points: data.points,
-        order: data.order,
+      },
+      include: {
+        quizQuestions: {
+          include: {
+            quiz: true
+          }
+        }
       }
     });
+
+    return this.mapQuestionResponse(updated);
   }
 
   async deleteQuestion(id: string) {
     const question = await this.prisma.question.findUnique({ 
       where: { id },
-      include: { quiz: true }
+      include: { quizQuestions: { include: { quiz: true } } }
     });
     if (!question) {
       throw new NotFoundException('Question not found');
     }
-    if (question.quiz.status === 'PUBLISHED') {
-      throw new ForbiddenException('Cannot modify questions of a published quiz');
+
+    const attemptAnswerCount = await this.prisma.attemptAnswer.count({ where: { questionId: id } });
+    if (attemptAnswerCount > 0) {
+      throw new ForbiddenException('Cannot delete a question that has already been answered in an attempt');
+    }
+
+    const nonDraftQuiz = question.quizQuestions.find(qq => qq.quiz.status !== 'DRAFT');
+    if (nonDraftQuiz) {
+      throw new ForbiddenException(`Cannot modify questions of a ${nonDraftQuiz.quiz.status.toLowerCase()} quiz`);
     }
 
     await this.prisma.question.delete({ where: { id } });
-    return question;
+    return this.mapQuestionResponse(question);
   }
 
   async getQuestion(id: string) {
-    const question = await this.prisma.question.findUnique({ where: { id } });
+    const question = await this.prisma.question.findUnique({ 
+      where: { id },
+      include: {
+        quizQuestions: {
+          include: {
+            quiz: true
+          }
+        }
+      }
+    });
     if (!question) {
       throw new NotFoundException('Question not found');
     }
-    return question;
+    return this.mapQuestionResponse(question);
   }
 
-  async getQuestions(quizId?: string) {
-    if (quizId) {
-      return this.prisma.question.findMany({ 
-        where: { quizId },
-        orderBy: { order: 'asc' }
-      });
+  async getQuestions(filter?: { type?: QuestionType }) {
+    const where: any = {};
+    if (filter?.type) {
+      where.type = filter.type;
     }
-    return this.prisma.question.findMany({
-      orderBy: { order: 'asc' }
+
+    const questions = await this.prisma.question.findMany({
+      where,
+      include: {
+        quizQuestions: {
+          include: {
+            quiz: true
+          }
+        }
+      }
     });
+    return questions.map(q => this.mapQuestionResponse(q));
   }
 
-  /**
-   * Helper method for the quiz module to validate if a quiz has at least one question
-   * before allowing it to be published.
-   */
+  async findAllUnassigned(filter?: { type?: QuestionType }) {
+    const where: any = {
+      quizQuestions: {
+        none: {}
+      }
+    };
+    
+    if (filter?.type) {
+      where.type = filter.type;
+    }
+
+    const questions = await this.prisma.question.findMany({
+      where,
+      include: {
+        quizQuestions: {
+          include: {
+            quiz: true
+          }
+        }
+      }
+    });
+    return questions.map(q => this.mapQuestionResponse(q));
+  }
+
+  async findByQuiz(quizId: string, filter?: { type?: QuestionType }) {
+    const where: any = {
+      quizQuestions: {
+        some: { quizId }
+      }
+    };
+    
+    if (filter?.type) {
+      where.type = filter.type;
+    }
+
+    const questions = await this.prisma.question.findMany({
+      where,
+      include: {
+        quizQuestions: {
+          include: {
+            quiz: true
+          }
+        }
+      }
+    });
+    return questions.map(q => this.mapQuestionResponse(q));
+  }
+
   async validateQuizHasQuestions(quizId: string): Promise<boolean> {
-    const count = await this.prisma.question.count({ where: { quizId } });
+    const count = await this.prisma.quizQuestion.count({ where: { quizId } });
     return count > 0;
+  }
+
+  async assertQuestionsExist(ids: string[]): Promise<void> {
+    const questions = await this.prisma.question.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+
+    if (questions.length !== ids.length) {
+      throw new BadRequestException('One or more questions not found');
+    }
+  }
+
+  private mapQuestionResponse(question: any) {
+    const { quizQuestions, ...rest } = question;
+    return {
+      ...rest,
+      quizzes: (quizQuestions || []).map((qq: any) => qq.quiz)
+    };
   }
 }

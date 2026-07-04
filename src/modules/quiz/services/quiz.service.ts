@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -7,8 +8,14 @@ import { CreateQuizDto } from '../dto/create-quiz.dto';
 import { UpdateQuizDto } from '../dto/update-quiz.dto';
 import { QuizQueryDto } from '../dto/quiz-query.dto';
 import { QuizListResponseDto } from '../dto/quiz-list-response.dto';
+import { AttachQuestionsDto } from '../dto/attach-questions.dto';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import { Quiz, QuizStatus, Prisma } from '../../../generated/prisma/client';
+import {
+  Quiz,
+  QuizQuestion,
+  QuizStatus,
+  Prisma,
+} from '../../../generated/prisma/client';
 import { QuestionsService } from '../../questions/services/questions.service';
 
 @Injectable()
@@ -283,7 +290,7 @@ export class QuizService {
   async copy(id: string): Promise<Quiz> {
     const original = await this.prisma.quiz.findUnique({
       where: { id },
-      include: { questions: true },
+      include: { quizQuestions: true },
     });
 
     if (!original) {
@@ -300,16 +307,50 @@ export class QuizService {
         startsAt: original.startsAt,
         endsAt: original.endsAt,
         createdById: original.createdById,
-        questions: {
-          create: original.questions.map((q) => ({
-            type: q.type,
-            text: q.text,
-            options: q.options,
-            correctAnswer: q.correctAnswer,
+        quizQuestions: {
+          create: original.quizQuestions.map((qq) => ({
+            questionId: qq.questionId,
+            order: qq.order,
           })),
         },
       },
-      include: { questions: true },
+      include: { quizQuestions: true },
+    });
+  }
+
+  /**
+   * Attach existing questions from the question bank to a draft quiz.
+   */
+  async attachQuestions(
+    quizId: string,
+    dto: AttachQuestionsDto,
+  ): Promise<QuizQuestion[]> {
+    const quiz = await this.prisma.quiz.findUnique({ where: { id: quizId } });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with id ${quizId} not found`);
+    }
+
+    if (quiz.status !== QuizStatus.DRAFT) {
+      throw new ForbiddenException(
+        'Cannot attach questions to a quiz that is not in draft status',
+      );
+    }
+
+    const questionIds = dto.questions.map((q) => q.questionId);
+    await this.questionsService.assertQuestionsExist(questionIds);
+
+    await this.prisma.quizQuestion.createMany({
+      data: dto.questions.map((q) => ({
+        quizId,
+        questionId: q.questionId,
+        order: q.order ?? null,
+      })),
+      skipDuplicates: true,
+    });
+
+    return this.prisma.quizQuestion.findMany({
+      where: { quizId, questionId: { in: questionIds } },
     });
   }
 }

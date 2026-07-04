@@ -74,7 +74,7 @@ Returns the newly created `Question` record containing:
 - `quizId` must be a non-empty string.
 - `type` must be a valid `QuestionType` enum value (`MCQ`, `TRUE_FALSE`, `SHORT_TEXT`, or `ESSAY`).
 - `text` must be a non-empty string.
-- `options` is required and must be an array with at least 2 unique items if `type` is `MCQ`.
+- `options` is required and must be an array with at least 2 unique items if `type` is `MCQ`. If `type` is `TRUE_FALSE`, it is automatically set to `['True', 'False']`.
 - `correctAnswer` validation by type:
   - `TRUE_FALSE` — must be exactly `"True"` or `"False"`.
   - `MCQ` — must be one of the strings in `options`.
@@ -82,7 +82,8 @@ Returns the newly created `Question` record containing:
   - `ESSAY` — optional; defaults to `""` if omitted (not auto-scored; admin grades manually).
 - `points` must be an integer >= 1.
 - `order` must be an integer >= 0.
-- **PUBLISHED Quiz Guard**: Creation, modification, or deletion of questions will return `403 Forbidden` if the associated `Quiz` has `status === 'PUBLISHED'`.
+- **Non-DRAFT Quiz Guard**: Creation, modification, or deletion of questions will return `403 Forbidden` if the associated `Quiz` has a status other than `DRAFT`.
+- **Attempt Guard**: Modification or deletion of questions will return `403 Forbidden` if the question has already been answered in any attempt (`attemptAnswerCount > 0`).
 
 ## Student-facing answer mapping (for frontend reference)
 
