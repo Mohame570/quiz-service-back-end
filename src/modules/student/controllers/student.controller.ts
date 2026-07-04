@@ -18,6 +18,7 @@ import {
   StudentAttemptResponseDto,
   StudentQuizInstructionsDto,
   StudentQuizListResponseDto,
+  StudentQuizInvitationResponseDto,
   StudentSaveAnswersDto,
   StudentSubmitAttemptDto,
 } from '../dto';
@@ -54,6 +55,18 @@ export class StudentController {
     @Request() req: any,
   ): Promise<StudentQuizInstructionsDto> {
     return this.studentService.getQuizInstructions(req.user.sub, quizId);
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /api/student/quizzes/:quizId/accept-invitation
+  // -------------------------------------------------------------------------
+
+  @Post('quizzes/:quizId/accept-invitation')
+  async acceptQuizInvitation(
+    @Param('quizId') quizId: string,
+    @Request() req: any,
+  ): Promise<StudentQuizInvitationResponseDto> {
+    return this.studentService.acceptQuizInvitation(req.user.sub, quizId);
   }
 
   // -------------------------------------------------------------------------

@@ -2,7 +2,34 @@
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import {
+  GradingStatus,
+  QuestionType,
+} from '../../../generated/prisma/client';
 import { AttemptResponseDto } from '../dto/attempt-response.dto';
+import { normalizeShortText as normalizeShortTextValue } from '../utils/text-answer.util';
+
+interface QuestionMeta {
+  id: string;
+  type: QuestionType;
+  correctAnswer: string;
+  points: number;
+}
+
+interface GradedAnswerUpdate {
+  answerId: string;
+  isCorrect: boolean | null;
+  pointsEarned: number | null;
+}
+
+interface AggregateScore {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  passed: boolean | null;
+  gradingStatus: GradingStatus;
+  pendingEssayCount: number;
+}
 
 @Injectable()
 export class ScoringService {
@@ -18,100 +45,66 @@ export class ScoringService {
 
     if (!attempt) throw new NotFoundException('Attempt not found.');
 
-    const answers = attempt.answers;
-
-    if (answers.length === 0) {
-      await this.prisma.$transaction([
-        this.prisma.attempt.update({
-          where: { id: attemptId },
-          data: { score: 0, maxScore: 0 },
-        }),
-        this.prisma.result.upsert({
-          where: { attemptId },
-          create: {
-            attemptId,
-            studentId: attempt.studentId,
-            quizId: attempt.quizId,
-            score: 0,
-            maxScore: 0,
-            percentage: 0,
-            passed: false,
-            gradedAt: new Date(),
-          },
-          update: {
-            score: 0,
-            maxScore: 0,
-            percentage: 0,
-            passed: false,
-            gradedAt: new Date(),
-          },
-        }),
-      ]);
-      return this.toResponseDto({ ...attempt, score: 0, maxScore: 0 });
-    }
-
-    // Load correct answers from Question table
-    const questionIds = answers.map((a) => a.questionId);
-    const questions = await this.prisma.question.findMany({
-      where: { id: { in: questionIds } },
-      select: { id: true, correctAnswer: true },
-    });
-    const correctAnswerMap = new Map(questions.map((q) => [q.id, q.correctAnswer]));
-
-    // Grade each answer
-    const graded = answers.map((answer) => {
-      const correctAnswer = correctAnswerMap.get(answer.questionId);
-      const isCorrect = this.compareAnswer(answer.selectedOptionId, correctAnswer);
-      return { answerId: answer.id, isCorrect, hasKey: correctAnswer !== undefined };
-    });
-
-    const score = graded.filter((g) => g.isCorrect === true).length;
-    const maxScore = graded.filter((g) => g.hasKey).length;
-    const percentage = this.computePercentage(score, maxScore);
-
-    // Determine pass/fail — default passing threshold is 50%
-    // This can be driven by Quiz.passingScore once that field is used
-    const passingThreshold = 50;
-    const passed = percentage >= passingThreshold;
-
-    // Persist everything atomically
-    await this.prisma.$transaction([
-      ...graded.map((g) =>
-        this.prisma.attemptAnswer.update({
-          where: { id: g.answerId },
-          data: { isCorrect: g.isCorrect },
-        }),
-      ),
-      this.prisma.attempt.update({
-        where: { id: attemptId },
-        data: { score, maxScore },
-      }),
-      this.prisma.result.upsert({
-        where: { attemptId },
-        create: {
-          attemptId,
-          studentId: attempt.studentId,
-          quizId: attempt.quizId,
-          score,
-          maxScore,
-          percentage,
-          passed,
-          gradedAt: new Date(),
-        },
-        update: { score, maxScore, percentage, passed, gradedAt: new Date() },
-      }),
-    ]);
-
-    this.logger.log(
-      `Attempt ${attemptId} scored: ${score}/${maxScore} (${percentage}%) — ${passed ? 'PASSED' : 'FAILED'}`,
+    const [questionMap, maxScore, quiz] = await this.loadQuizContext(
+      attempt.quizId,
     );
 
-    const scored = await this.prisma.attempt.findUnique({
+    if (attempt.answers.length === 0) {
+      return this.persistScore(attempt, [], {
+        score: 0,
+        maxScore,
+        percentage: 0,
+        passed: maxScore === 0 ? false : false,
+        gradingStatus: GradingStatus.COMPLETE,
+        pendingEssayCount: 0,
+      });
+    }
+
+    const graded = attempt.answers.map((answer) => {
+      const question = questionMap.get(answer.questionId);
+      if (!question) {
+        return {
+          answerId: answer.id,
+          isCorrect: null as boolean | null,
+          pointsEarned: null as number | null,
+        };
+      }
+      return this.gradeAnswer(answer, question);
+    });
+
+    const aggregate = this.aggregateFromAnswers(
+      attempt.answers,
+      graded,
+      questionMap,
+      maxScore,
+      quiz?.passingScore ?? 50,
+    );
+
+    return this.persistScore(attempt, graded, aggregate);
+  }
+
+  async recalculateAttemptResult(
+    attemptId: string,
+  ): Promise<AttemptResponseDto> {
+    const attempt = await this.prisma.attempt.findUnique({
       where: { id: attemptId },
       include: { answers: true },
     });
 
-    return this.toResponseDto(scored);
+    if (!attempt) throw new NotFoundException('Attempt not found.');
+
+    const [questionMap, maxScore, quiz] = await this.loadQuizContext(
+      attempt.quizId,
+    );
+
+    const aggregate = this.aggregateFromStoredAnswers(
+      attempt.answers,
+      questionMap,
+      maxScore,
+      quiz?.passingScore ?? 50,
+    );
+
+    return this.persistScore(attempt, [], aggregate, false);
   }
 
   compareAnswer(
@@ -122,9 +115,274 @@ export class ScoringService {
     return selectedOptionId !== null && selectedOptionId === correctAnswer;
   }
 
+  compareShortText(
+    textAnswer: string | null | undefined,
+    correctAnswer: string | undefined,
+  ): boolean {
+    if (!textAnswer?.trim() || correctAnswer === undefined) return false;
+    return (
+      this.normalizeShortText(textAnswer) ===
+      this.normalizeShortText(correctAnswer)
+    );
+  }
+
+  normalizeShortText(value: string): string {
+    return normalizeShortTextValue(value);
+  }
+
   computePercentage(score: number, maxScore: number): number {
     if (maxScore === 0) return 0;
     return Math.round((score / maxScore) * 100 * 100) / 100;
+  }
+
+  private async loadQuizContext(quizId: string): Promise<
+    [Map<string, QuestionMeta>, number, { passingScore: number | null } | null]
+  > {
+    const [allQuestions, quiz] = await Promise.all([
+      this.prisma.question.findMany({
+        where: { quizId },
+        select: { id: true, type: true, correctAnswer: true, points: true },
+      }),
+      this.prisma.quiz.findUnique({
+        where: { id: quizId },
+        select: { passingScore: true },
+      }),
+    ]);
+
+    const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
+    const maxScore = allQuestions.reduce((sum, q) => sum + q.points, 0);
+
+    return [questionMap, maxScore, quiz];
+  }
+
+  private gradeAnswer(
+    answer: {
+      id: string;
+      questionId: string;
+      selectedOptionId: string | null;
+      textAnswer: string | null;
+    },
+    question: QuestionMeta,
+  ): GradedAnswerUpdate {
+    switch (question.type) {
+      case QuestionType.MCQ:
+      case QuestionType.TRUE_FALSE: {
+        const isCorrect =
+          this.compareAnswer(
+            answer.selectedOptionId,
+            question.correctAnswer,
+          ) === true;
+        return {
+          answerId: answer.id,
+          isCorrect,
+          pointsEarned: isCorrect ? question.points : 0,
+        };
+      }
+      case QuestionType.SHORT_TEXT: {
+        const isCorrect = this.compareShortText(
+          answer.textAnswer,
+          question.correctAnswer,
+        );
+        return {
+          answerId: answer.id,
+          isCorrect,
+          pointsEarned: isCorrect ? question.points : 0,
+        };
+      }
+      case QuestionType.ESSAY: {
+        const hasText = Boolean(answer.textAnswer?.trim());
+        if (!hasText) {
+          return {
+            answerId: answer.id,
+            isCorrect: false,
+            pointsEarned: 0,
+          };
+        }
+        return {
+          answerId: answer.id,
+          isCorrect: null,
+          pointsEarned: null,
+        };
+      }
+      default:
+        return {
+          answerId: answer.id,
+          isCorrect: null,
+          pointsEarned: null,
+        };
+    }
+  }
+
+  private aggregateFromAnswers(
+    answers: Array<{
+      id: string;
+      questionId: string;
+      textAnswer: string | null;
+    }>,
+    graded: GradedAnswerUpdate[],
+    questionMap: Map<string, QuestionMeta>,
+    maxScore: number,
+    passingThreshold: number,
+  ): AggregateScore {
+    const gradedById = new Map(graded.map((g) => [g.answerId, g]));
+    let score = 0;
+    let pendingEssayCount = 0;
+
+    for (const answer of answers) {
+      const update = gradedById.get(answer.id);
+      const question = questionMap.get(answer.questionId);
+      if (!update || !question) continue;
+
+      if (update.pointsEarned !== null) {
+        score += update.pointsEarned;
+      }
+
+      if (
+        question.type === QuestionType.ESSAY &&
+        Boolean(answer.textAnswer?.trim()) &&
+        update.pointsEarned === null
+      ) {
+        pendingEssayCount += 1;
+      }
+    }
+
+    const gradingStatus =
+      pendingEssayCount > 0 ? GradingStatus.PARTIAL : GradingStatus.COMPLETE;
+    const percentage = this.computePercentage(score, maxScore);
+    const passed =
+      gradingStatus === GradingStatus.COMPLETE
+        ? percentage >= passingThreshold
+        : null;
+
+    return {
+      score,
+      maxScore,
+      percentage,
+      passed,
+      gradingStatus,
+      pendingEssayCount,
+    };
+  }
+
+  private aggregateFromStoredAnswers(
+    answers: Array<{
+      id: string;
+      questionId: string;
+      textAnswer: string | null;
+      pointsEarned: number | null;
+    }>,
+    questionMap: Map<string, QuestionMeta>,
+    maxScore: number,
+    passingThreshold: number,
+  ): AggregateScore {
+    let score = 0;
+    let pendingEssayCount = 0;
+
+    for (const answer of answers) {
+      const question = questionMap.get(answer.questionId);
+      if (!question) continue;
+
+      if (answer.pointsEarned !== null) {
+        score += answer.pointsEarned;
+      }
+
+      if (
+        question.type === QuestionType.ESSAY &&
+        Boolean(answer.textAnswer?.trim()) &&
+        answer.pointsEarned === null
+      ) {
+        pendingEssayCount += 1;
+      }
+    }
+
+    const gradingStatus =
+      pendingEssayCount > 0 ? GradingStatus.PARTIAL : GradingStatus.COMPLETE;
+    const percentage = this.computePercentage(score, maxScore);
+    const passed =
+      gradingStatus === GradingStatus.COMPLETE
+        ? percentage >= passingThreshold
+        : null;
+
+    return {
+      score,
+      maxScore,
+      percentage,
+      passed,
+      gradingStatus,
+      pendingEssayCount,
+    };
+  }
+
+  private async persistScore(
+    attempt: {
+      id: string;
+      quizId: string;
+      studentId: string;
+      answers: unknown[];
+    },
+    graded: GradedAnswerUpdate[],
+    aggregate: AggregateScore,
+    updateAnswers = true,
+  ): Promise<AttemptResponseDto> {
+    const transactions = [];
+
+    if (updateAnswers && graded.length > 0) {
+      transactions.push(
+        ...graded.map((g) =>
+          this.prisma.attemptAnswer.update({
+            where: { id: g.answerId },
+            data: {
+              isCorrect: g.isCorrect,
+              pointsEarned: g.pointsEarned,
+            },
+          }),
+        ),
+      );
+    }
+
+    transactions.push(
+      this.prisma.attempt.update({
+        where: { id: attempt.id },
+        data: { score: aggregate.score, maxScore: aggregate.maxScore },
+      }),
+      this.prisma.result.upsert({
+        where: { attemptId: attempt.id },
+        create: {
+          attemptId: attempt.id,
+          studentId: attempt.studentId,
+          quizId: attempt.quizId,
+          score: aggregate.score,
+          maxScore: aggregate.maxScore,
+          percentage: aggregate.percentage,
+          passed: aggregate.passed,
+          gradingStatus: aggregate.gradingStatus,
+          pendingEssayCount: aggregate.pendingEssayCount,
+          gradedAt: new Date(),
+        },
+        update: {
+          score: aggregate.score,
+          maxScore: aggregate.maxScore,
+          percentage: aggregate.percentage,
+          passed: aggregate.passed,
+          gradingStatus: aggregate.gradingStatus,
+          pendingEssayCount: aggregate.pendingEssayCount,
+          gradedAt: new Date(),
+        },
+      }),
+    );
+
+    await this.prisma.$transaction(transactions);
+
+    this.logger.log(
+      `Attempt ${attempt.id} scored: ${aggregate.score}/${aggregate.maxScore} (${aggregate.percentage}%) — ${aggregate.gradingStatus}${aggregate.passed === true ? ' PASSED' : aggregate.passed === false ? ' FAILED' : ' PENDING ESSAYS'}`,
+    );
+
+    const scored = await this.prisma.attempt.findUnique({
+      where: { id: attempt.id },
+      include: { answers: true },
+    });
+
+    return this.toResponseDto(scored);
   }
 
   private toResponseDto(attempt: any): AttemptResponseDto {
@@ -144,6 +402,8 @@ export class ScoringService {
         attemptId: a.attemptId,
         questionId: a.questionId,
         selectedOptionId: a.selectedOptionId,
+        textAnswer: a.textAnswer,
+        pointsEarned: a.pointsEarned,
         isCorrect: a.isCorrect,
         answeredAt: a.answeredAt,
       })),

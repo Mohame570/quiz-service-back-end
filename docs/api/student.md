@@ -63,6 +63,39 @@ Quiz instructions / pre-start screen.
 
 **Errors:** `404 Quiz not found or not available.`
 
+### POST /api/student/quizzes/:quizId/accept-invitation
+
+Accept a quiz invitation link and add the logged-in student to the quiz roster if they are not already assigned. This is the backend step that must run when a student opens an invitation URL (e.g. from email).
+
+**When to call:** After login and email verification, before `GET /student/quizzes/:quizId` or start — especially when the student arrived via an invitation link and is not yet on the quiz list.
+
+**Request body:** none
+
+**Response 201**
+
+```json
+{
+  "quizId": "cm1quiz00000000000000abc",
+  "title": "Sample Quiz",
+  "assigned": true,
+  "alreadyAssigned": false
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `assigned` | `true` when the student was newly added to the quiz roster |
+| `alreadyAssigned` | `true` when the student was already on the roster (idempotent success) |
+
+**Errors:** `404 Quiz not found or not available.` (quiz missing or not `PUBLISHED`)
+
+**Frontend invitation flow**
+
+1. Student opens link → `/student/quizzes/:quizId` (or your app's invite landing route)
+2. Ensure logged in + `emailVerified === true`
+3. `POST /api/student/quizzes/:quizId/accept-invitation`
+4. `GET /api/student/quizzes/:quizId` → show instructions / start button
+
 ### POST /api/student/quizzes/:quizId/start
 
 Start a new attempt. Returns `IN_PROGRESS` with `expiresAt = startedAt + durationMinutes * 60_000`.
@@ -115,6 +148,17 @@ or
 
 Returns the attempt's questions **without `correctAnswer`**, ordered by `createdAt`. Response includes `expiresAt` and `remainingSeconds` for the client-side countdown.
 
+**Question types**
+
+| `type` | UI | Answer field when saving |
+|---|---|---|
+| `MCQ` | Show `options` as choices | `selectedOptionId` (option text) |
+| `TRUE_FALSE` | Show `"True"` / `"False"` choices | `selectedOptionId` (`"True"` or `"False"`) |
+| `SHORT_TEXT` | Single-line text input | `textAnswer` |
+| `ESSAY` | Multi-line text area | `textAnswer` |
+
+For `SHORT_TEXT` and `ESSAY`, `options` is typically an empty array. Do not send `correctAnswer` — it is never included in this response.
+
 **Response 200**
 
 ```json
@@ -130,6 +174,20 @@ Returns the attempt's questions **without `correctAnswer`**, ordered by `created
       "text": "What is the capital of France?",
       "options": ["London", "Paris", "Berlin", "Madrid"],
       "order": 0
+    },
+    {
+      "id": "cm1question0000000000000b",
+      "type": "SHORT_TEXT",
+      "text": "Name the capital of France.",
+      "options": [],
+      "order": 1
+    },
+    {
+      "id": "cm1question0000000000000c",
+      "type": "ESSAY",
+      "text": "Explain REST in your own words.",
+      "options": [],
+      "order": 2
     }
   ]
 }
@@ -144,7 +202,7 @@ Returns the attempt's questions **without `correctAnswer`**, ordered by `created
 
 Incrementally save or update answers. Upserts by `(attemptId, questionId)`.
 
-**Request body**
+**Request body — choice questions (MCQ / TRUE_FALSE)**
 
 ```json
 {
@@ -154,7 +212,27 @@ Incrementally save or update answers. Upserts by `(attemptId, questionId)`.
 }
 ```
 
-`selectedOptionId: null` (or omitted) means the question was skipped.
+**Request body — text questions (SHORT_TEXT / ESSAY)**
+
+```json
+{
+  "answers": [
+    { "questionId": "cm1question0000000000000b", "textAnswer": "Paris" },
+    { "questionId": "cm1question0000000000000c", "textAnswer": "REST is an architectural style for APIs..." }
+  ]
+}
+```
+
+**Rules by question type**
+
+| Question type | Send | Do not send |
+|---|---|---|
+| `MCQ`, `TRUE_FALSE` | `selectedOptionId` | `textAnswer` |
+| `SHORT_TEXT`, `ESSAY` | `textAnswer` | `selectedOptionId` |
+
+- `selectedOptionId: null` or omitted on choice questions → skipped
+- `textAnswer: null`, omitted, or `""` on text questions → cleared / skipped
+- Sending the wrong field for a question type → `400 Bad Request`
 
 **Response 200**
 
@@ -165,18 +243,23 @@ Incrementally save or update answers. Upserts by `(attemptId, questionId)`.
     "attemptId": "cm1attempt0000000000000abc",
     "questionId": "cm1question0000000000000a",
     "selectedOptionId": "Paris",
+    "textAnswer": null,
     "isCorrect": null,
     "answeredAt": "2026-06-23T10:05:00.000Z"
   }
 ]
 ```
 
-`isCorrect` is `null` while the attempt is `IN_PROGRESS` and gets populated by the auto-scoring service when the attempt is submitted.
+Each answer object includes both `selectedOptionId` and `textAnswer`; the unused field is `null`.
+
+`isCorrect` is `null` while the attempt is `IN_PROGRESS`. On submit, `ScoringService` sets it for auto-graded types (`MCQ`, `TRUE_FALSE`, `SHORT_TEXT`). For `ESSAY` answers with text, `isCorrect` and `pointsEarned` stay `null` until an admin grades them.
 
 **Errors:**
 - `404 Attempt not found.`
 - `403 Access denied.`
 - `400 One or more questionIds do not belong to this quiz.`
+- `400 Choice questions must use selectedOptionId, not textAnswer.`
+- `400 Text questions must use textAnswer, not selectedOptionId.`
 - `409 Cannot modify a 'submitted' attempt.`
 - `409 Cannot modify a 'timed_out' attempt.` (auto-finalised before this call)
 
@@ -211,6 +294,7 @@ Finalise the attempt. If the attempt is expired at submit time, the server auto-
       "attemptId": "cm1attempt0000000000000abc",
       "questionId": "cm1question0000000000000a",
       "selectedOptionId": "Paris",
+      "textAnswer": null,
       "isCorrect": true,
       "answeredAt": "2026-06-23T10:05:00.000Z"
     },
@@ -219,6 +303,7 @@ Finalise the attempt. If the attempt is expired at submit time, the server auto-
       "attemptId": "cm1attempt0000000000000abc",
       "questionId": "cm1question0000000000000b",
       "selectedOptionId": "Berlin",
+      "textAnswer": null,
       "isCorrect": false,
       "answeredAt": "2026-06-23T10:07:00.000Z"
     }
@@ -226,12 +311,16 @@ Finalise the attempt. If the attempt is expired at submit time, the server auto-
   "result": {
     "percentage": 60.0,
     "passed": true,
+    "gradingStatus": "COMPLETE",
+    "pendingEssayCount": 0,
     "gradedAt": "2026-06-23T10:25:00.500Z"
   }
 }
 ```
 
 `result` is `null` while the attempt is `IN_PROGRESS` and for `TIMED_OUT` attempts (where `ScoringService` was not called). The frontend does not need a separate `GET /api/results/:attemptId` call.
+
+When the quiz includes ungraded essays, `result.gradingStatus` is `PARTIAL`, `result.pendingEssayCount` is greater than zero, and `result.passed` is `null` until an admin completes essay grading.
 
 **Errors:** `404`, `403`, `409 Cannot submit a 'submitted' attempt.`
 
@@ -260,6 +349,7 @@ Read the result of a finalised attempt. If the attempt is expired and never subm
       "attemptId": "cm1attempt0000000000000abc",
       "questionId": "cm1question0000000000000a",
       "selectedOptionId": "Paris",
+      "textAnswer": null,
       "isCorrect": true,
       "answeredAt": "2026-06-23T10:05:00.000Z"
     },
@@ -268,6 +358,7 @@ Read the result of a finalised attempt. If the attempt is expired and never subm
       "attemptId": "cm1attempt0000000000000abc",
       "questionId": "cm1question0000000000000b",
       "selectedOptionId": "Berlin",
+      "textAnswer": null,
       "isCorrect": false,
       "answeredAt": "2026-06-23T10:07:00.000Z"
     }
@@ -275,12 +366,16 @@ Read the result of a finalised attempt. If the attempt is expired and never subm
   "result": {
     "percentage": 60.0,
     "passed": true,
+    "gradingStatus": "COMPLETE",
+    "pendingEssayCount": 0,
     "gradedAt": "2026-06-23T10:25:00.500Z"
   }
 }
 ```
 
 `result` is `null` while the attempt is `IN_PROGRESS` and for `TIMED_OUT` attempts (where `ScoringService` was not called). The frontend does not need a separate `GET /api/results/:attemptId` call.
+
+When the quiz includes ungraded essays, `result.gradingStatus` is `PARTIAL`, `result.pendingEssayCount` is greater than zero, and `result.passed` is `null` until an admin completes essay grading.
 
 **Errors:**
 - `404 Attempt not found.`

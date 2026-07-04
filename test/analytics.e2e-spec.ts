@@ -35,6 +35,8 @@ describe('Analytics endpoint', () => {
           id: 'attempt_abc123',
           studentId: 'student_abc123',
           score: 0,
+          status: 'IN_PROGRESS',
+          startedAt: now,
           submittedAt: now,
         },
       ]),
@@ -83,12 +85,23 @@ describe('Analytics endpoint', () => {
       quizId: 'quiz_abc123',
       quizTitle: 'Sample Quiz',
       attemptCount: 1,
-      attempts: [
+      completionCount: 0,
+      averageScore: 0,
+      statusBreakdown: {
+        notStarted: 0,
+        inProgress: 1,
+        submitted: 0,
+      },
+      attempts: [],
+      studentScores: [
         {
-          attemptId: 'attempt_abc123',
+          studentId: 'student_abc123',
           studentName: 'Student Name',
+          status: 'IN_PROGRESS',
           score: 0,
-          submittedAt: expect.any(String),
+          attemptId: 'attempt_abc123',
+          startedAt: now.toISOString(),
+          submittedAt: now.toISOString(),
         },
       ],
     });

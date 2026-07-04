@@ -7,7 +7,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { PrismaService } from '../src/common/prisma/prisma.service';
-import { AttemptStatus, QuizStatus } from '../src/generated/prisma/client';
+import { AttemptStatus, QuestionType, QuizStatus } from '../src/generated/prisma/client';
 import { StudentAttemptOrchestrator } from '../src/modules/student/services/student-attempt-orchestrator';
 import { StudentService } from '../src/modules/student/services/student.service';
 import {
@@ -29,6 +29,8 @@ const QUIZ_DRAFT = '44444444-4444-4444-4444-444444444444';
 const ATTEMPT_ID = '55555555-5555-4555-5555-555555555555';
 const Q1_ID = '66666666-6666-4666-6666-666666666666';
 const Q2_ID = '77777777-7777-4777-7777-777777777777';
+const Q3_ID = '88888888-8888-4888-8888-888888888888';
+const Q4_ID = '99999999-9999-4999-9999-999999999999';
 
 function makeQuiz(overrides: Partial<any> = {}): any {
   return {
@@ -83,6 +85,7 @@ function makePrismaMock() {
       findMany: jest.fn(),
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     attempt: {
       findMany: jest.fn(),
@@ -106,6 +109,8 @@ const RESULT_ROW = {
   percentage: 60,
   passed: true,
   gradedAt: new Date('2026-06-23T10:25:00.500Z'),
+  gradingStatus: 'COMPLETE' as const,
+  pendingEssayCount: 0,
 };
 
 // ---------------------------------------------------------------------------
@@ -440,6 +445,68 @@ describe('StudentService', () => {
   });
 
   // -------------------------------------------------------------------------
+  // acceptQuizInvitation()
+  // -------------------------------------------------------------------------
+
+  describe('acceptQuizInvitation()', () => {
+    it('connects the student when not yet assigned', async () => {
+      prisma.quiz.findFirst
+        .mockResolvedValueOnce({
+          id: QUIZ_PUBLISHED_ACTIVE,
+          title: 'Active Quiz',
+        })
+        .mockResolvedValueOnce(null);
+      prisma.quiz.update.mockResolvedValueOnce({});
+
+      const result = await service.acceptQuizInvitation(
+        STUDENT_ID,
+        QUIZ_PUBLISHED_ACTIVE,
+      );
+
+      expect(prisma.quiz.update).toHaveBeenCalledWith({
+        where: { id: QUIZ_PUBLISHED_ACTIVE },
+        data: { students: { connect: { userId: STUDENT_ID } } },
+      });
+      expect(result).toEqual({
+        quizId: QUIZ_PUBLISHED_ACTIVE,
+        title: 'Active Quiz',
+        assigned: true,
+        alreadyAssigned: false,
+      });
+    });
+
+    it('returns alreadyAssigned without connecting again', async () => {
+      prisma.quiz.findFirst
+        .mockResolvedValueOnce({
+          id: QUIZ_PUBLISHED_ACTIVE,
+          title: 'Active Quiz',
+        })
+        .mockResolvedValueOnce({ id: QUIZ_PUBLISHED_ACTIVE });
+
+      const result = await service.acceptQuizInvitation(
+        STUDENT_ID,
+        QUIZ_PUBLISHED_ACTIVE,
+      );
+
+      expect(prisma.quiz.update).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        quizId: QUIZ_PUBLISHED_ACTIVE,
+        title: 'Active Quiz',
+        assigned: false,
+        alreadyAssigned: true,
+      });
+    });
+
+    it('throws NotFoundException for a missing or non-PUBLISHED quiz', async () => {
+      prisma.quiz.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        service.acceptQuizInvitation(STUDENT_ID, QUIZ_DRAFT),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // getActiveAttempt()
   // -------------------------------------------------------------------------
 
@@ -699,13 +766,16 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ startedAt, expiresAt }),
       );
-      prisma.quizQuestion.findMany.mockResolvedValueOnce([{ questionId: Q1_ID }]);
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q1_ID, question: { type: QuestionType.MCQ } },
+      ]);
       orchestrator.saveAnswers.mockResolvedValueOnce([
         {
           id: 'a1',
           attemptId: ATTEMPT_ID,
           questionId: Q1_ID,
           selectedOptionId: 'opt-1',
+          textAnswer: null,
           isCorrect: null,
           answeredAt: new Date(),
         },
@@ -718,7 +788,7 @@ describe('StudentService', () => {
       expect(orchestrator.saveAnswers).toHaveBeenCalledWith(
         ATTEMPT_ID,
         STUDENT_ID,
-        [{ questionId: Q1_ID, selectedOptionId: 'opt-1' }],
+        [{ questionId: Q1_ID, selectedOptionId: 'opt-1', textAnswer: null }],
       );
       expect(result).toHaveLength(1);
       expect(result[0].questionId).toBe(Q1_ID);
@@ -730,7 +800,9 @@ describe('StudentService', () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ startedAt, expiresAt }),
       );
-      prisma.quizQuestion.findMany.mockResolvedValueOnce([{ questionId: Q1_ID }]);
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q1_ID, question: { type: QuestionType.MCQ } },
+      ]);
       orchestrator.saveAnswers.mockResolvedValueOnce([]);
 
       await service.saveAttemptAnswers(STUDENT_ID, ATTEMPT_ID, [
@@ -740,7 +812,7 @@ describe('StudentService', () => {
       expect(orchestrator.saveAnswers).toHaveBeenCalledWith(
         ATTEMPT_ID,
         STUDENT_ID,
-        [{ questionId: Q1_ID, selectedOptionId: null }],
+        [{ questionId: Q1_ID, selectedOptionId: null, textAnswer: null }],
       );
     });
 
@@ -798,6 +870,112 @@ describe('StudentService', () => {
       await expect(
         service.saveAttemptAnswers(STUDENT_ID, ATTEMPT_ID, [
           { questionId: 'unrelated-question', selectedOptionId: 'opt-1' },
+        ]),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('saves textAnswer for SHORT_TEXT questions', async () => {
+      const startedAt = new Date();
+      const expiresAt = new Date(startedAt.getTime() + 30 * 60_000);
+      prisma.attempt.findUnique.mockResolvedValueOnce(
+        makeAttempt({ startedAt, expiresAt }),
+      );
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q3_ID, question: { type: QuestionType.SHORT_TEXT } },
+      ]);
+      orchestrator.saveAnswers.mockResolvedValueOnce([
+        {
+          id: 'a3',
+          attemptId: ATTEMPT_ID,
+          questionId: Q3_ID,
+          selectedOptionId: null,
+          textAnswer: 'paris',
+          isCorrect: null,
+          answeredAt: new Date(),
+        },
+      ]);
+
+      const result = await service.saveAttemptAnswers(STUDENT_ID, ATTEMPT_ID, [
+        { questionId: Q3_ID, textAnswer: 'Paris' },
+      ]);
+
+      expect(orchestrator.saveAnswers).toHaveBeenCalledWith(
+        ATTEMPT_ID,
+        STUDENT_ID,
+        [{ questionId: Q3_ID, selectedOptionId: null, textAnswer: 'paris' }],
+      );
+      expect(result[0].textAnswer).toBe('paris');
+    });
+
+    it('saves textAnswer for ESSAY questions', async () => {
+      const startedAt = new Date();
+      const expiresAt = new Date(startedAt.getTime() + 30 * 60_000);
+      prisma.attempt.findUnique.mockResolvedValueOnce(
+        makeAttempt({ startedAt, expiresAt }),
+      );
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q4_ID, question: { type: QuestionType.ESSAY } },
+      ]);
+      orchestrator.saveAnswers.mockResolvedValueOnce([
+        {
+          id: 'a4',
+          attemptId: ATTEMPT_ID,
+          questionId: Q4_ID,
+          selectedOptionId: null,
+          textAnswer: 'Long essay response',
+          isCorrect: null,
+          answeredAt: new Date(),
+        },
+      ]);
+
+      const result = await service.saveAttemptAnswers(STUDENT_ID, ATTEMPT_ID, [
+        { questionId: Q4_ID, textAnswer: 'Long essay response' },
+      ]);
+
+      expect(orchestrator.saveAnswers).toHaveBeenCalledWith(
+        ATTEMPT_ID,
+        STUDENT_ID,
+        [
+          {
+            questionId: Q4_ID,
+            selectedOptionId: null,
+            textAnswer: 'Long essay response',
+          },
+        ],
+      );
+      expect(result[0].textAnswer).toBe('Long essay response');
+    });
+
+    it('throws BadRequestException when MCQ payload uses textAnswer', async () => {
+      const startedAt = new Date();
+      const expiresAt = new Date(startedAt.getTime() + 30 * 60_000);
+      prisma.attempt.findUnique.mockResolvedValueOnce(
+        makeAttempt({ startedAt, expiresAt }),
+      );
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q1_ID, question: { type: QuestionType.MCQ } },
+      ]);
+
+      await expect(
+        service.saveAttemptAnswers(STUDENT_ID, ATTEMPT_ID, [
+          { questionId: Q1_ID, textAnswer: 'wrong field' },
+        ]),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when text question payload uses selectedOptionId', async () => {
+      const startedAt = new Date();
+      const expiresAt = new Date(startedAt.getTime() + 30 * 60_000);
+      prisma.attempt.findUnique.mockResolvedValueOnce(
+        makeAttempt({ startedAt, expiresAt }),
+      );
+      prisma.quizQuestion.findMany.mockResolvedValueOnce([
+        { questionId: Q3_ID, question: { type: QuestionType.SHORT_TEXT } },
+      ]);
+
+      await expect(
+        service.saveAttemptAnswers(STUDENT_ID, ATTEMPT_ID, [
+          { questionId: Q3_ID, selectedOptionId: 'Paris' },
         ]),
       ).rejects.toThrow(BadRequestException);
     });

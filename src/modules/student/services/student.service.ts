@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import { AttemptStatus, QuizStatus } from '../../../generated/prisma/client';
+import { AttemptStatus, QuestionType, QuizStatus } from '../../../generated/prisma/client';
 import {
   AttemptAnswerResponseDto,
   AttemptResponseDto,
@@ -18,6 +18,7 @@ import {
   StudentAttemptQuestionDto,
   StudentAttemptQuestionsResponseDto,
   StudentQuizInstructionsDto,
+  StudentQuizInvitationResponseDto,
   StudentQuizListItemDto,
   StudentQuizListResponseDto,
   deriveAttemptStatus,
@@ -28,6 +29,7 @@ import {
   isExpired,
   remainingSeconds,
 } from './attempt-timer.util';
+import { normalizeShortTextAnswer } from '../../attempts/utils/text-answer.util';
 
 /// Student-facing response shape: the attempts module's full response with
 /// the student-only `expiresAt` field and the `Result` summary appended.
@@ -35,8 +37,10 @@ import {
 /// `expiresAt` + the `Result` row on top of it.
 export interface StudentAttemptResultSummary {
   percentage: number;
-  passed: boolean;
+  passed: boolean | null;
   gradedAt: Date;
+  gradingStatus: 'PARTIAL' | 'COMPLETE';
+  pendingEssayCount: number;
 }
 
 type StudentAttemptResponse = AttemptResponseDto & {
@@ -157,6 +161,58 @@ export class StudentService {
       ...(latestActiveAttempt
         ? { attemptId: latestActiveAttempt.id }
         : { attemptId: listItem.attemptId }),
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /api/student/quizzes/:quizId/accept-invitation
+  // -------------------------------------------------------------------------
+
+  async acceptQuizInvitation(
+    studentId: string,
+    quizId: string,
+  ): Promise<StudentQuizInvitationResponseDto> {
+    const quiz = await this.prisma.quiz.findFirst({
+      where: {
+        id: quizId,
+        status: QuizStatus.PUBLISHED,
+      },
+      select: { id: true, title: true },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found or not available.');
+    }
+
+    const alreadyAssigned = await this.prisma.quiz.findFirst({
+      where: {
+        id: quizId,
+        students: { some: { userId: studentId } },
+      },
+      select: { id: true },
+    });
+
+    if (alreadyAssigned) {
+      return {
+        quizId: quiz.id,
+        title: quiz.title,
+        assigned: false,
+        alreadyAssigned: true,
+      };
+    }
+
+    await this.prisma.quiz.update({
+      where: { id: quizId },
+      data: {
+        students: { connect: { userId: studentId } },
+      },
+    });
+
+    return {
+      quizId: quiz.id,
+      title: quiz.title,
+      assigned: true,
+      alreadyAssigned: false,
     };
   }
 
@@ -296,12 +352,7 @@ export class StudentService {
       );
     }
 
-    await this.assertQuestionsBelongToQuiz(refreshed.quizId, items);
-
-    const normalized = items.map((i) => ({
-      questionId: i.questionId,
-      selectedOptionId: i.selectedOptionId ?? null,
-    }));
+    const normalized = await this.normalizeAnswerItems(refreshed.quizId, items);
 
     return this.orchestrator.saveAnswers(attemptId, studentId, normalized);
   }
@@ -332,8 +383,8 @@ export class StudentService {
     }
 
     if (items.length > 0) {
-      await this.assertQuestionsBelongToQuiz(refreshed.quizId, items);
-      await this.orchestrator.saveAnswers(attemptId, studentId, items);
+      const normalized = await this.normalizeAnswerItems(refreshed.quizId, items);
+      await this.orchestrator.saveAnswers(attemptId, studentId, normalized);
     }
 
     return this.withAttemptMetadata(
@@ -402,20 +453,67 @@ export class StudentService {
     return updated as AttemptRow;
   }
 
-  private async assertQuestionsBelongToQuiz(
+  private async normalizeAnswerItems(
     quizId: string,
     items: SaveAnswerItemDto[],
-  ): Promise<void> {
+  ): Promise<SaveAnswerItemDto[]> {
     const ids = Array.from(new Set(items.map((i) => i.questionId)));
     const found = await this.prisma.quizQuestion.findMany({
       where: { quizId, questionId: { in: ids } },
-      select: { questionId: true },
+      select: {
+        questionId: true,
+        question: { select: { type: true } },
+      },
     });
     if (found.length !== ids.length) {
       throw new BadRequestException(
         'One or more questionIds do not belong to this quiz.',
       );
     }
+
+    const typeByQuestionId = new Map(
+      found.map((q) => [q.questionId, q.question.type]),
+    );
+
+    return items.map((item) => {
+      const type = typeByQuestionId.get(item.questionId)!;
+      const isChoiceQuestion =
+        type === QuestionType.MCQ || type === QuestionType.TRUE_FALSE;
+
+      if (isChoiceQuestion) {
+        if (item.textAnswer != null && item.textAnswer !== '') {
+          throw new BadRequestException(
+            'Choice questions must use selectedOptionId, not textAnswer.',
+          );
+        }
+        return {
+          questionId: item.questionId,
+          selectedOptionId: item.selectedOptionId ?? null,
+          textAnswer: null,
+        };
+      }
+
+      if (item.selectedOptionId != null && item.selectedOptionId !== '') {
+        throw new BadRequestException(
+          'Text questions must use textAnswer, not selectedOptionId.',
+        );
+      }
+
+      const textAnswer = item.textAnswer ?? null;
+      const normalizedText =
+        type === QuestionType.SHORT_TEXT
+          ? normalizeShortTextAnswer(textAnswer)
+          : textAnswer === null
+            ? null
+            : textAnswer.trim() === ''
+              ? null
+              : textAnswer.trim();
+      return {
+        questionId: item.questionId,
+        selectedOptionId: null,
+        textAnswer: normalizedText,
+      };
+    });
   }
 
   private isWithinWindow(quiz: QuizRow, now: Date): boolean {
@@ -503,6 +601,8 @@ export class StudentService {
             percentage: resultRow.percentage,
             passed: resultRow.passed,
             gradedAt: resultRow.gradedAt,
+            gradingStatus: resultRow.gradingStatus,
+            pendingEssayCount: resultRow.pendingEssayCount,
           }
         : null,
     };

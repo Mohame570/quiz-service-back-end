@@ -42,6 +42,7 @@ function makeAnswer(overrides: Partial<any> = {}): any {
     attemptId: ATTEMPT_ID,
     questionId: Q1_ID,
     selectedOptionId: OPT1_ID,
+    textAnswer: null,
     isCorrect: null,
     answeredAt: new Date(),
     ...overrides,
@@ -261,6 +262,34 @@ describe('AttemptsService', () => {
       ]);
 
       expect(result[0].selectedOptionId).toBeNull();
+    });
+
+    it('upserts textAnswer for text-based questions', async () => {
+      prisma.attempt.findUnique.mockResolvedValue(makeAttempt());
+      const answer = makeAnswer({
+        selectedOptionId: null,
+        textAnswer: 'paris',
+      });
+      prisma.attemptAnswer.upsert.mockResolvedValue(answer);
+      prisma.$transaction.mockResolvedValue([answer]);
+
+      const result = await service.saveAnswers(ATTEMPT_ID, STUDENT_ID, [
+        { questionId: Q1_ID, selectedOptionId: null, textAnswer: 'paris' },
+      ]);
+
+      expect(prisma.attemptAnswer.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            selectedOptionId: null,
+            textAnswer: 'paris',
+          }),
+          update: expect.objectContaining({
+            selectedOptionId: null,
+            textAnswer: 'paris',
+          }),
+        }),
+      );
+      expect(result[0].textAnswer).toBe('paris');
     });
 
     it('throws ConflictException when attempt is already submitted', async () => {

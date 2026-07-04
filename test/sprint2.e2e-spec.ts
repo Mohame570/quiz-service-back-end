@@ -11,7 +11,7 @@
 
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AttemptStatus, CheatingEventType } from '../src/generated/prisma/client';
+import { AttemptStatus, CheatingEventType, QuestionType } from '../src/generated/prisma/client';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 import { ScoringService } from '../src/modules/attempts/services/scoring.service';
 import { IntegrityService } from '../src/modules/integrity/services/integrity.service';
@@ -37,9 +37,48 @@ function makeAttempt(overrides: Partial<any> = {}): any {
 function makeAnswer(questionId: string, selectedOptionId: string | null, overrides: Partial<any> = {}): any {
   return {
     id: `${questionId}_ans`, attemptId: ATTEMPT_ID,
-    questionId, selectedOptionId, isCorrect: null, answeredAt: new Date(),
+    questionId, selectedOptionId, textAnswer: null, isCorrect: null, answeredAt: new Date(),
     ...overrides,
   };
+}
+
+function mcqQuestion(id: string, correctAnswer: string, points = 1) {
+  return { id, type: QuestionType.MCQ, correctAnswer, points };
+}
+
+function shortTextQuestion(id: string, correctAnswer: string, points = 1) {
+  return { id, type: QuestionType.SHORT_TEXT, correctAnswer, points };
+}
+
+function setupRecalculateMocks(
+  prisma: ReturnType<typeof makePrisma>,
+  answers: any[],
+  questions: any[],
+  scoredAttempt: any,
+) {
+  prisma.attempt.findUnique
+    .mockResolvedValueOnce(makeAttempt({ answers }))
+    .mockResolvedValueOnce(scoredAttempt);
+  prisma.question.findMany.mockResolvedValue(questions);
+  prisma.quiz.findUnique.mockResolvedValue({ passingScore: 50 });
+  prisma.result.upsert.mockResolvedValue({});
+  prisma.$transaction.mockResolvedValue([]);
+}
+
+function setupScoreMocks(
+  prisma: ReturnType<typeof makePrisma>,
+  answers: any[],
+  questions: any[],
+  scoredAttempt: any,
+) {
+  prisma.attempt.findUnique
+    .mockResolvedValueOnce(makeAttempt({ answers }))
+    .mockResolvedValueOnce(scoredAttempt);
+  prisma.question.findMany.mockResolvedValue(questions);
+  prisma.quiz.findUnique.mockResolvedValue({ passingScore: 50 });
+  prisma.attemptAnswer.update.mockResolvedValue({});
+  prisma.result.upsert.mockResolvedValue({});
+  prisma.$transaction.mockResolvedValue([]);
 }
 
 function makePrisma() {
@@ -47,6 +86,7 @@ function makePrisma() {
     attempt: { findUnique: jest.fn(), update: jest.fn() },
     attemptAnswer: { update: jest.fn() },
     question: { findMany: jest.fn() },
+    quiz: { findUnique: jest.fn() },
     result: { upsert: jest.fn() },
     cheatingEventLog: { create: jest.fn() },
     $transaction: jest.fn(),
@@ -88,8 +128,13 @@ describe('ScoringService', () => {
       expect(service.compareAnswer('Paris', undefined)).toBeNull();
     });
 
-    it('is case-sensitive, matching how correctAnswer is validated on creation', () => {
+    it('is case-sensitive for choice questions', () => {
       expect(service.compareAnswer('paris', 'Paris')).toBe(false);
+    });
+
+    it('compares SHORT_TEXT case-insensitively after normalization', () => {
+      expect(service.compareShortText('  Paris ', 'paris')).toBe(true);
+      expect(service.compareShortText('London', 'Paris')).toBe(false);
     });
 
     it('handles True/False questions correctly', () => {
@@ -115,7 +160,11 @@ describe('ScoringService', () => {
     });
 
     it('scores 0/0 when no answers were submitted', async () => {
-      prisma.attempt.findUnique.mockResolvedValue(makeAttempt({ answers: [] }));
+      prisma.attempt.findUnique
+        .mockResolvedValueOnce(makeAttempt({ answers: [] }))
+        .mockResolvedValueOnce(makeAttempt({ answers: [], score: 0, maxScore: 0 }));
+      prisma.question.findMany.mockResolvedValue([]);
+      prisma.quiz.findUnique.mockResolvedValue({ passingScore: 50 });
       prisma.$transaction.mockResolvedValue([]);
       const result = await service.scoreAttempt(ATTEMPT_ID);
       expect(result.score).toBe(0);
@@ -124,16 +173,13 @@ describe('ScoringService', () => {
 
     it('scores all-correct answers as score == maxScore', async () => {
       const answers = [makeAnswer(Q1_ID, 'Paris'), makeAnswer(Q2_ID, 'True')];
-      prisma.attempt.findUnique
-        .mockResolvedValueOnce(makeAttempt({ answers }))
-        .mockResolvedValueOnce(makeAttempt({ answers, score: 2, maxScore: 2 }));
-      prisma.question.findMany.mockResolvedValue([
-        { id: Q1_ID, correctAnswer: 'Paris' },
-        { id: Q2_ID, correctAnswer: 'True' },
-      ]);
-      prisma.attemptAnswer.update.mockResolvedValue({});
-      prisma.result.upsert.mockResolvedValue({});
-      prisma.$transaction.mockResolvedValue([]);
+      const questions = [mcqQuestion(Q1_ID, 'Paris'), mcqQuestion(Q2_ID, 'True')];
+      setupScoreMocks(
+        prisma,
+        answers,
+        questions,
+        makeAttempt({ answers, score: 2, maxScore: 2 }),
+      );
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
       expect(result.score).toBe(2);
@@ -142,13 +188,12 @@ describe('ScoringService', () => {
 
     it('scores wrong answers as incorrect', async () => {
       const answers = [makeAnswer(Q1_ID, 'London')];
-      prisma.attempt.findUnique
-        .mockResolvedValueOnce(makeAttempt({ answers }))
-        .mockResolvedValueOnce(makeAttempt({ answers, score: 0, maxScore: 1 }));
-      prisma.question.findMany.mockResolvedValue([{ id: Q1_ID, correctAnswer: 'Paris' }]);
-      prisma.attemptAnswer.update.mockResolvedValue({});
-      prisma.result.upsert.mockResolvedValue({});
-      prisma.$transaction.mockResolvedValue([]);
+      setupScoreMocks(
+        prisma,
+        answers,
+        [mcqQuestion(Q1_ID, 'Paris')],
+        makeAttempt({ answers, score: 0, maxScore: 1 }),
+      );
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
       expect(result.score).toBe(0);
@@ -157,28 +202,26 @@ describe('ScoringService', () => {
 
     it('counts a skipped answer as incorrect, still counted in maxScore', async () => {
       const answers = [makeAnswer(Q1_ID, null)];
-      prisma.attempt.findUnique
-        .mockResolvedValueOnce(makeAttempt({ answers }))
-        .mockResolvedValueOnce(makeAttempt({ answers, score: 0, maxScore: 1 }));
-      prisma.question.findMany.mockResolvedValue([{ id: Q1_ID, correctAnswer: 'Paris' }]);
-      prisma.attemptAnswer.update.mockResolvedValue({});
-      prisma.result.upsert.mockResolvedValue({});
-      prisma.$transaction.mockResolvedValue([]);
+      setupScoreMocks(
+        prisma,
+        answers,
+        [mcqQuestion(Q1_ID, 'Paris')],
+        makeAttempt({ answers, score: 0, maxScore: 1 }),
+      );
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
       expect(result.score).toBe(0);
       expect(result.maxScore).toBe(1);
     });
 
-    it('excludes a question with no matching record from maxScore', async () => {
+    it('uses full quiz question points for maxScore even when an answer is unknown', async () => {
       const answers = [makeAnswer(Q1_ID, 'Paris')];
-      prisma.attempt.findUnique
-        .mockResolvedValueOnce(makeAttempt({ answers }))
-        .mockResolvedValueOnce(makeAttempt({ answers, score: 0, maxScore: 0 }));
-      prisma.question.findMany.mockResolvedValue([]);
-      prisma.attemptAnswer.update.mockResolvedValue({});
-      prisma.result.upsert.mockResolvedValue({});
-      prisma.$transaction.mockResolvedValue([]);
+      setupScoreMocks(
+        prisma,
+        answers,
+        [],
+        makeAttempt({ answers, score: 0, maxScore: 0 }),
+      );
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
       expect(result.score).toBe(0);
@@ -191,55 +234,82 @@ describe('ScoringService', () => {
         makeAnswer(Q2_ID, 'False'),
         makeAnswer(Q3_ID, null),
       ];
-      prisma.attempt.findUnique
-        .mockResolvedValueOnce(makeAttempt({ answers }))
-        .mockResolvedValueOnce(makeAttempt({ answers, score: 1, maxScore: 3 }));
-      prisma.question.findMany.mockResolvedValue([
-        { id: Q1_ID, correctAnswer: 'Paris' },
-        { id: Q2_ID, correctAnswer: 'True' },
-        { id: Q3_ID, correctAnswer: 'Berlin' },
-      ]);
-      prisma.attemptAnswer.update.mockResolvedValue({});
-      prisma.result.upsert.mockResolvedValue({});
-      prisma.$transaction.mockResolvedValue([]);
+      const questions = [
+        mcqQuestion(Q1_ID, 'Paris'),
+        mcqQuestion(Q2_ID, 'True'),
+        mcqQuestion(Q3_ID, 'Berlin'),
+      ];
+      setupScoreMocks(
+        prisma,
+        answers,
+        questions,
+        makeAttempt({ answers, score: 1, maxScore: 3 }),
+      );
 
       const result = await service.scoreAttempt(ATTEMPT_ID);
       expect(result.score).toBe(1);
       expect(result.maxScore).toBe(3);
     });
 
-    it('persists isCorrect on each answer via the transaction', async () => {
+    it('persists isCorrect and pointsEarned on each answer via the transaction', async () => {
       const answers = [makeAnswer(Q1_ID, 'Paris')];
-      prisma.attempt.findUnique
-        .mockResolvedValueOnce(makeAttempt({ answers }))
-        .mockResolvedValueOnce(makeAttempt({ answers, score: 1, maxScore: 1 }));
-      prisma.question.findMany.mockResolvedValue([{ id: Q1_ID, correctAnswer: 'Paris' }]);
-      prisma.attemptAnswer.update.mockResolvedValue({});
-      prisma.result.upsert.mockResolvedValue({});
-      prisma.$transaction.mockResolvedValue([]);
+      setupScoreMocks(
+        prisma,
+        answers,
+        [mcqQuestion(Q1_ID, 'Paris')],
+        makeAttempt({ answers, score: 1, maxScore: 1 }),
+      );
 
       await service.scoreAttempt(ATTEMPT_ID);
 
       expect(prisma.attemptAnswer.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: answers[0].id },
-          data: { isCorrect: true },
+          data: { isCorrect: true, pointsEarned: 1 },
+        }),
+      );
+    });
+
+    it('leaves essay answers pending manual grading when text is provided', async () => {
+      const essayId = 'essay_q1';
+      const answers = [
+        makeAnswer(Q1_ID, 'Paris'),
+        makeAnswer(essayId, null, { textAnswer: 'My essay answer' }),
+      ];
+      const questions = [
+        mcqQuestion(Q1_ID, 'Paris'),
+        { id: essayId, type: QuestionType.ESSAY, correctAnswer: '', points: 2 },
+      ];
+      setupScoreMocks(
+        prisma,
+        answers,
+        questions,
+        makeAttempt({ answers, score: 1, maxScore: 3 }),
+      );
+
+      await service.scoreAttempt(ATTEMPT_ID);
+
+      expect(prisma.result.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            score: 1,
+            maxScore: 3,
+            gradingStatus: 'PARTIAL',
+            pendingEssayCount: 1,
+            passed: null,
+          }),
         }),
       );
     });
 
     it('upserts a Result record with score, maxScore, percentage, and passed', async () => {
       const answers = [makeAnswer(Q1_ID, 'Paris'), makeAnswer(Q2_ID, 'True')];
-      prisma.attempt.findUnique
-        .mockResolvedValueOnce(makeAttempt({ answers }))
-        .mockResolvedValueOnce(makeAttempt({ answers, score: 2, maxScore: 2 }));
-      prisma.question.findMany.mockResolvedValue([
-        { id: Q1_ID, correctAnswer: 'Paris' },
-        { id: Q2_ID, correctAnswer: 'True' },
-      ]);
-      prisma.attemptAnswer.update.mockResolvedValue({});
-      prisma.result.upsert.mockResolvedValue({});
-      prisma.$transaction.mockResolvedValue([]);
+      setupScoreMocks(
+        prisma,
+        answers,
+        [mcqQuestion(Q1_ID, 'Paris'), mcqQuestion(Q2_ID, 'True')],
+        makeAttempt({ answers, score: 2, maxScore: 2 }),
+      );
 
       await service.scoreAttempt(ATTEMPT_ID);
 
@@ -254,6 +324,8 @@ describe('ScoringService', () => {
             maxScore: 2,
             percentage: 100,
             passed: true,
+            gradingStatus: 'COMPLETE',
+            pendingEssayCount: 0,
           }),
         }),
       );
@@ -261,22 +333,126 @@ describe('ScoringService', () => {
 
     it('marks passed=false when percentage is below the 50% threshold', async () => {
       const answers = [makeAnswer(Q1_ID, 'London'), makeAnswer(Q2_ID, 'False')];
-      prisma.attempt.findUnique
-        .mockResolvedValueOnce(makeAttempt({ answers }))
-        .mockResolvedValueOnce(makeAttempt({ answers, score: 0, maxScore: 2 }));
-      prisma.question.findMany.mockResolvedValue([
-        { id: Q1_ID, correctAnswer: 'Paris' },
-        { id: Q2_ID, correctAnswer: 'True' },
-      ]);
-      prisma.attemptAnswer.update.mockResolvedValue({});
-      prisma.result.upsert.mockResolvedValue({});
-      prisma.$transaction.mockResolvedValue([]);
+      setupScoreMocks(
+        prisma,
+        answers,
+        [mcqQuestion(Q1_ID, 'Paris'), mcqQuestion(Q2_ID, 'True')],
+        makeAttempt({ answers, score: 0, maxScore: 2 }),
+      );
 
       await service.scoreAttempt(ATTEMPT_ID);
 
       expect(prisma.result.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           create: expect.objectContaining({ passed: false, percentage: 0 }),
+        }),
+      );
+    });
+
+    it('scores SHORT_TEXT correct answers with trim and case-insensitive match', async () => {
+      const shortTextId = 'short_q1';
+      const answers = [
+        makeAnswer(shortTextId, null, { textAnswer: '  Paris ' }),
+      ];
+      setupScoreMocks(
+        prisma,
+        answers,
+        [shortTextQuestion(shortTextId, 'paris', 2)],
+        makeAttempt({ answers, score: 2, maxScore: 2 }),
+      );
+
+      await service.scoreAttempt(ATTEMPT_ID);
+
+      expect(prisma.attemptAnswer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: answers[0].id },
+          data: { isCorrect: true, pointsEarned: 2 },
+        }),
+      );
+      expect(prisma.result.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            score: 2,
+            maxScore: 2,
+            gradingStatus: 'COMPLETE',
+            passed: true,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('recalculateAttemptResult()', () => {
+    it('recomputes COMPLETE result and passed after all essays are graded', async () => {
+      const essayId = 'essay_q1';
+      const answers = [
+        makeAnswer(Q1_ID, 'Paris', { pointsEarned: 1, isCorrect: true }),
+        makeAnswer(essayId, null, {
+          textAnswer: 'My essay answer',
+          pointsEarned: 2,
+          isCorrect: true,
+        }),
+      ];
+      const questions = [
+        mcqQuestion(Q1_ID, 'Paris'),
+        { id: essayId, type: QuestionType.ESSAY, correctAnswer: '', points: 2 },
+      ];
+      setupRecalculateMocks(
+        prisma,
+        answers,
+        questions,
+        makeAttempt({ answers, score: 3, maxScore: 3 }),
+      );
+
+      await service.recalculateAttemptResult(ATTEMPT_ID);
+
+      expect(prisma.attemptAnswer.update).not.toHaveBeenCalled();
+      expect(prisma.result.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            score: 3,
+            maxScore: 3,
+            percentage: 100,
+            gradingStatus: 'COMPLETE',
+            pendingEssayCount: 0,
+            passed: true,
+          }),
+        }),
+      );
+    });
+
+    it('stays PARTIAL with passed null while an essay answer is still pending', async () => {
+      const essayId = 'essay_q1';
+      const answers = [
+        makeAnswer(Q1_ID, 'Paris', { pointsEarned: 1, isCorrect: true }),
+        makeAnswer(essayId, null, {
+          textAnswer: 'My essay answer',
+          pointsEarned: null,
+          isCorrect: null,
+        }),
+      ];
+      const questions = [
+        mcqQuestion(Q1_ID, 'Paris'),
+        { id: essayId, type: QuestionType.ESSAY, correctAnswer: '', points: 2 },
+      ];
+      setupRecalculateMocks(
+        prisma,
+        answers,
+        questions,
+        makeAttempt({ answers, score: 1, maxScore: 3 }),
+      );
+
+      await service.recalculateAttemptResult(ATTEMPT_ID);
+
+      expect(prisma.result.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            score: 1,
+            maxScore: 3,
+            gradingStatus: 'PARTIAL',
+            pendingEssayCount: 1,
+            passed: null,
+          }),
         }),
       );
     });

@@ -143,6 +143,49 @@ describe('QuestionsController (e2e)', () => {
       .expect(400);
   });
 
+  it('/questions (POST) - Success SHORT_TEXT', () => {
+    return request(app.getHttpServer())
+      .post('/questions')
+      .send({
+        quizId: 'valid-quiz-id',
+        type: 'SHORT_TEXT',
+        text: 'Capital of France?',
+        correctAnswer: 'Paris',
+      })
+      .expect(201)
+      .expect((res: any) => {
+        expect(res.body.type).toBe('SHORT_TEXT');
+        expect(res.body.correctAnswer).toBe('paris');
+      });
+  });
+
+  it('/questions (POST) - Fail SHORT_TEXT empty correctAnswer', () => {
+    return request(app.getHttpServer())
+      .post('/questions')
+      .send({
+        quizId: 'valid-quiz-id',
+        type: 'SHORT_TEXT',
+        text: 'Capital of France?',
+        correctAnswer: '   ',
+      })
+      .expect(400);
+  });
+
+  it('/questions (POST) - Success ESSAY without correctAnswer', () => {
+    return request(app.getHttpServer())
+      .post('/questions')
+      .send({
+        quizId: 'valid-quiz-id',
+        type: 'ESSAY',
+        text: 'Explain REST in your own words.',
+      })
+      .expect(201)
+      .expect((res: any) => {
+        expect(res.body.type).toBe('ESSAY');
+        expect(res.body.correctAnswer).toBe('');
+      });
+  });
+
   it('/questions/:id (PATCH) - Success', () => {
     return request(app.getHttpServer())
       .patch('/questions/valid-q-id')

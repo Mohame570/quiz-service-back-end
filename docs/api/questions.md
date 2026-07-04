@@ -7,11 +7,11 @@
 - owner module: `Questions`
 - sprint: `1`
 - status: `implemented`
-- last updated: `2026-06-11`
+- last updated: `2026-07-02`
 
 ## Purpose
 
-This contract defines the API for managing questions within quizzes. It provides an HTTP endpoint to create questions (both Multiple Choice and True/False) and attach them to a specific quiz.
+This contract defines the API for managing questions within quizzes. Supported types: `MCQ`, `TRUE_FALSE`, `SHORT_TEXT`, and `ESSAY`.
 
 ## Interface Type
 
@@ -26,10 +26,10 @@ This contract defines the API for managing questions within quizzes. It provides
 **Request Body (`CreateQuestionDto`)**
 
 - `quizId`: `string`
-- `type`: `QuestionType` (`MCQ` or `TRUE_FALSE`)
+- `type`: `QuestionType` (`MCQ`, `TRUE_FALSE`, `SHORT_TEXT`, or `ESSAY`)
 - `text`: `string`
-- `options`: `string[]` (optional, used for MCQ)
-- `correctAnswer`: `string`
+- `options`: `string[]` (required for `MCQ`; omit or `[]` for other types)
+- `correctAnswer`: `string` (see validation rules per type)
 - `points`: `number` (optional, min 1, default 1)
 - `order`: `number` (optional, min 0, default 0)
 
@@ -39,7 +39,7 @@ This contract defines the API for managing questions within quizzes. It provides
 
 **Request Body (`UpdateQuestionDto`)**
 
-- `type`: `QuestionType` (`MCQ` or `TRUE_FALSE`) (optional)
+- `type`: `QuestionType` (`MCQ`, `TRUE_FALSE`, `SHORT_TEXT`, or `ESSAY`) (optional)
 - `text`: `string` (optional)
 - `options`: `string[]` (optional, used for MCQ)
 - `correctAnswer`: `string` (optional)
@@ -72,16 +72,29 @@ Returns the newly created `Question` record containing:
 ## Validation Rules
 
 - `quizId` must be a non-empty string.
-- `type` must be a valid `QuestionType` enum value (`MCQ` or `TRUE_FALSE`).
+- `type` must be a valid `QuestionType` enum value (`MCQ`, `TRUE_FALSE`, `SHORT_TEXT`, or `ESSAY`).
 - `text` must be a non-empty string.
 - `options` is required and must be an array with at least 2 unique items if `type` is `MCQ`. If `type` is `TRUE_FALSE`, it is automatically set to `['True', 'False']`.
-- `correctAnswer` must not be empty.
-  - If `type` is `TRUE_FALSE`, `correctAnswer` must be exactly `"True"` or `"False"`.
-  - If `type` is `MCQ`, `correctAnswer` must be one of the strings provided in the `options` array.
+- `correctAnswer` validation by type:
+  - `TRUE_FALSE` — must be exactly `"True"` or `"False"`.
+  - `MCQ` — must be one of the strings in `options`.
+  - `SHORT_TEXT` — required non-empty string (model answer; auto-scored on submit with trim + case-insensitive match).
+  - `ESSAY` — optional; defaults to `""` if omitted (not auto-scored; admin grades manually).
 - `points` must be an integer >= 1.
 - `order` must be an integer >= 0.
 - **Non-DRAFT Quiz Guard**: Creation, modification, or deletion of questions will return `403 Forbidden` if the associated `Quiz` has a status other than `DRAFT`.
 - **Attempt Guard**: Modification or deletion of questions will return `403 Forbidden` if the question has already been answered in any attempt (`attemptAnswerCount > 0`).
+
+## Student-facing answer mapping (for frontend reference)
+
+When students save answers via `PATCH /api/student/attempts/:attemptId/answers`:
+
+| Question type | Request field | Example |
+|---|---|---|
+| `MCQ`, `TRUE_FALSE` | `selectedOptionId` | `"Paris"` or `"True"` |
+| `SHORT_TEXT`, `ESSAY` | `textAnswer` | `"My answer text"` |
+
+See [`docs/api/student.md`](student.md) for the full student save-answers contract.
 
 ## Auth Or Access Rules
 
@@ -134,5 +147,32 @@ Content-Type: application/json
   "order": 0,
   "createdAt": "2026-06-11T00:00:00.000Z",
   "updatedAt": "2026-06-11T00:00:00.000Z"
+}
+```
+
+**SHORT_TEXT example**
+
+```json
+POST /questions
+Content-Type: application/json
+
+{
+  "quizId": "cm1abcdef0000xyz123456789",
+  "type": "SHORT_TEXT",
+  "text": "Name the capital of France.",
+  "correctAnswer": "Paris"
+}
+```
+
+**ESSAY example**
+
+```json
+POST /questions
+Content-Type: application/json
+
+{
+  "quizId": "cm1abcdef0000xyz123456789",
+  "type": "ESSAY",
+  "text": "Explain REST in your own words."
 }
 ```

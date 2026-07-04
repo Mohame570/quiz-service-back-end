@@ -55,6 +55,13 @@ enum QuizStatus {
 enum QuestionType {
   MCQ
   TRUE_FALSE
+  SHORT_TEXT
+  ESSAY
+}
+
+enum GradingStatus {
+  PARTIAL
+  COMPLETE
 }
 
 // -----------------------------------------------------------------------
@@ -110,9 +117,18 @@ model AttemptAnswer {
   question         Question @relation(fields: [questionId], references: [id])
   /// The option the student chose; null means the question was skipped.
   selectedOptionId String?
+  /// Free-text response for SHORT_TEXT and ESSAY questions.
+  textAnswer String?
 
   /// Populated by the scoring service; null until graded.
   isCorrect Boolean?
+
+  /// Points awarded for this answer; null while an essay awaits manual grading.
+  pointsEarned Int?
+
+  /// Admin who graded an essay answer.
+  gradedById String?
+  gradedAt   DateTime?
 
   /// Updated on every upsert so the solving module can track last save.
   answeredAt DateTime @default(now())
@@ -215,7 +231,7 @@ model StudentProfile {
 model Question {
   id            String       @id @default(cuid())
   type          QuestionType
-  text          String
+  text          String 
   options       String[]
   correctAnswer String
   points        Int          @default(1)
@@ -251,7 +267,9 @@ model Result {
   score      Int
   maxScore   Int
   percentage Float
-  passed     Boolean
+  passed     Boolean?
+  gradingStatus     GradingStatus @default(COMPLETE)
+  pendingEssayCount Int           @default(0)
   gradedAt   DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

@@ -67,6 +67,43 @@ const runLiveTests = process.env.LIVE_TESTS === '1';
     expect(body.text).toBe('What is the capital of France (updated)?');
   });
 
+  it('creates SHORT_TEXT and ESSAY questions', async () => {
+    const shortTextResponse = await fetch(`${LIVE_API_BASE_URL}/questions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quizId,
+        type: 'SHORT_TEXT',
+        text: 'Name the capital of France',
+        correctAnswer: 'Paris',
+      }),
+    });
+    const shortTextBody = (await shortTextResponse.json()) as any;
+    expect(shortTextResponse.status).toBe(201);
+    expect(shortTextBody.type).toBe('SHORT_TEXT');
+
+    const essayResponse = await fetch(`${LIVE_API_BASE_URL}/questions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quizId,
+        type: 'ESSAY',
+        text: 'Explain the difference between HTTP and HTTPS.',
+      }),
+    });
+    const essayBody = (await essayResponse.json()) as any;
+    expect(essayResponse.status).toBe(201);
+    expect(essayBody.type).toBe('ESSAY');
+    expect(essayBody.correctAnswer).toBe('');
+
+    await fetch(`${LIVE_API_BASE_URL}/questions/${shortTextBody.id}`, {
+      method: 'DELETE',
+    });
+    await fetch(`${LIVE_API_BASE_URL}/questions/${essayBody.id}`, {
+      method: 'DELETE',
+    });
+  });
+
   it('fails to create an MCQ question with duplicate options', async () => {
     const response = await fetch(`${LIVE_API_BASE_URL}/questions`, {
       method: 'POST',
