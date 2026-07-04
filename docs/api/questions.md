@@ -74,13 +74,14 @@ Returns the newly created `Question` record containing:
 - `quizId` must be a non-empty string.
 - `type` must be a valid `QuestionType` enum value (`MCQ` or `TRUE_FALSE`).
 - `text` must be a non-empty string.
-- `options` is required and must be an array with at least 2 unique items if `type` is `MCQ`.
+- `options` is required and must be an array with at least 2 unique items if `type` is `MCQ`. If `type` is `TRUE_FALSE`, it is automatically set to `['True', 'False']`.
 - `correctAnswer` must not be empty.
   - If `type` is `TRUE_FALSE`, `correctAnswer` must be exactly `"True"` or `"False"`.
   - If `type` is `MCQ`, `correctAnswer` must be one of the strings provided in the `options` array.
 - `points` must be an integer >= 1.
 - `order` must be an integer >= 0.
-- **PUBLISHED Quiz Guard**: Creation, modification, or deletion of questions will return `403 Forbidden` if the associated `Quiz` has `status === 'PUBLISHED'`.
+- **Non-DRAFT Quiz Guard**: Creation, modification, or deletion of questions will return `403 Forbidden` if the associated `Quiz` has a status other than `DRAFT`.
+- **Attempt Guard**: Modification or deletion of questions will return `403 Forbidden` if the question has already been answered in any attempt (`attemptAnswerCount > 0`).
 
 ## Auth Or Access Rules
 

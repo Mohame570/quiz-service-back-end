@@ -18,9 +18,27 @@ export class QuestionsService {
         throw new BadRequestException('One or more quizzes not found');
       }
 
-      const publishedQuiz = quizzes.find(q => q.status === 'PUBLISHED');
-      if (publishedQuiz) {
-        throw new ForbiddenException('Cannot modify questions of a published quiz');
+      const nonDraftQuiz = quizzes.find(q => q.status !== 'DRAFT');
+      if (nonDraftQuiz) {
+        throw new ForbiddenException(`Cannot modify questions of a ${nonDraftQuiz.status.toLowerCase()} quiz`);
+      }
+    }
+
+    if (data.type === QuestionType.TRUE_FALSE) {
+      data.options = ['True', 'False'];
+      if (data.correctAnswer !== 'True' && data.correctAnswer !== 'False') {
+        throw new BadRequestException('correctAnswer must be "True" or "False" for TRUE_FALSE questions');
+      }
+    } else if (data.type === QuestionType.MCQ) {
+      if (!Array.isArray(data.options) || data.options.length < 2) {
+        throw new BadRequestException('MCQ must have at least 2 options');
+      }
+      const uniqueOptions = new Set(data.options);
+      if (uniqueOptions.size !== data.options.length) {
+        throw new BadRequestException('MCQ options must be unique');
+      }
+      if (!data.options.includes(data.correctAnswer)) {
+        throw new BadRequestException('correctAnswer must be one of the provided options for MCQ questions');
       }
     }
 
@@ -58,9 +76,14 @@ export class QuestionsService {
       throw new NotFoundException('Question not found');
     }
 
-    const publishedQuiz = question.quizQuestions.find(qq => qq.quiz.status === 'PUBLISHED');
-    if (publishedQuiz) {
-      throw new ForbiddenException('Cannot modify questions of a published quiz');
+    const attemptAnswerCount = await this.prisma.attemptAnswer.count({ where: { questionId: id } });
+    if (attemptAnswerCount > 0) {
+      throw new ForbiddenException('Cannot modify a question that has already been answered in an attempt');
+    }
+
+    const nonDraftQuiz = question.quizQuestions.find(qq => qq.quiz.status !== 'DRAFT');
+    if (nonDraftQuiz) {
+      throw new ForbiddenException(`Cannot modify questions of a ${nonDraftQuiz.quiz.status.toLowerCase()} quiz`);
     }
 
     const merged = {
@@ -71,12 +94,17 @@ export class QuestionsService {
     };
 
     if (merged.type === QuestionType.TRUE_FALSE) {
+      merged.options = ['True', 'False'];
       if (merged.correctAnswer !== 'True' && merged.correctAnswer !== 'False') {
         throw new BadRequestException('correctAnswer must be "True" or "False" for TRUE_FALSE questions');
       }
     } else if (merged.type === QuestionType.MCQ) {
       if (!Array.isArray(merged.options) || merged.options.length < 2) {
         throw new BadRequestException('MCQ must have at least 2 options');
+      }
+      const uniqueOptions = new Set(merged.options);
+      if (uniqueOptions.size !== merged.options.length) {
+        throw new BadRequestException('MCQ options must be unique');
       }
       if (!merged.options.includes(merged.correctAnswer)) {
         throw new BadRequestException('correctAnswer must be one of the provided options for MCQ questions');
@@ -113,9 +141,14 @@ export class QuestionsService {
       throw new NotFoundException('Question not found');
     }
 
-    const publishedQuiz = question.quizQuestions.find(qq => qq.quiz.status === 'PUBLISHED');
-    if (publishedQuiz) {
-      throw new ForbiddenException('Cannot modify questions of a published quiz');
+    const attemptAnswerCount = await this.prisma.attemptAnswer.count({ where: { questionId: id } });
+    if (attemptAnswerCount > 0) {
+      throw new ForbiddenException('Cannot delete a question that has already been answered in an attempt');
+    }
+
+    const nonDraftQuiz = question.quizQuestions.find(qq => qq.quiz.status !== 'DRAFT');
+    if (nonDraftQuiz) {
+      throw new ForbiddenException(`Cannot modify questions of a ${nonDraftQuiz.quiz.status.toLowerCase()} quiz`);
     }
 
     await this.prisma.question.delete({ where: { id } });
