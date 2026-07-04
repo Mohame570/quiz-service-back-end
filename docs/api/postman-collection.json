@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "PitIQ — Sprint 4 API Collection",
-    "description": "Complete API collection for the PitIQ quiz platform. Covers auth, quizzes, questions (MCQ, TRUE_FALSE, SHORT_TEXT, ESSAY), attempts, scoring, analytics, notifications, integrity, and student endpoints.\n\n**Base URL:** http://localhost:3002/api\n\n## Question types\n| Type | Create (admin) | Save answer (student) |\n|------|----------------|----------------------|\n| MCQ | options + correctAnswer | selectedOptionId |\n| TRUE_FALSE | options [True, False] | selectedOptionId |\n| SHORT_TEXT | correctAnswer required | textAnswer |\n| ESSAY | correctAnswer optional | textAnswer |\n\nAuto-scoring on submit grades MCQ/TRUE_FALSE only.\n\n## Auth Setup\n1. Send `POST /auth/login` with admin or student credentials\n2. Token is auto-saved to `{{token}}` on Login requests\n3. Set `{{quizId}}`, `{{attemptId}}`, `{{questionId}}` as you run the flow\n\nSeeded accounts: admin@live-test.example / student@live-test.example — Password123!",
+    "description": "Complete API collection for the PitIQ quiz platform. Covers auth, quizzes, questions (MCQ, TRUE_FALSE, SHORT_TEXT, ESSAY), attempts, scoring, analytics (including essay grading), notifications, integrity, and student endpoints.\n\n**Base URL:** http://localhost:3002/api\n\n## Question types\n| Type | Create (admin) | Save answer (student) | Auto-scored on submit |\n|------|----------------|----------------------|------------------------|\n| MCQ | options + correctAnswer | selectedOptionId | Yes |\n| TRUE_FALSE | options [True, False] | selectedOptionId | Yes |\n| SHORT_TEXT | correctAnswer required | textAnswer | Yes (trim + case-insensitive) |\n| ESSAY | correctAnswer optional | textAnswer | No — admin grades via Analytics → Essay Grading |\n\nWhile essays are pending, `result.gradingStatus` is `PARTIAL` and `result.passed` is `null`.\n\n## Auth Setup\n1. Send `POST /auth/login` with admin or student credentials\n2. Token is auto-saved to `{{token}}` on Login requests\n3. Set `{{quizId}}`, `{{attemptId}}`, `{{questionId}}`, `{{answerId}}` as you run the flow\n\n## Seeded accounts (Password123!)\n- admin1@example.com — admin grading queue on new-quiz-5\n- student1@example.com — student flow + pre-seeded PARTIAL attempt on new-quiz-5\n- student2@example.com — alternate student / invitation tests\n- admin@live-test.example / student@live-test.example — live-test fixtures",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -681,7 +681,7 @@
     },
     {
       "name": "Analytics",
-      "description": "Admin analytics — quiz stats, attempts, events.",
+      "description": "Admin analytics — quiz stats, attempts, events, and essay grading.\n\nEssay grading flow (login as admin1@example.com first):\n1. Get Essay Grading Queue — seeded student1 attempt on new-quiz-5 (PARTIAL)\n2. Get Attempt for Grading — copy essay answerId where pendingManualGrade is true\n3. Grade Essay Answer — PATCH pointsEarned; result becomes COMPLETE when done",
       "item": [
         {
           "name": "Get Analytics",

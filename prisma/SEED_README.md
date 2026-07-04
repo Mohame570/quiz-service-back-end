@@ -28,12 +28,12 @@ All passwords: `Password123!`
 
 Seeded data includes all four `QuestionType` values:
 
-| Type | Save field | Auto-scored |
-|------|------------|-------------|
+| Type | Save field | Auto-scored on submit |
+|------|------------|------------------------|
 | MCQ | `selectedOptionId` | Yes |
 | TRUE_FALSE | `selectedOptionId` | Yes |
-| SHORT_TEXT | `textAnswer` | No (stored only) |
-| ESSAY | `textAnswer` | No (stored only) |
+| SHORT_TEXT | `textAnswer` | Yes (trim + case-insensitive vs model answer) |
+| ESSAY | `textAnswer` | No — admin manual grade via `/api/admin/analytics/grading/*` |
 
 ## Quizzes
 
@@ -62,30 +62,42 @@ Use **`invite-quiz-1`** to test `POST /student/quizzes/:quizId/accept-invitation
 | student2 | quiz-1 | SUBMITTED | 100/100 |
 | student2 | quiz-1 | SUBMITTED | 60/100 |
 | student2 | quiz-4 | TIMED_OUT | - |
+| student1 | new-quiz-5 | SUBMITTED (PARTIAL) | 5/6 — essay pending admin grade |
+
+## Admin essay grading demo
+
+After seed, **`student1@example.com`** has a **SUBMITTED** attempt on **`new-quiz-5`** with `gradingStatus: PARTIAL` and one essay awaiting grade.
+
+1. Login as **`admin1@example.com`** / `Password123!`
+2. `GET /api/admin/analytics/grading/queue?quizId=new-quiz-5`
+3. `GET /api/admin/analytics/grading/attempts/:attemptId`
+4. `PATCH /api/admin/analytics/grading/attempts/:attemptId/answers/:answerId` with `{ "pointsEarned": N }`
+
+See [`docs/api/analytics-grading.md`](../docs/api/analytics-grading.md) and Postman **Analytics → Essay Grading** requests.
 
 ## Quick Test Commands
 
 ```bash
 # Login
-curl -X POST http://localhost:3000/api/auth/login \
+curl -X POST http://localhost:3002/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"student1@example.com","password":"Password123!"}'
 
 # List student quizzes
-curl http://localhost:3000/api/student/quizzes \
+curl http://localhost:3002/api/student/quizzes \
   -H "Authorization: Bearer <token>"
 
 # Get quiz instructions
-curl http://localhost:3000/api/student/quizzes/quiz-1 \
+curl http://localhost:3002/api/student/quizzes/quiz-1 \
   -H "Authorization: Bearer <token>"
 
 # Start attempt
-curl -X POST http://localhost:3000/api/attempts \
+curl -X POST http://localhost:3002/api/attempts \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"quizId":"quiz-1"}'
 
 # Get active attempt
-curl http://localhost:3000/api/student/attempts/active \
+curl http://localhost:3002/api/student/attempts/active \
   -H "Authorization: Bearer <token>"
 ```

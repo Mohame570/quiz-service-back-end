@@ -2,7 +2,7 @@
   "info": {
     "name": "Quiz Platform — Student Flow",
     "_postman_id": "quiz-platform-student-flow-2026-06-23",
-    "description": "End-to-end student quiz flow. Frontend must use only /api/auth and /api/student.\n\nQuestion types: MCQ and TRUE_FALSE use selectedOptionId; SHORT_TEXT and ESSAY use textAnswer. Auto-scoring on submit applies to MCQ/TRUE_FALSE only.\n\nSeeded login: student1@example.com / Password123! (try new-quiz-1 or quiz-2 for mixed types).",
+    "description": "End-to-end student quiz flow. Frontend must use only /api/auth and /api/student.\n\nQuestion types: MCQ and TRUE_FALSE use selectedOptionId; SHORT_TEXT and ESSAY use textAnswer.\n\nAuto-scoring on submit: MCQ, TRUE_FALSE, and SHORT_TEXT (trim + case-insensitive). ESSAY answers stay pending until an admin grades them (use docs/api/postman-collection.json Analytics folder for admin grading).\n\nProvisional results: when a quiz has essays, result.gradingStatus is PARTIAL and result.passed is null until admin grading completes.\n\nSeeded login: student1@example.com / Password123! (try new-quiz-4 for auto-score only, new-quiz-5 or quiz-1 for mixed types including essay).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {

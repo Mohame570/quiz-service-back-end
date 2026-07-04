@@ -252,7 +252,7 @@ Incrementally save or update answers. Upserts by `(attemptId, questionId)`.
 
 Each answer object includes both `selectedOptionId` and `textAnswer`; the unused field is `null`.
 
-`isCorrect` is `null` while the attempt is `IN_PROGRESS` and gets populated by the auto-scoring service when the attempt is submitted (currently only for `MCQ` / `TRUE_FALSE`; text types are not auto-scored yet).
+`isCorrect` is `null` while the attempt is `IN_PROGRESS`. On submit, `ScoringService` sets it for auto-graded types (`MCQ`, `TRUE_FALSE`, `SHORT_TEXT`). For `ESSAY` answers with text, `isCorrect` and `pointsEarned` stay `null` until an admin grades them.
 
 **Errors:**
 - `404 Attempt not found.`
@@ -311,12 +311,16 @@ Finalise the attempt. If the attempt is expired at submit time, the server auto-
   "result": {
     "percentage": 60.0,
     "passed": true,
+    "gradingStatus": "COMPLETE",
+    "pendingEssayCount": 0,
     "gradedAt": "2026-06-23T10:25:00.500Z"
   }
 }
 ```
 
 `result` is `null` while the attempt is `IN_PROGRESS` and for `TIMED_OUT` attempts (where `ScoringService` was not called). The frontend does not need a separate `GET /api/results/:attemptId` call.
+
+When the quiz includes ungraded essays, `result.gradingStatus` is `PARTIAL`, `result.pendingEssayCount` is greater than zero, and `result.passed` is `null` until an admin completes essay grading.
 
 **Errors:** `404`, `403`, `409 Cannot submit a 'submitted' attempt.`
 
@@ -362,12 +366,16 @@ Read the result of a finalised attempt. If the attempt is expired and never subm
   "result": {
     "percentage": 60.0,
     "passed": true,
+    "gradingStatus": "COMPLETE",
+    "pendingEssayCount": 0,
     "gradedAt": "2026-06-23T10:25:00.500Z"
   }
 }
 ```
 
 `result` is `null` while the attempt is `IN_PROGRESS` and for `TIMED_OUT` attempts (where `ScoringService` was not called). The frontend does not need a separate `GET /api/results/:attemptId` call.
+
+When the quiz includes ungraded essays, `result.gradingStatus` is `PARTIAL`, `result.pendingEssayCount` is greater than zero, and `result.passed` is `null` until an admin completes essay grading.
 
 **Errors:**
 - `404 Attempt not found.`

@@ -78,8 +78,8 @@ Returns the newly created `Question` record containing:
 - `correctAnswer` validation by type:
   - `TRUE_FALSE` — must be exactly `"True"` or `"False"`.
   - `MCQ` — must be one of the strings in `options`.
-  - `SHORT_TEXT` — required non-empty string (model answer for future auto-scoring).
-  - `ESSAY` — optional; defaults to `""` if omitted (not used for auto-scoring today).
+  - `SHORT_TEXT` — required non-empty string (model answer; auto-scored on submit with trim + case-insensitive match).
+  - `ESSAY` — optional; defaults to `""` if omitted (not auto-scored; admin grades manually).
 - `points` must be an integer >= 1.
 - `order` must be an integer >= 0.
 - **PUBLISHED Quiz Guard**: Creation, modification, or deletion of questions will return `403 Forbidden` if the associated `Quiz` has `status === 'PUBLISHED'`.
