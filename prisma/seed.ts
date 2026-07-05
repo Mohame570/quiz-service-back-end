@@ -76,33 +76,47 @@ async function seedLiveTestFixtures(prisma: PrismaClient): Promise<void> {
     },
   });
 
-  await prisma.question.deleteMany({ where: { quizId: 'seed-live-test-quiz' } });
-  await prisma.question.createMany({
+  await prisma.question.deleteMany({
+    where: {
+      quizQuestions: {
+        some: { quizId: 'seed-live-test-quiz' },
+      },
+    },
+  });
+
+  const liveTestQ1 = await prisma.question.create({
+    data: {
+      type: QuestionType.MCQ,
+      text: 'Which HTTP status code means OK?',
+      options: ['200', '201', '404', '500'],
+      correctAnswer: '200',
+      points: 1,
+    },
+  });
+  const liveTestQ2 = await prisma.question.create({
+    data: {
+      type: QuestionType.SHORT_TEXT,
+      text: 'What does REST stand for?',
+      options: [],
+      correctAnswer: 'Representational State Transfer',
+      points: 1,
+    },
+  });
+  const liveTestQ3 = await prisma.question.create({
+    data: {
+      type: QuestionType.ESSAY,
+      text: 'Describe one benefit of using JWT for authentication.',
+      options: [],
+      correctAnswer: '',
+      points: 1,
+    },
+  });
+
+  await prisma.quizQuestion.createMany({
     data: [
-      {
-        quizId: 'seed-live-test-quiz',
-        type: QuestionType.MCQ,
-        text: 'Which HTTP status code means OK?',
-        options: ['200', '201', '404', '500'],
-        correctAnswer: '200',
-        order: 0,
-      },
-      {
-        quizId: 'seed-live-test-quiz',
-        type: QuestionType.SHORT_TEXT,
-        text: 'What does REST stand for?',
-        options: [],
-        correctAnswer: 'Representational State Transfer',
-        order: 1,
-      },
-      {
-        quizId: 'seed-live-test-quiz',
-        type: QuestionType.ESSAY,
-        text: 'Describe one benefit of using JWT for authentication.',
-        options: [],
-        correctAnswer: '',
-        order: 2,
-      },
+      { quizId: 'seed-live-test-quiz', questionId: liveTestQ1.id, order: 0 },
+      { quizId: 'seed-live-test-quiz', questionId: liveTestQ2.id, order: 1 },
+      { quizId: 'seed-live-test-quiz', questionId: liveTestQ3.id, order: 2 },
     ],
   });
 
@@ -418,7 +432,6 @@ await prisma.user.upsert({
   // Quiz 1: 5 questions (3 MCQ + 2 TRUE_FALSE)
   const q1_1 = await prisma.question.create({
     data: {
-      quizId: quiz1.id,
       type: QuestionType.MCQ,
       text: 'Which data structure uses LIFO (Last In, First Out) ordering?',
       options: ['Queue', 'Stack', 'Linked List', 'Tree'],
@@ -428,7 +441,6 @@ await prisma.user.upsert({
 
   const q1_2 = await prisma.question.create({
     data: {
-      quizId: quiz1.id,
       type: QuestionType.MCQ,
       text: 'In Git, which command is used to save changes to the local repository?',
       options: ['git push', 'git commit', 'git add', 'git save'],
@@ -438,7 +450,6 @@ await prisma.user.upsert({
 
   const q1_3 = await prisma.question.create({
     data: {
-      quizId: quiz1.id,
       type: QuestionType.MCQ,
       text: 'Which protocol is used for secure communication over a computer network?',
       options: ['HTTP', 'FTP', 'HTTPS', 'SMTP'],
@@ -448,7 +459,6 @@ await prisma.user.upsert({
 
   const q1_4 = await prisma.question.create({
     data: {
-      quizId: quiz1.id,
       type: QuestionType.TRUE_FALSE,
       text: 'A primary key in a relational database must be unique for each record.',
       options: ['True', 'False'],
@@ -458,7 +468,6 @@ await prisma.user.upsert({
 
   const q1_5 = await prisma.question.create({
     data: {
-      quizId: quiz1.id,
       type: QuestionType.TRUE_FALSE,
       text: 'In JavaScript, the "===" operator performs type coercion before comparison.',
       options: ['True', 'False'],
@@ -466,32 +475,39 @@ await prisma.user.upsert({
     },
   });
 
-  await prisma.question.create({
+  const q1_6 = await prisma.question.create({
     data: {
-      quizId: quiz1.id,
       type: QuestionType.SHORT_TEXT,
       text: 'What is the chemical symbol for gold?',
       options: [],
       correctAnswer: 'Au',
-      order: 5,
     },
   });
 
-  await prisma.question.create({
+  const q1_7 = await prisma.question.create({
     data: {
-      quizId: quiz1.id,
       type: QuestionType.ESSAY,
       text: 'Explain why the sky appears blue on a clear day.',
       options: [],
       correctAnswer: '',
-      order: 6,
     },
+  });
+
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: quiz1.id, questionId: q1_1.id, order: 0 },
+      { quizId: quiz1.id, questionId: q1_2.id, order: 1 },
+      { quizId: quiz1.id, questionId: q1_3.id, order: 2 },
+      { quizId: quiz1.id, questionId: q1_4.id, order: 3 },
+      { quizId: quiz1.id, questionId: q1_5.id, order: 4 },
+      { quizId: quiz1.id, questionId: q1_6.id, order: 5 },
+      { quizId: quiz1.id, questionId: q1_7.id, order: 6 },
+    ],
   });
 
   // Quiz 2: 5 questions (2 MCQ + 1 TRUE_FALSE + 1 SHORT_TEXT + 1 ESSAY)
   const q2_1 = await prisma.question.create({
     data: {
-      quizId: quiz2.id,
       type: QuestionType.MCQ,
       text: 'Which HTTP method is typically used to create a new resource?',
       options: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -501,7 +517,6 @@ await prisma.user.upsert({
 
   const q2_2 = await prisma.question.create({
     data: {
-      quizId: quiz2.id,
       type: QuestionType.MCQ,
       text: 'What is the standard port for HTTPS?',
       options: ['80', '443', '21', '22'],
@@ -511,7 +526,6 @@ await prisma.user.upsert({
 
   const q2_3 = await prisma.question.create({
     data: {
-      quizId: quiz2.id,
       type: QuestionType.TRUE_FALSE,
       text: 'REST APIs always return data in XML format.',
       options: ['True', 'False'],
@@ -519,55 +533,63 @@ await prisma.user.upsert({
     },
   });
 
-  await prisma.question.create({
+  const q2_4 = await prisma.question.create({
     data: {
-      quizId: quiz2.id,
       type: QuestionType.SHORT_TEXT,
       text: 'What keyword declares a constant in JavaScript?',
       options: [],
       correctAnswer: 'const',
-      order: 3,
     },
   });
 
-  await prisma.question.create({
+  const q2_5 = await prisma.question.create({
     data: {
-      quizId: quiz2.id,
       type: QuestionType.ESSAY,
       text: 'Describe one difference between let and var in JavaScript.',
       options: [],
       correctAnswer: '',
-      order: 4,
     },
   });
 
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: quiz2.id, questionId: q2_1.id, order: 0 },
+      { quizId: quiz2.id, questionId: q2_2.id, order: 1 },
+      { quizId: quiz2.id, questionId: q2_3.id, order: 2 },
+      { quizId: quiz2.id, questionId: q2_4.id, order: 3 },
+      { quizId: quiz2.id, questionId: q2_5.id, order: 4 },
+    ],
+  });
+
   // Quiz 3 (DRAFT): sample text question types for admin editing demos
-  await prisma.question.create({
+  const q3_1 = await prisma.question.create({
     data: {
-      quizId: 'quiz-3',
       type: QuestionType.SHORT_TEXT,
       text: 'Name any one relational database.',
       options: [],
       correctAnswer: 'PostgreSQL',
-      order: 0,
     },
   });
 
-  await prisma.question.create({
+  const q3_2 = await prisma.question.create({
     data: {
-      quizId: 'quiz-3',
       type: QuestionType.ESSAY,
       text: 'What is normalization in database design?',
       options: [],
       correctAnswer: '',
-      order: 1,
     },
   });
 
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: 'quiz-3', questionId: q3_1.id, order: 0 },
+      { quizId: 'quiz-3', questionId: q3_2.id, order: 1 },
+    ],
+  });
+
   // Quiz 4: 3 questions (1 MCQ + 1 TRUE_FALSE + 1 SHORT_TEXT)
-  await prisma.question.create({
+  const q4_1 = await prisma.question.create({
     data: {
-      quizId: quiz4.id,
       type: QuestionType.MCQ,
       text: 'What does CSS stand for?',
       options: ['Cascading Style Sheets', 'Creative Style System', 'Computer Style Sheets', 'Colorful Style Sheets'],
@@ -575,9 +597,8 @@ await prisma.user.upsert({
     },
   });
 
-  await prisma.question.create({
+  const q4_2 = await prisma.question.create({
     data: {
-      quizId: quiz4.id,
       type: QuestionType.TRUE_FALSE,
       text: 'Docker containers share the host machine OS kernel.',
       options: ['True', 'False'],
@@ -585,109 +606,121 @@ await prisma.user.upsert({
     },
   });
 
-  await prisma.question.create({
+  const q4_3 = await prisma.question.create({
     data: {
-      quizId: quiz4.id,
       type: QuestionType.SHORT_TEXT,
       text: 'What galaxy contains our solar system?',
       options: [],
       correctAnswer: 'Milky Way',
-      order: 2,
     },
+  });
+
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: quiz4.id, questionId: q4_1.id, order: 0 },
+      { quizId: quiz4.id, questionId: q4_2.id, order: 1 },
+      { quizId: quiz4.id, questionId: q4_3.id, order: 2 },
+    ],
   });
 
   // ---- New questions ----
   // new-quiz-1: JavaScript Fundamentals — 4 questions (2 MCQ + 1 TF + 1 SHORT_TEXT)
-  await prisma.question.create({
+  const nq1_1 = await prisma.question.create({
     data: {
-      quizId: newQuiz1.id,
       type: QuestionType.MCQ,
       text: 'Which keyword declares a block-scoped variable in JavaScript?',
       options: ['var', 'let', 'const', 'static'],
       correctAnswer: 'let',
     },
   });
-  await prisma.question.create({
+  const nq1_2 = await prisma.question.create({
     data: {
-      quizId: newQuiz1.id,
       type: QuestionType.MCQ,
       text: 'Which method adds an element to the end of an array?',
       options: ['push', 'pop', 'shift', 'unshift'],
       correctAnswer: 'push',
     },
   });
-  await prisma.question.create({
+  const nq1_3 = await prisma.question.create({
     data: {
-      quizId: newQuiz1.id,
       type: QuestionType.TRUE_FALSE,
       text: 'JavaScript is a single-threaded language.',
       options: ['True', 'False'],
       correctAnswer: 'True',
     },
   });
-  await prisma.question.create({
+  const nq1_4 = await prisma.question.create({
     data: {
-      quizId: newQuiz1.id,
       type: QuestionType.SHORT_TEXT,
       text: 'What does `typeof null` return in JavaScript?',
       options: [],
       correctAnswer: 'object',
-      order: 3,
     },
   });
 
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: newQuiz1.id, questionId: nq1_1.id, order: 0 },
+      { quizId: newQuiz1.id, questionId: nq1_2.id, order: 1 },
+      { quizId: newQuiz1.id, questionId: nq1_3.id, order: 2 },
+      { quizId: newQuiz1.id, questionId: nq1_4.id, order: 3 },
+    ],
+  });
+
   // new-quiz-2: World Geography — 4 questions (2 MCQ + 1 TF + 1 SHORT_TEXT)
-  await prisma.question.create({
+  const nq2_1 = await prisma.question.create({
     data: {
-      quizId: newQuiz2.id,
       type: QuestionType.MCQ,
       text: 'What is the capital of Japan?',
       options: ['Seoul', 'Beijing', 'Tokyo', 'Bangkok'],
       correctAnswer: 'Tokyo',
     },
   });
-  await prisma.question.create({
+  const nq2_2 = await prisma.question.create({
     data: {
-      quizId: newQuiz2.id,
       type: QuestionType.MCQ,
       text: 'Which is the largest hot desert in the world?',
       options: ['Gobi', 'Sahara', 'Kalahari', 'Atacama'],
       correctAnswer: 'Sahara',
     },
   });
-  await prisma.question.create({
+  const nq2_3 = await prisma.question.create({
     data: {
-      quizId: newQuiz2.id,
       type: QuestionType.TRUE_FALSE,
       text: 'The Amazon River flows through Brazil.',
       options: ['True', 'False'],
       correctAnswer: 'True',
     },
   });
-  await prisma.question.create({
+  const nq2_4 = await prisma.question.create({
     data: {
-      quizId: newQuiz2.id,
       type: QuestionType.SHORT_TEXT,
       text: 'What is the capital of Egypt?',
       options: [],
       correctAnswer: 'Cairo',
-      order: 3,
     },
   });
 
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: newQuiz2.id, questionId: nq2_1.id, order: 0 },
+      { quizId: newQuiz2.id, questionId: nq2_2.id, order: 1 },
+      { quizId: newQuiz2.id, questionId: nq2_3.id, order: 2 },
+      { quizId: newQuiz2.id, questionId: nq2_4.id, order: 3 },
+    ],
+  });
+
   // new-quiz-3: Database Basics — 5 questions (3 MCQ + 1 TF + 1 ESSAY)
-  await prisma.question.create({
+  const nq3_1 = await prisma.question.create({
     data: {
-      quizId: newQuiz3.id,
       type: QuestionType.MCQ,
       text: 'Which SQL clause is used to filter rows?',
       options: ['ORDER BY', 'GROUP BY', 'WHERE', 'HAVING'],
       correctAnswer: 'WHERE',
     },
   });
-  await prisma.question.create({
+  const nq3_2 = await prisma.question.create({
     data: {
-      quizId: newQuiz3.id,
       type: QuestionType.MCQ,
       text: 'What does the ACID acronym stand for in databases?',
       options: [
@@ -699,41 +732,44 @@ await prisma.user.upsert({
       correctAnswer: 'Atomicity, Consistency, Isolation, Durability',
     },
   });
-  await prisma.question.create({
+  const nq3_3 = await prisma.question.create({
     data: {
-      quizId: newQuiz3.id,
       type: QuestionType.MCQ,
       text: 'Which type of index is generally the fastest for equality lookups?',
       options: ['B-tree', 'Hash', 'GIN', 'GIST'],
       correctAnswer: 'Hash',
-      order: 2,
     },
   });
-  await prisma.question.create({
+  const nq3_4 = await prisma.question.create({
     data: {
-      quizId: newQuiz3.id,
       type: QuestionType.TRUE_FALSE,
       text: 'A foreign key can reference a unique index in another table.',
       options: ['True', 'False'],
       correctAnswer: 'True',
-      order: 3,
     },
   });
-  await prisma.question.create({
+  const nq3_5 = await prisma.question.create({
     data: {
-      quizId: newQuiz3.id,
       type: QuestionType.ESSAY,
       text: 'Explain when you would choose a B-tree index over a hash index.',
       options: [],
       correctAnswer: '',
-      order: 4,
     },
   });
 
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: newQuiz3.id, questionId: nq3_1.id, order: 0 },
+      { quizId: newQuiz3.id, questionId: nq3_2.id, order: 1 },
+      { quizId: newQuiz3.id, questionId: nq3_3.id, order: 2 },
+      { quizId: newQuiz3.id, questionId: nq3_4.id, order: 3 },
+      { quizId: newQuiz3.id, questionId: nq3_5.id, order: 4 },
+    ],
+  });
+
   // new-quiz-4: Web Development — 5 questions (3 MCQ + 1 TF + 1 SHORT_TEXT)
-  await prisma.question.create({
+  const nq4_1 = await prisma.question.create({
     data: {
-      quizId: newQuiz4.id,
       type: QuestionType.MCQ,
       text: 'What does HTTP stand for?',
       options: [
@@ -745,142 +781,151 @@ await prisma.user.upsert({
       correctAnswer: 'HyperText Transfer Protocol',
     },
   });
-  await prisma.question.create({
+  const nq4_2 = await prisma.question.create({
     data: {
-      quizId: newQuiz4.id,
       type: QuestionType.MCQ,
       text: 'Which HTTP status code indicates a resource was created?',
       options: ['200', '201', '204', '301'],
       correctAnswer: '201',
     },
   });
-  await prisma.question.create({
+  const nq4_3 = await prisma.question.create({
     data: {
-      quizId: newQuiz4.id,
       type: QuestionType.MCQ,
       text: 'Which header is typically used to send a JWT in a request?',
       options: ['X-Auth-Token', 'Cookie', 'Authorization', 'X-API-Key'],
       correctAnswer: 'Authorization',
     },
   });
-  await prisma.question.create({
+  const nq4_4 = await prisma.question.create({
     data: {
-      quizId: newQuiz4.id,
       type: QuestionType.TRUE_FALSE,
       text: 'CORS stands for Cross-Origin Resource Sharing.',
       options: ['True', 'False'],
       correctAnswer: 'True',
     },
   });
-  await prisma.question.create({
+  const nq4_5 = await prisma.question.create({
     data: {
-      quizId: newQuiz4.id,
       type: QuestionType.SHORT_TEXT,
       text: 'Which CSS property changes the text color of an element?',
       options: [],
       correctAnswer: 'color',
-      order: 4,
     },
   });
 
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: newQuiz4.id, questionId: nq4_1.id, order: 0 },
+      { quizId: newQuiz4.id, questionId: nq4_2.id, order: 1 },
+      { quizId: newQuiz4.id, questionId: nq4_3.id, order: 2 },
+      { quizId: newQuiz4.id, questionId: nq4_4.id, order: 3 },
+      { quizId: newQuiz4.id, questionId: nq4_5.id, order: 4 },
+    ],
+  });
+
   // new-quiz-5: Algorithms & Data Structures — 6 questions (3 MCQ + 1 TF + 1 SHORT_TEXT + 1 ESSAY)
-  await prisma.question.create({
+  const nq5_1 = await prisma.question.create({
     data: {
-      quizId: newQuiz5.id,
       type: QuestionType.MCQ,
       text: 'What is the worst-case time complexity of binary search on a sorted array?',
       options: ['O(1)', 'O(log n)', 'O(n)', 'O(n log n)'],
       correctAnswer: 'O(log n)',
     },
   });
-  await prisma.question.create({
+  const nq5_2 = await prisma.question.create({
     data: {
-      quizId: newQuiz5.id,
       type: QuestionType.TRUE_FALSE,
       text: 'A stack follows FIFO (First In, First Out) order.',
       options: ['True', 'False'],
       correctAnswer: 'False',
     },
   });
-  await prisma.question.create({
+  const nq5_3 = await prisma.question.create({
     data: {
-      quizId: newQuiz5.id,
       type: QuestionType.MCQ,
       text: 'What is the space complexity of merge sort?',
       options: ['O(1)', 'O(log n)', 'O(n)', 'O(n log n)'],
       correctAnswer: 'O(n)',
     },
   });
-  await prisma.question.create({
+  const nq5_4 = await prisma.question.create({
     data: {
-      quizId: newQuiz5.id,
       type: QuestionType.TRUE_FALSE,
       text: 'A hash table provides O(1) average-case lookup time.',
       options: ['True', 'False'],
       correctAnswer: 'True',
     },
   });
-  await prisma.question.create({
+  const nq5_5 = await prisma.question.create({
     data: {
-      quizId: newQuiz5.id,
       type: QuestionType.SHORT_TEXT,
       text: 'What data structure uses LIFO ordering?',
       options: [],
       correctAnswer: 'stack',
-      order: 4,
     },
   });
-  await prisma.question.create({
+  const nq5_6 = await prisma.question.create({
     data: {
-      quizId: newQuiz5.id,
       type: QuestionType.ESSAY,
       text: 'Compare arrays and linked lists for insertions at the beginning.',
       options: [],
       correctAnswer: '',
-      order: 5,
     },
   });
 
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: newQuiz5.id, questionId: nq5_1.id, order: 0 },
+      { quizId: newQuiz5.id, questionId: nq5_2.id, order: 1 },
+      { quizId: newQuiz5.id, questionId: nq5_3.id, order: 2 },
+      { quizId: newQuiz5.id, questionId: nq5_4.id, order: 3 },
+      { quizId: newQuiz5.id, questionId: nq5_5.id, order: 4 },
+      { quizId: newQuiz5.id, questionId: nq5_6.id, order: 5 },
+    ],
+  });
+
   // invite-quiz-1: 4 questions — unassigned until accept-invitation (all question types)
-  await prisma.question.create({
+  const iq1_1 = await prisma.question.create({
     data: {
-      quizId: inviteQuiz1.id,
       type: QuestionType.MCQ,
       text: 'Which protocol do browsers use to fetch web pages?',
       options: ['FTP', 'HTTP', 'SMTP', 'SSH'],
       correctAnswer: 'HTTP',
-      order: 0,
     },
   });
-  await prisma.question.create({
+  const iq1_2 = await prisma.question.create({
     data: {
-      quizId: inviteQuiz1.id,
       type: QuestionType.TRUE_FALSE,
       text: 'JSON is a text-based data format.',
       options: ['True', 'False'],
       correctAnswer: 'True',
-      order: 1,
     },
   });
-  await prisma.question.create({
+  const iq1_3 = await prisma.question.create({
     data: {
-      quizId: inviteQuiz1.id,
       type: QuestionType.SHORT_TEXT,
       text: 'What does API stand for?',
       options: [],
       correctAnswer: 'Application Programming Interface',
-      order: 2,
     },
   });
-  await prisma.question.create({
+  const iq1_4 = await prisma.question.create({
     data: {
-      quizId: inviteQuiz1.id,
       type: QuestionType.ESSAY,
       text: 'Why might a team choose microservices over a monolith?',
       options: [],
       correctAnswer: '',
-      order: 3,
     },
+  });
+
+  await prisma.quizQuestion.createMany({
+    data: [
+      { quizId: inviteQuiz1.id, questionId: iq1_1.id, order: 0 },
+      { quizId: inviteQuiz1.id, questionId: iq1_2.id, order: 1 },
+      { quizId: inviteQuiz1.id, questionId: iq1_3.id, order: 2 },
+      { quizId: inviteQuiz1.id, questionId: iq1_4.id, order: 3 },
+    ],
   });
 
   // ---- Attempts ----
@@ -983,10 +1028,7 @@ await prisma.user.upsert({
   });
 
   // Attempt 6: student1 → new-quiz-5 (SUBMITTED, PARTIAL — essay pending admin grade)
-  const newQuiz5Questions = await prisma.question.findMany({
-    where: { quizId: newQuiz5.id },
-    orderBy: { order: 'asc' },
-  });
+  const newQuiz5Questions = [nq5_1, nq5_2, nq5_3, nq5_4, nq5_5, nq5_6];
   const attempt6StartedAt = new Date(Date.now() - 12 * 60 * 60 * 1000);
   const attempt6 = await prisma.attempt.create({
     data: {
