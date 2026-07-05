@@ -81,11 +81,9 @@ export class AnalyticsGradingService {
                 type: true,
                 text: true,
                 points: true,
-                order: true,
               },
             },
           },
-          orderBy: { question: { order: 'asc' } },
         },
         result: true,
         student: {
@@ -93,13 +91,32 @@ export class AnalyticsGradingService {
             user: { select: { email: true, name: true } },
           },
         },
-        quiz: { select: { id: true, title: true, passingScore: true } },
+        quiz: {
+          select: {
+            id: true,
+            title: true,
+            passingScore: true,
+            quizQuestions: { select: { questionId: true, order: true } },
+          },
+        },
       },
     });
 
     if (!attempt) {
       throw new NotFoundException('Attempt not found.');
     }
+
+    const orderByQuestionId = new Map(
+      attempt.quiz.quizQuestions.map((qq) => [
+        qq.questionId,
+        qq.order ?? Number.MAX_SAFE_INTEGER,
+      ]),
+    );
+    const sortedAnswers = [...attempt.answers].sort(
+      (a, b) =>
+        (orderByQuestionId.get(a.questionId) ?? Number.MAX_SAFE_INTEGER) -
+        (orderByQuestionId.get(b.questionId) ?? Number.MAX_SAFE_INTEGER),
+    );
 
     return {
       attemptId: attempt.id,
@@ -121,7 +138,7 @@ export class AnalyticsGradingService {
             gradedAt: attempt.result.gradedAt,
           }
         : null,
-      answers: attempt.answers.map((answer) => ({
+      answers: sortedAnswers.map((answer) => ({
         id: answer.id,
         questionId: answer.questionId,
         questionType: answer.question.type,
