@@ -38,7 +38,7 @@ export class QuestionsService {
       if (uniqueOptions.size !== data.options.length) {
         throw new BadRequestException('MCQ options must be unique');
       }
-      if (!data.options.includes(data.correctAnswer)) {
+      if (!data.correctAnswer || !data.options.includes(data.correctAnswer)) {
         throw new BadRequestException('correctAnswer must be one of the provided options for MCQ questions');
       }
     }

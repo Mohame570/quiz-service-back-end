@@ -140,7 +140,11 @@ export class ScoringService {
   > {
     const [allQuestions, quiz] = await Promise.all([
       this.prisma.question.findMany({
-        where: { quizId },
+        where: {
+          quizQuestions: {
+            some: { quizId },
+          },
+        },
         select: { id: true, type: true, correctAnswer: true, points: true },
       }),
       this.prisma.quiz.findUnique({
