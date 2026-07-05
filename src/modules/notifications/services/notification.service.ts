@@ -3,12 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import {
   EmailDeliveryLog,
   EmailDeliveryStatus,
   NotificationTemplateKey,
   Prisma,
+  QuizStatus,
 } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { DeliveryLogSummaryDto } from '../dto/delivery-log-summary.dto';
@@ -16,6 +18,7 @@ import { ListDeliveryLogsQueryDto } from '../dto/list-delivery-logs-query.dto';
 import { NotificationDispatchResultDto } from '../dto/notification-dispatch-result.dto';
 import { ResendBatchResultDto } from '../dto/resend-batch-result.dto';
 import { ResendFailedDeliveriesDto } from '../dto/resend-failed-deliveries.dto';
+import { SendQuizInvitationAdminDto } from '../dto/send-quiz-invitation-admin.dto';
 import { SendQuizInvitationEmailDto } from '../dto/send-quiz-invitation-email.dto';
 import { SendVerificationEmailDto } from '../dto/send-verification-email.dto';
 import { renderQuizInvitationEmailTemplate } from '../templates/quiz-invitation-email.template';
@@ -41,6 +44,7 @@ export class NotificationService implements NotificationServiceInterface {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailTransport: MailTransportService,
+    private readonly configService: ConfigService,
   ) {}
 
   async sendVerificationEmail(
@@ -69,6 +73,50 @@ export class NotificationService implements NotificationServiceInterface {
       correlationId: input.correlationId,
       metadata: input.metadata,
     });
+  }
+
+  async sendQuizInvitationToStudents(
+    input: SendQuizInvitationAdminDto,
+    invitedByName?: string,
+  ): Promise<{ sent: number; failed: number; results: NotificationDispatchResultDto[] }> {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: input.quizId },
+      select: { id: true, title: true, status: true },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz '${input.quizId}' not found.`);
+    }
+
+    if (quiz.status !== QuizStatus.PUBLISHED) {
+      throw new BadRequestException('Can only send invitations for published quizzes.');
+    }
+
+    const baseUrl =
+      input.invitationUrl ??
+      this.configService.get<string>('INVITATION_BASE_URL') ??
+      'http://localhost:3000';
+
+    const results: NotificationDispatchResultDto[] = [];
+
+    for (const email of input.recipientEmails) {
+      const invitationUrl = `${baseUrl}/invitation/${input.quizId}?email=${encodeURIComponent(email)}`;
+      const result = await this.sendQuizInvitationEmail({
+        recipientEmail: email,
+        quizTitle: quiz.title,
+        invitationUrl,
+        invitedByName,
+        correlationId: `invitation:${input.quizId}`,
+        metadata: { quizId: input.quizId },
+      });
+      results.push(result);
+    }
+
+    return {
+      sent: results.filter((r) => r.status === EmailDeliveryStatus.SENT).length,
+      failed: results.filter((r) => r.status === EmailDeliveryStatus.FAILED).length,
+      results,
+    };
   }
 
   async queueVerificationEmail(
