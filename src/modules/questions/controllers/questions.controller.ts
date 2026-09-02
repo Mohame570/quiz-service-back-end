@@ -1,9 +1,15 @@
-import { Controller, Get, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete, Query,UseGuards } from '@nestjs/common';
 import { QuestionsService } from '../services/questions.service';
 import { CreateQuestionDto } from '../dto/create-question.dto';
 import { UpdateQuestionDto } from '../dto/update-question.dto';
+import { RolesGuard } from '../../auth/guards/roles.gaurd';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../../generated/prisma/enums';
 
 @Controller('questions')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}
 
@@ -34,7 +40,10 @@ export class QuestionsController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateQuestionDto: UpdateQuestionDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateQuestionDto: UpdateQuestionDto,
+  ) {
     return this.questionsService.updateQuestion(id, updateQuestionDto);
   }
 

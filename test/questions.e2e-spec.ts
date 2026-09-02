@@ -3,10 +3,12 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/common/prisma/prisma.service';
+import { JwtService } from '@nestjs/jwt';
 
 describe('QuestionsController (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let adminToken: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -84,15 +86,42 @@ describe('QuestionsController (e2e)', () => {
       if (args.where?.questionId === 'answered-q-id') return 1;
       return 0;
     }) as any);
+
+    const jwtService = app.get(JwtService);
+
+    adminToken = jwtService.sign({
+      sub: 'admin-1',
+      email: 'admin@test.com',
+      role: 'ADMIN',
+    });
   });
+
+  const adminGet = (url: string) =>
+    request(app.getHttpServer())
+      .get(url)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+  const adminPost = (url: string) =>
+    request(app.getHttpServer())
+      .post(url)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+  const adminPatch = (url: string) =>
+    request(app.getHttpServer())
+      .patch(url)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+  const adminDelete = (url: string) =>
+    request(app.getHttpServer())
+      .delete(url)
+      .set('Authorization', `Bearer ${adminToken}`);
 
   afterAll(async () => {
     await app.close();
   });
 
   it('/questions (POST) - Success MCQ', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizIds: ['valid-quiz-id'],
         type: 'MCQ',
@@ -107,8 +136,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions (POST) - Fail MCQ invalid answer', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizIds: ['valid-quiz-id'],
         type: 'MCQ',
@@ -120,8 +148,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions (POST) - Success TRUE_FALSE', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizIds: ['valid-quiz-id'],
         type: 'TRUE_FALSE',
@@ -132,8 +159,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions (POST) - Fail TRUE_FALSE invalid answer', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizIds: ['valid-quiz-id'],
         type: 'TRUE_FALSE',
@@ -144,8 +170,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions (POST) - Success SHORT_TEXT', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizId: 'valid-quiz-id',
         type: 'SHORT_TEXT',
@@ -160,8 +185,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions (POST) - Fail SHORT_TEXT empty correctAnswer', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizId: 'valid-quiz-id',
         type: 'SHORT_TEXT',
@@ -172,8 +196,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions (POST) - Success ESSAY without correctAnswer', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizId: 'valid-quiz-id',
         type: 'ESSAY',
@@ -187,8 +210,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions/:id (PATCH) - Success', () => {
-    return request(app.getHttpServer())
-      .patch('/questions/valid-q-id')
+    return adminPatch('/questions/valid-q-id')
       .send({
         text: 'New text',
         correctAnswer: 'B' // Valid since 'B' is in options
@@ -201,8 +223,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions/:id (PATCH) - Fail invalid answer', () => {
-    return request(app.getHttpServer())
-      .patch('/questions/valid-q-id')
+    return adminPatch('/questions/valid-q-id')
       .send({
         correctAnswer: 'C' // Not in old options ['A', 'B']
       })
@@ -210,14 +231,11 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions/:id (DELETE) - Success', () => {
-    return request(app.getHttpServer())
-      .delete('/questions/valid-q-id')
-      .expect(200);
+    return adminDelete('/questions/valid-q-id').expect(200);
   });
 
   it('/questions (GET) - Success list with quizId', () => {
-    return request(app.getHttpServer())
-      .get('/questions?quizId=valid-quiz-id')
+    return adminGet('/questions?quizId=valid-quiz-id')
       .expect(200)
       .expect((res: any) => {
         expect(Array.isArray(res.body)).toBeTruthy();
@@ -227,8 +245,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions/:id (GET) - Success', () => {
-    return request(app.getHttpServer())
-      .get('/questions/valid-q-id')
+    return adminGet('/questions/valid-q-id')
       .expect(200)
       .expect((res: any) => {
         expect(res.body.id).toBe('valid-q-id');
@@ -237,14 +254,11 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions/:id (GET) - Not found', () => {
-    return request(app.getHttpServer())
-      .get('/questions/invalid-id')
-      .expect(404);
+    return adminGet('/questions/invalid-id').expect(404);
   });
 
   it('/questions (POST) - Fail if quiz is non-DRAFT', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizIds: ['published-quiz-id'],
         type: 'MCQ',
@@ -256,34 +270,27 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions/:id (PATCH) - Fail if quiz is non-DRAFT', () => {
-    return request(app.getHttpServer())
-      .patch('/questions/published-q-id')
+    return adminPatch('/questions/published-q-id')
       .send({ text: 'Updated text' })
       .expect(403);
   });
 
   it('/questions/:id (DELETE) - Fail if quiz is non-DRAFT', () => {
-    return request(app.getHttpServer())
-      .delete('/questions/published-q-id')
-      .expect(403);
+    return adminDelete('/questions/published-q-id').expect(403);
   });
 
   it('/questions/:id (PATCH) - Fail if answered', () => {
-    return request(app.getHttpServer())
-      .patch('/questions/answered-q-id')
+    return adminPatch('/questions/answered-q-id')
       .send({ text: 'Updated text' })
       .expect(403);
   });
 
   it('/questions/:id (DELETE) - Fail if answered', () => {
-    return request(app.getHttpServer())
-      .delete('/questions/answered-q-id')
-      .expect(403);
+    return adminDelete('/questions/answered-q-id').expect(403);
   });
 
   it('/questions (POST) - Fail MCQ duplicate options', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizIds: ['valid-quiz-id'],
         type: 'MCQ',
@@ -295,8 +302,7 @@ describe('QuestionsController (e2e)', () => {
   });
 
   it('/questions (POST) - Success with points and order', () => {
-    return request(app.getHttpServer())
-      .post('/questions')
+    return adminPost('/questions')
       .send({
         quizIds: ['valid-quiz-id'],
         type: 'TRUE_FALSE',
