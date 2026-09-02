@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsEnum, IsArray, ArrayMinSize, ValidateIf, Validate, IsInt, IsOptional, Min, ArrayUnique } from 'class-validator';
 import { ValidatorConstraint, ValidatorConstraintInterface, ValidationArguments } from 'class-validator';
-import { QuestionType } from '../../../generated/prisma/client';
+import { QuestionType, Difficulty } from '../../../generated/prisma/client';
 
 @ValidatorConstraint({ name: 'isValidCorrectAnswer', async: false })
 export class IsValidCorrectAnswerConstraint implements ValidatorConstraintInterface {
@@ -67,5 +67,19 @@ export class CreateQuestionDto {
   @IsInt()
   @Min(1)
   points?: number;
+
+  @IsOptional()
+  @IsEnum(Difficulty)
+  difficulty?: Difficulty;
+
+  @IsOptional()
+  @IsString()
+  topic?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayUnique()
+  tags?: string[];
 
 }

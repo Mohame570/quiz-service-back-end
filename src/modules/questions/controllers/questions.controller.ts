@@ -12,14 +12,22 @@ export class QuestionsController {
     @Query('quizId') quizId?: string,
     @Query('unassigned') unassigned?: string,
     @Query('type') type?: string,
+    @Query('difficulty') difficulty?: string,
+    @Query('topic') topic?: string,
+    @Query('tags') tags?: string,
   ) {
+    const filter: any = {};
+    if (type) filter.type = type;
+    if (difficulty) filter.difficulty = difficulty;
+    if (topic) filter.topic = topic;
+    if (tags) filter.tags = tags.split(',').map((t) => t.trim()).filter(Boolean);
     if (quizId) {
-      return this.questionsService.findByQuiz(quizId, { type: type as any });
+      return this.questionsService.findByQuiz(quizId, filter);
     }
     if (unassigned === 'true') {
-      return this.questionsService.findAllUnassigned({ type: type as any });
+      return this.questionsService.findAllUnassigned(filter);
     }
-    return this.questionsService.getQuestions({ type: type as any });
+    return this.questionsService.getQuestions(filter);
   }
 
   @Get(':id')

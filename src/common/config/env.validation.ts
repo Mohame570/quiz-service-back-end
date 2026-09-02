@@ -7,7 +7,9 @@ export const envValidationSchema = Joi.object({
   PORT: Joi.number().port().default(3000),
   APP_NAME: Joi.string().default('Quiz Service Backend'),
   API_PREFIX: Joi.string().default('api'),
-  FRONTEND_BASE_URL: Joi.string().uri().default('http://localhost:3001'),
+  FRONTEND_BASE_URL: Joi.string().uri().default('http://localhost:3000'),
+  VERIFICATION_RESEND_COOLDOWN_SECONDS: Joi.number().integer().min(10).max(3600).default(60),
+  VERIFICATION_TOKEN_EXPIRES_HOURS: Joi.number().integer().min(1).max(72).default(24),
   DATABASE_URL: Joi.string()
     .pattern(/^postgres(ql)?:\/\//)
     .default('postgresql://postgres:postgres@localhost:5432/quiz_service?schema=public'),

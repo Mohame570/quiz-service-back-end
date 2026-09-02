@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException 
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { CreateQuestionDto } from '../dto/create-question.dto';
 import { UpdateQuestionDto } from '../dto/update-question.dto';
-import { QuestionType } from '../../../generated/prisma/client';
+import { QuestionType, Difficulty } from '../../../generated/prisma/client';
 import { normalizeShortText } from '../../attempts/utils/text-answer.util';
 
 @Injectable()
@@ -58,6 +58,9 @@ export class QuestionsService {
         options: data.options || [],
         correctAnswer,
         points: data.points ?? 1,
+        difficulty: data.difficulty ?? Difficulty.MEDIUM,
+        topic: data.topic,
+        tags: data.tags ?? [],
         quizQuestions: data.quizIds?.length ? {
           create: data.quizIds.map((quizId, index) => ({
             quizId,
@@ -136,6 +139,9 @@ export class QuestionsService {
             ? merged.correctAnswer
             : undefined,
         points: data.points,
+        difficulty: data.difficulty,
+        topic: data.topic,
+        tags: data.tags,
       },
       include: {
         quizQuestions: {
@@ -189,10 +195,19 @@ export class QuestionsService {
     return this.mapQuestionResponse(question);
   }
 
-  async getQuestions(filter?: { type?: QuestionType }) {
+  async getQuestions(filter?: { type?: QuestionType; difficulty?: Difficulty; topic?: string; tags?: string[] }) {
     const where: any = {};
     if (filter?.type) {
       where.type = filter.type;
+    }
+    if (filter?.difficulty) {
+      where.difficulty = filter.difficulty;
+    }
+    if (filter?.topic) {
+      where.topic = filter.topic;
+    }
+    if (filter?.tags && filter.tags.length > 0) {
+      where.tags = { hasSome: filter.tags };
     }
 
     const questions = await this.prisma.question.findMany({
@@ -208,7 +223,7 @@ export class QuestionsService {
     return questions.map(q => this.mapQuestionResponse(q));
   }
 
-  async findAllUnassigned(filter?: { type?: QuestionType }) {
+  async findAllUnassigned(filter?: { type?: QuestionType; difficulty?: Difficulty; topic?: string; tags?: string[] }) {
     const where: any = {
       quizQuestions: {
         none: {}
@@ -218,6 +233,15 @@ export class QuestionsService {
     if (filter?.type) {
       where.type = filter.type;
     }
+    if (filter?.difficulty) {
+      where.difficulty = filter.difficulty;
+    }
+    if (filter?.topic) {
+      where.topic = filter.topic;
+    }
+    if (filter?.tags && filter.tags.length > 0) {
+      where.tags = { hasSome: filter.tags };
+    }
 
     const questions = await this.prisma.question.findMany({
       where,
@@ -232,7 +256,7 @@ export class QuestionsService {
     return questions.map(q => this.mapQuestionResponse(q));
   }
 
-  async findByQuiz(quizId: string, filter?: { type?: QuestionType }) {
+  async findByQuiz(quizId: string, filter?: { type?: QuestionType; difficulty?: Difficulty; topic?: string; tags?: string[] }) {
     const where: any = {
       quizQuestions: {
         some: { quizId }
@@ -241,6 +265,15 @@ export class QuestionsService {
     
     if (filter?.type) {
       where.type = filter.type;
+    }
+    if (filter?.difficulty) {
+      where.difficulty = filter.difficulty;
+    }
+    if (filter?.topic) {
+      where.topic = filter.topic;
+    }
+    if (filter?.tags && filter.tags.length > 0) {
+      where.tags = { hasSome: filter.tags };
     }
 
     const questions = await this.prisma.question.findMany({

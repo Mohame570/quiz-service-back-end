@@ -59,6 +59,12 @@ enum QuestionType {
   ESSAY
 }
 
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
 enum GradingStatus {
   PARTIAL
   COMPLETE
@@ -208,6 +214,7 @@ model User {
   emailVerified              Boolean   @default(false) @map("email_verified")
   verificationToken          String?   @unique @map("verification_token")
   verificationTokenExpiresAt DateTime? @map("verification_token_expires_at")
+  lastVerificationSentAt     DateTime? @map("last_verification_sent_at")
   isActive                   Boolean   @default(true) @map("is_active")
   createdAt                  DateTime  @default(now()) @map("created_at")
   updatedAt                  DateTime  @updatedAt @map("updated_at")
@@ -235,6 +242,9 @@ model Question {
   options       String[]
   correctAnswer String
   points        Int          @default(1)
+  difficulty    Difficulty   @default(MEDIUM)
+  topic         String?
+  tags          String[]     @default([])
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
