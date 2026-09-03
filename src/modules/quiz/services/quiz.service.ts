@@ -85,7 +85,7 @@ export class QuizService {
   /**
    * Create a new quiz
    */
-  async create(createQuizDto: CreateQuizDto): Promise<Quiz> {
+  async create(createQuizDto: CreateQuizDto, userId: string): Promise<Quiz> {
     if (this.isPublishing(createQuizDto.status)) {
       throw new BadRequestException(
         'A new quiz cannot be created as published because it has no questions yet',
@@ -107,7 +107,7 @@ export class QuizService {
         passingScore: createQuizDto.passingScore,
         startsAt,
         endsAt,
-        createdById: createQuizDto.createdById,
+        createdById: userId,
       },
     });
   }

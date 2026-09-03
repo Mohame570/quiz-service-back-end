@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
 import {
@@ -15,8 +16,14 @@ import {
   ResendFailedDeliveriesDto,
 } from '../dto';
 import { NotificationService } from '../services/notification.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.gaurd';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../../generated/prisma/enums';
 
 @Controller('notifications/delivery-logs')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 export class NotificationsController {
   constructor(private readonly notificationService: NotificationService) {}
 

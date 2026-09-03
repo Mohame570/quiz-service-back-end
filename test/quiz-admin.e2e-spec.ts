@@ -39,7 +39,10 @@ describe('Quiz admin endpoints', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({
         canActivate: (ctx: any) => {
-          ctx.switchToHttp().getRequest().user = { role: 'ADMIN' };
+          ctx.switchToHttp().getRequest().user = {
+            sub: 'admin-1',
+            role: 'ADMIN',
+          };
           return true;
         },
       })
@@ -92,7 +95,7 @@ describe('Quiz admin endpoints', () => {
         passingScore: 80,
         startsAt: '2026-06-15T00:00:00Z',
         endsAt: '2026-06-20T00:00:00Z',
-        createdById: 'admin-1',
+        createdById: 'spoofed-user-id',
       });
 
     expect(response.status).toBe(201);
