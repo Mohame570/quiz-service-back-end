@@ -38,6 +38,7 @@ const QUIZ_UNASSIGNED_ID = 'analytics-mock-quiz-unassigned';
 
 const STUDENT_EMAILS = {
   completed: 'analytics-mock.completed@example.com',
+  zeroScore: 'analytics-mock.zeroscore@example.com',
   followUp: 'analytics-mock.followup@example.com',
   notCompleted: 'analytics-mock.notcompleted@example.com',
   absent: 'analytics-mock.absent@example.com',
@@ -95,6 +96,7 @@ async function seedAnalyticsMock(prisma: PrismaClient): Promise<void> {
   for (const [key, email] of Object.entries(STUDENT_EMAILS)) {
     const nameMap: Record<string, string> = {
       completed: 'Completed Student',
+      zeroScore: 'Zero Score Student',
       followUp: 'Pending Review Student',
       notCompleted: 'Timed Out Student',
       absent: 'Absent Student',
@@ -134,6 +136,7 @@ async function seedAnalyticsMock(prisma: PrismaClient): Promise<void> {
       students: {
         connect: [
           { userId: students.completed.id },
+          { userId: students.zeroScore.id },
           { userId: students.followUp.id },
           { userId: students.notCompleted.id },
           { userId: students.absent.id },
@@ -211,6 +214,56 @@ async function seedAnalyticsMock(prisma: PrismaClient): Promise<void> {
       maxScore: 10,
       percentage: 80,
       passed: true,
+      gradingStatus: GradingStatus.COMPLETE,
+      pendingEssayCount: 0,
+    },
+  });
+
+  // -- Zero-score student: SUBMITTED, fully graded, genuinely scored 0 --
+  // Distinct from PARTICIPATED_NOT_COMPLETED/ABSENT (score: null) — this
+  // student finished and every answer was wrong, which is score: 0, not
+  // a missing result. See docs/analytics-contract.md §8.3.
+  const zeroScoreAttempt = await prisma.attempt.create({
+    data: {
+      quizId: closedQuiz.id,
+      studentId: students.zeroScore.id,
+      startedAt: new Date('2026-08-01T10:02:00.000Z'),
+      expiresAt: new Date('2026-08-01T10:22:00.000Z'),
+      submittedAt: new Date('2026-08-01T10:19:00.000Z'),
+      status: AttemptStatus.SUBMITTED,
+      score: 0,
+      maxScore: 10,
+    },
+  });
+  await prisma.attemptAnswer.createMany({
+    data: [
+      {
+        attemptId: zeroScoreAttempt.id,
+        questionId: mcq.id,
+        selectedOptionId: 'COMPLETED', // wrong — correct answer is PARTICIPATED_NOT_COMPLETED
+        isCorrect: false,
+        pointsEarned: 0,
+      },
+      {
+        attemptId: zeroScoreAttempt.id,
+        questionId: essay.id,
+        textAnswer: 'I do not know.',
+        isCorrect: false,
+        pointsEarned: 0,
+        gradedById: admin.id,
+        gradedAt: new Date('2026-08-01T12:05:00.000Z'),
+      },
+    ],
+  });
+  await prisma.result.create({
+    data: {
+      attemptId: zeroScoreAttempt.id,
+      studentId: students.zeroScore.id,
+      quizId: closedQuiz.id,
+      score: 0,
+      maxScore: 10,
+      percentage: 0,
+      passed: false,
       gradingStatus: GradingStatus.COMPLETE,
       pendingEssayCount: 0,
     },
@@ -318,6 +371,7 @@ async function seedAnalyticsMock(prisma: PrismaClient): Promise<void> {
   console.log('  Test accounts (password: Password123!):');
   console.log(`    ${ADMIN_EMAIL} (ADMIN)`);
   console.log(`    ${STUDENT_EMAILS.completed} → COMPLETED (8/10, 80%)`);
+  console.log(`    ${STUDENT_EMAILS.zeroScore} → COMPLETED (0/10, 0% — genuine zero, not null)`);
   console.log(`    ${STUDENT_EMAILS.followUp} → COMPLETED_PENDING_REVIEW (5/10 provisional, 1 essay pending)`);
   console.log(`    ${STUDENT_EMAILS.notCompleted} → PARTICIPATED_NOT_COMPLETED (TIMED_OUT)`);
   console.log(`    ${STUDENT_EMAILS.absent} → ABSENT (assigned, window closed, zero attempts)`);

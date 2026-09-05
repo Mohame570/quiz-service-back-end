@@ -9,6 +9,7 @@ import {
 import { AnalyticsService } from '../services/analytics.service';
 import { DashboardSummaryDto } from '../dto/dashboard-summary.dto';
 import { QuizAttemptsResponseDto } from '../dto/quiz-attempts-response.dto';
+import { QuizMetricSummaryDto, StudentQuizMetricDto } from '../dto/quiz-metric.dto';
 import { analyticsEvents$ } from '../analytics.events';
 import { map } from 'rxjs/operators';
 import { Observable } from 'rxjs';
@@ -37,6 +38,25 @@ export class AnalyticsController {
     @Param('quizTitle') quizTitle: string,
   ): Promise<QuizAttemptsResponseDto> {
     return this.analyticsService.getQuizAttempts(quizTitle);
+  }
+
+  // Implements docs/analytics-contract.md §7 — assignment-anchored
+  // quiz-level metric summary (participation, completion, absence,
+  // follow-up), distinct from the older /attempts endpoint above.
+  @Get('quizzes/:quizId/metrics')
+  async getQuizMetricSummary(
+    @Param('quizId') quizId: string,
+  ): Promise<QuizMetricSummaryDto> {
+    return this.analyticsService.getQuizMetricSummary(quizId);
+  }
+
+  // Implements docs/analytics-contract.md §6 — per-student status,
+  // correctly distinguishing ABSENT from NOT_STARTED per §4.
+  @Get('quizzes/:quizId/student-metrics')
+  async getStudentQuizMetrics(
+    @Param('quizId') quizId: string,
+  ): Promise<StudentQuizMetricDto[]> {
+    return this.analyticsService.getStudentQuizMetrics(quizId);
   }
 
   @Sse('events')
