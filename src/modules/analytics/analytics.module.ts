@@ -8,7 +8,6 @@ import { AnalyticsController } from './controllers/analytics.controller';
 import { AnalyticsGradingController } from './controllers/analytics-grading.controller';
 import { AnalyticsService } from './services/analytics.service';
 import { AnalyticsGradingService } from './services/analytics-grading.service';
-import { RolesGuard } from '../auth/guards/roles.gaurd';
 
 @Module({
   imports: [
@@ -25,6 +24,6 @@ import { RolesGuard } from '../auth/guards/roles.gaurd';
     }),
   ],
   controllers: [AnalyticsController, AnalyticsGradingController],
-  providers: [AnalyticsService, AnalyticsGradingService, RolesGuard],
+  providers: [AnalyticsService, AnalyticsGradingService],
 })
 export class AnalyticsModule {}
