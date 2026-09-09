@@ -2,12 +2,10 @@
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import {
-  GradingStatus,
-  QuestionType,
-} from '../../../generated/prisma/client';
+import { GradingStatus, QuestionType } from '../../../generated/prisma/client';
 import { AttemptResponseDto } from '../dto/attempt-response.dto';
 import { normalizeShortText as normalizeShortTextValue } from '../utils/text-answer.util';
+import { TransactionClient } from '../../../generated/prisma/internal/prismaNamespace';
 
 interface QuestionMeta {
   id: string;
@@ -17,7 +15,8 @@ interface QuestionMeta {
 }
 
 interface GradedAnswerUpdate {
-  answerId: string;
+  answerId: string | null;
+  questionId: string;
   isCorrect: boolean | null;
   pointsEarned: number | null;
 }
@@ -31,14 +30,19 @@ interface AggregateScore {
   pendingEssayCount: number;
 }
 
+type PrismaOrTx = PrismaService | TransactionClient;
+
 @Injectable()
 export class ScoringService {
   private readonly logger = new Logger(ScoringService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async scoreAttempt(attemptId: string): Promise<AttemptResponseDto> {
-    const attempt = await this.prisma.attempt.findUnique({
+  async scoreAttempt(
+    attemptId: string,
+    tx: PrismaOrTx = this.prisma,
+  ): Promise<AttemptResponseDto> {
+    const attempt = await tx.attempt.findUnique({
       where: { id: attemptId },
       include: { answers: true },
     });
@@ -47,40 +51,36 @@ export class ScoringService {
 
     const [questionMap, maxScore, quiz] = await this.loadQuizContext(
       attempt.quizId,
+      tx,
     );
 
-    if (attempt.answers.length === 0) {
-      return this.persistScore(attempt, [], {
-        score: 0,
-        maxScore,
-        percentage: 0,
-        passed: maxScore === 0 ? false : false,
-        gradingStatus: GradingStatus.COMPLETE,
-        pendingEssayCount: 0,
-      });
+    const answerMap = new Map(
+      attempt.answers.map((answer) => [answer.questionId, answer]),
+    );
+    const graded: GradedAnswerUpdate[] = [];
+    for (const [questionId, question] of questionMap) {
+      const answer = answerMap.get(questionId);
+      if (answer) {
+        graded.push(this.gradeAnswer(answer, question));
+      } else {
+        const syntheticAnswer = {
+          id: null, // no real row — nothing to write back to
+          questionId,
+          selectedOptionId: null,
+          textAnswer: null,
+        };
+        graded.push(this.gradeAnswer(syntheticAnswer, question));
+      }
     }
 
-    const graded = attempt.answers.map((answer) => {
-      const question = questionMap.get(answer.questionId);
-      if (!question) {
-        return {
-          answerId: answer.id,
-          isCorrect: null as boolean | null,
-          pointsEarned: null as number | null,
-        };
-      }
-      return this.gradeAnswer(answer, question);
-    });
-
     const aggregate = this.aggregateFromAnswers(
-      attempt.answers,
       graded,
       questionMap,
       maxScore,
       quiz?.passingScore ?? 50,
     );
 
-    return this.persistScore(attempt, graded, aggregate);
+    return this.persistScore(attempt, graded, aggregate, true, tx);
   }
 
   async recalculateAttemptResult(
@@ -135,11 +135,14 @@ export class ScoringService {
     return Math.round((score / maxScore) * 100 * 100) / 100;
   }
 
-  private async loadQuizContext(quizId: string): Promise<
+  private async loadQuizContext(
+    quizId: string,
+    tx: PrismaOrTx = this.prisma,
+  ): Promise<
     [Map<string, QuestionMeta>, number, { passingScore: number | null } | null]
   > {
     const [allQuestions, quiz] = await Promise.all([
-      this.prisma.question.findMany({
+      tx.question.findMany({
         where: {
           quizQuestions: {
             some: { quizId },
@@ -147,7 +150,7 @@ export class ScoringService {
         },
         select: { id: true, type: true, correctAnswer: true, points: true },
       }),
-      this.prisma.quiz.findUnique({
+      tx.quiz.findUnique({
         where: { id: quizId },
         select: { passingScore: true },
       }),
@@ -161,7 +164,7 @@ export class ScoringService {
 
   private gradeAnswer(
     answer: {
-      id: string;
+      id: string | null;
       questionId: string;
       selectedOptionId: string | null;
       textAnswer: string | null;
@@ -178,6 +181,7 @@ export class ScoringService {
           ) === true;
         return {
           answerId: answer.id,
+          questionId: answer.questionId,
           isCorrect,
           pointsEarned: isCorrect ? question.points : 0,
         };
@@ -189,6 +193,7 @@ export class ScoringService {
         );
         return {
           answerId: answer.id,
+          questionId: answer.questionId,
           isCorrect,
           pointsEarned: isCorrect ? question.points : 0,
         };
@@ -198,19 +203,22 @@ export class ScoringService {
         if (!hasText) {
           return {
             answerId: answer.id,
+            questionId: answer.questionId,
             isCorrect: false,
             pointsEarned: 0,
           };
         }
         return {
           answerId: answer.id,
-          isCorrect: null,
-          pointsEarned: null,
+          questionId: answer.questionId,
+          isCorrect: null, // still the "pending" signal
+          pointsEarned: 0, // changed from null — placeholder until manually graded
         };
       }
       default:
         return {
           answerId: answer.id,
+          questionId: answer.questionId,
           isCorrect: null,
           pointsEarned: null,
         };
@@ -218,34 +226,23 @@ export class ScoringService {
   }
 
   private aggregateFromAnswers(
-    answers: Array<{
-      id: string;
-      questionId: string;
-      textAnswer: string | null;
-    }>,
     graded: GradedAnswerUpdate[],
     questionMap: Map<string, QuestionMeta>,
     maxScore: number,
     passingThreshold: number,
   ): AggregateScore {
-    const gradedById = new Map(graded.map((g) => [g.answerId, g]));
     let score = 0;
     let pendingEssayCount = 0;
 
-    for (const answer of answers) {
-      const update = gradedById.get(answer.id);
-      const question = questionMap.get(answer.questionId);
-      if (!update || !question) continue;
+    for (const item of graded) {
+      const question = questionMap.get(item.questionId);
+      if (!question) continue;
 
-      if (update.pointsEarned !== null) {
-        score += update.pointsEarned;
+      if (item.pointsEarned !== null) {
+        score += item.pointsEarned;
       }
 
-      if (
-        question.type === QuestionType.ESSAY &&
-        Boolean(answer.textAnswer?.trim()) &&
-        update.pointsEarned === null
-      ) {
+      if (question.type === QuestionType.ESSAY && item.isCorrect === null) {
         pendingEssayCount += 1;
       }
     }
@@ -274,6 +271,7 @@ export class ScoringService {
       questionId: string;
       textAnswer: string | null;
       pointsEarned: number | null;
+      isCorrect: boolean | null;
     }>,
     questionMap: Map<string, QuestionMeta>,
     maxScore: number,
@@ -293,7 +291,7 @@ export class ScoringService {
       if (
         question.type === QuestionType.ESSAY &&
         Boolean(answer.textAnswer?.trim()) &&
-        answer.pointsEarned === null
+        answer.isCorrect === null
       ) {
         pendingEssayCount += 1;
       }
@@ -327,13 +325,18 @@ export class ScoringService {
     graded: GradedAnswerUpdate[],
     aggregate: AggregateScore,
     updateAnswers = true,
+    tx: PrismaOrTx = this.prisma,
   ): Promise<AttemptResponseDto> {
     const transactions = [];
+    const answeredGraded = graded.filter(
+      (g): g is GradedAnswerUpdate & { answerId: string } =>
+        g.answerId !== null,
+    );
 
     if (updateAnswers && graded.length > 0) {
       transactions.push(
-        ...graded.map((g) =>
-          this.prisma.attemptAnswer.update({
+        ...answeredGraded.map((g) =>
+          tx.attemptAnswer.update({
             where: { id: g.answerId },
             data: {
               isCorrect: g.isCorrect,
@@ -345,11 +348,11 @@ export class ScoringService {
     }
 
     transactions.push(
-      this.prisma.attempt.update({
+      tx.attempt.update({
         where: { id: attempt.id },
         data: { score: aggregate.score, maxScore: aggregate.maxScore },
       }),
-      this.prisma.result.upsert({
+      tx.result.upsert({
         where: { attemptId: attempt.id },
         create: {
           attemptId: attempt.id,
@@ -375,13 +378,21 @@ export class ScoringService {
       }),
     );
 
-    await this.prisma.$transaction(transactions);
+    if (tx === this.prisma) {
+      // Standalone call — wrap these writes in their own transaction.
+      await this.prisma.$transaction(transactions);
+    } else {
+      // Already running inside an outer transaction — just execute directly.
+      for (const t of transactions) {
+        await t;
+      }
+    }
 
     this.logger.log(
       `Attempt ${attempt.id} scored: ${aggregate.score}/${aggregate.maxScore} (${aggregate.percentage}%) — ${aggregate.gradingStatus}${aggregate.passed === true ? ' PASSED' : aggregate.passed === false ? ' FAILED' : ' PENDING ESSAYS'}`,
     );
 
-    const scored = await this.prisma.attempt.findUnique({
+    const scored = await tx.attempt.findUnique({
       where: { id: attempt.id },
       include: { answers: true },
     });
