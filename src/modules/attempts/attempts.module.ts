@@ -11,6 +11,7 @@ import { ResultsController } from './controllers/results.controller';
 
 import { AttemptsService } from './services/attempts.service';
 import { ScoringService } from './services/scoring.service';
+import { AttemptExpirationService } from './services/attempts-expiration.service';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ScoringService } from './services/scoring.service';
   providers: [
     AttemptsService,
     ScoringService,
+    AttemptExpirationService
   ],
   exports: [
     AttemptsService,
