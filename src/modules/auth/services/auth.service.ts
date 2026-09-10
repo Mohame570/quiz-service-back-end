@@ -130,14 +130,16 @@ export class AuthService {
       return null;
     }
 
-    if (!user.isActive) {
-      return null;
-    }
-
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
       return null;
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException(
+        'This account has been deactivated. Please contact an administrator.',
+      );
     }
 
     return user;
