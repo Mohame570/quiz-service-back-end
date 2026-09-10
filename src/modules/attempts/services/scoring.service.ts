@@ -2,7 +2,10 @@
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import { GradingStatus, QuestionType } from '../../../generated/prisma/client';
+import {
+  GradingStatus,
+  QuestionType,
+} from '../../../generated/prisma/client';
 import { AttemptResponseDto } from '../dto/attempt-response.dto';
 import { normalizeShortText as normalizeShortTextValue } from '../utils/text-answer.util';
 import { TransactionClient } from '../../../generated/prisma/internal/prismaNamespace';
@@ -212,7 +215,7 @@ export class ScoringService {
           answerId: answer.id,
           questionId: answer.questionId,
           isCorrect: null, // still the "pending" signal
-          pointsEarned: 0, // changed from null — placeholder until manually graded
+          pointsEarned: null, // needs to stay null for the pending state
         };
       }
       default:

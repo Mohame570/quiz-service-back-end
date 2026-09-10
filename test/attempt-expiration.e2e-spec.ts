@@ -230,7 +230,7 @@ describe('AttemptExpirationService (integration)', () => {
   // ---------------------------------------------------------------------
   // 🔴 MUST: expired + answered essay → numeric Result, essay pending
   // ---------------------------------------------------------------------
-  it('produces a numeric pending score for an answered essay awaiting manual grading', async () => {
+  it('produces a numeric Result while keeping an answered essay pending for manual grading', async () => {
     const attempt = await createExpiredAttempt([
       { questionId: mcqQuestionId, selectedOptionId: 'A' },
       { questionId: shortTextQuestionId, textAnswer: 'answer' },
@@ -252,7 +252,7 @@ describe('AttemptExpirationService (integration)', () => {
     expect(result?.gradingStatus).toBe(GradingStatus.PARTIAL);
     expect(result?.pendingEssayCount).toBe(1);
     expect(result?.score).toBe(2); // MCQ + short text correct, essay pending
-    expect(essayAnswer?.pointsEarned).toBe(0); // numeric placeholder, not null
+    expect(essayAnswer?.pointsEarned).toBeNull(); // null for pending state
     expect(essayAnswer?.isCorrect).toBeNull(); // pending signal
   });
 
