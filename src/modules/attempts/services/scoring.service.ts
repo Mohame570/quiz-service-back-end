@@ -13,6 +13,7 @@ interface QuestionMeta {
   id: string;
   type: QuestionType;
   correctAnswer: string;
+  correctAnswers: string[];
   points: number;
 }
 
@@ -69,7 +70,7 @@ export class ScoringService {
           pointsEarned: null as number | null,
         };
       }
-      return this.gradeAnswer(answer, question);
+      return this.gradeAnswer(answer as any, question);
     });
 
     const aggregate = this.aggregateFromAnswers(
@@ -145,7 +146,7 @@ export class ScoringService {
             some: { quizId },
           },
         },
-        select: { id: true, type: true, correctAnswer: true, points: true },
+        select: { id: true, type: true, correctAnswer: true, correctAnswers: true, points: true },
       }),
       this.prisma.quiz.findUnique({
         where: { id: quizId },
@@ -153,7 +154,7 @@ export class ScoringService {
       }),
     ]);
 
-    const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
+    const questionMap = new Map(allQuestions.map((q) => [q.id, q as QuestionMeta]));
     const maxScore = allQuestions.reduce((sum, q) => sum + q.points, 0);
 
     return [questionMap, maxScore, quiz];
@@ -164,33 +165,62 @@ export class ScoringService {
       id: string;
       questionId: string;
       selectedOptionId: string | null;
+      selectedOptionIds?: string[] | null;
       textAnswer: string | null;
+      snapshotType?: QuestionType | null;
+      snapshotCorrectAnswer?: string | null;
+      snapshotCorrectAnswers?: string[] | null;
+      snapshotPoints?: number | null;
+      snapshotOptions?: string[] | null;
     },
     question: QuestionMeta,
   ): GradedAnswerUpdate {
-    switch (question.type) {
+    // Use snapshot if available for immutability
+    const effective: QuestionMeta = {
+      ...question,
+      type: (answer as any).snapshotType ?? question.type,
+      correctAnswer: (answer as any).snapshotCorrectAnswer ?? question.correctAnswer,
+      correctAnswers: (answer as any).snapshotCorrectAnswers ?? (question as any).correctAnswers ?? [],
+      points: (answer as any).snapshotPoints ?? question.points,
+    };
+
+    switch (effective.type) {
+      case QuestionType.MULTI_SELECT: {
+        const selected = (answer as any).selectedOptionIds ?? [];
+        const correct = (effective as any).correctAnswers ?? [];
+        const isCorrect =
+          selected.length > 0 &&
+          selected.length === correct.length &&
+          selected.every((s: string) => correct.includes(s)) &&
+          correct.every((c: string) => selected.includes(c));
+        return {
+          answerId: answer.id,
+          isCorrect,
+          pointsEarned: isCorrect ? effective.points : 0,
+        };
+      }
       case QuestionType.MCQ:
       case QuestionType.TRUE_FALSE: {
         const isCorrect =
           this.compareAnswer(
             answer.selectedOptionId,
-            question.correctAnswer,
+            effective.correctAnswer,
           ) === true;
         return {
           answerId: answer.id,
           isCorrect,
-          pointsEarned: isCorrect ? question.points : 0,
+          pointsEarned: isCorrect ? effective.points : 0,
         };
       }
       case QuestionType.SHORT_TEXT: {
         const isCorrect = this.compareShortText(
           answer.textAnswer,
-          question.correctAnswer,
+          effective.correctAnswer,
         );
         return {
           answerId: answer.id,
           isCorrect,
-          pointsEarned: isCorrect ? question.points : 0,
+          pointsEarned: isCorrect ? effective.points : 0,
         };
       }
       case QuestionType.ESSAY: {
@@ -406,6 +436,7 @@ export class ScoringService {
         attemptId: a.attemptId,
         questionId: a.questionId,
         selectedOptionId: a.selectedOptionId,
+        selectedOptionIds: a.selectedOptionIds,
         textAnswer: a.textAnswer,
         pointsEarned: a.pointsEarned,
         isCorrect: a.isCorrect,

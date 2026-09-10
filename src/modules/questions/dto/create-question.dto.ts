@@ -5,9 +5,15 @@ import { QuestionType, Difficulty } from '../../../generated/prisma/client';
 @ValidatorConstraint({ name: 'isValidCorrectAnswer', async: false })
 export class IsValidCorrectAnswerConstraint implements ValidatorConstraintInterface {
   validate(correctAnswer: string | undefined, args: ValidationArguments) {
-    const object = args.object as { type?: QuestionType; options?: string[] };
+    const object = args.object as { type?: QuestionType; options?: string[]; correctAnswers?: string[] };
     if (object.type === QuestionType.ESSAY) {
       return correctAnswer === undefined || typeof correctAnswer === 'string';
+    }
+    if (object.type === QuestionType.MULTI_SELECT) {
+      const answers = (object as any).correctAnswers;
+      if (!Array.isArray(answers) || answers.length < 1) return false;
+      if (!Array.isArray(object.options)) return false;
+      return answers.every(a => object.options!.includes(a));
     }
     if (typeof correctAnswer !== 'string' || correctAnswer.trim() === '') {
       return false;
@@ -36,6 +42,9 @@ export class IsValidCorrectAnswerConstraint implements ValidatorConstraintInterf
     if (object.type === QuestionType.ESSAY) {
       return 'correctAnswer must be a string for ESSAY questions';
     }
+    if (object.type === QuestionType.MULTI_SELECT) {
+      return 'correctAnswers must be non-empty array of valid options for MULTI_SELECT';
+    }
     return 'correctAnswer must be one of the provided options for MCQ questions';
   }
 }
@@ -53,7 +62,7 @@ export class CreateQuestionDto {
   @IsNotEmpty()
   text!: string;
 
-  @ValidateIf(o => o.type === QuestionType.MCQ)
+  @ValidateIf(o => o.type === QuestionType.MCQ || o.type === QuestionType.MULTI_SELECT)
   @IsArray()
   @ArrayMinSize(2)
   @ArrayUnique()
@@ -62,6 +71,13 @@ export class CreateQuestionDto {
 
   @Validate(IsValidCorrectAnswerConstraint)
   correctAnswer?: string;
+
+  @ValidateIf(o => o.type === QuestionType.MULTI_SELECT)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique()
+  @IsString({ each: true })
+  correctAnswers?: string[];
 
   @IsOptional()
   @IsInt()

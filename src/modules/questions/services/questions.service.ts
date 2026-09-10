@@ -41,6 +41,22 @@ export class QuestionsService {
       if (!data.correctAnswer || !data.options.includes(data.correctAnswer)) {
         throw new BadRequestException('correctAnswer must be one of the provided options for MCQ questions');
       }
+    } else if (data.type === QuestionType.MULTI_SELECT) {
+      if (!Array.isArray(data.options) || data.options.length < 2) {
+        throw new BadRequestException('MULTI_SELECT must have at least 2 options');
+      }
+      if (!Array.isArray((data as any).correctAnswers) || (data as any).correctAnswers.length < 1) {
+        throw new BadRequestException('MULTI_SELECT must have at least 1 correct answer');
+      }
+      const uniqueCorrect = new Set((data as any).correctAnswers);
+      if (uniqueCorrect.size !== (data as any).correctAnswers.length) {
+        throw new BadRequestException('correctAnswers must be unique');
+      }
+      for (const ans of (data as any).correctAnswers) {
+        if (!data.options.includes(ans)) {
+          throw new BadRequestException(`correctAnswer "${ans}" must be one of the options`);
+        }
+      }
     }
 
     let correctAnswer = data.correctAnswer ?? '';
@@ -58,6 +74,7 @@ export class QuestionsService {
         options: data.options || [],
         correctAnswer,
         points: data.points ?? 1,
+        correctAnswers: (data as any).correctAnswers ?? [],
         difficulty: data.difficulty ?? Difficulty.MEDIUM,
         topic: data.topic,
         tags: data.tags ?? [],
@@ -142,6 +159,7 @@ export class QuestionsService {
         difficulty: data.difficulty,
         topic: data.topic,
         tags: data.tags,
+        correctAnswers: (data as any).correctAnswers,
       },
       include: {
         quizQuestions: {
