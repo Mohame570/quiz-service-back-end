@@ -193,12 +193,20 @@ describe('AttemptExpirationService (integration)', () => {
       where: { attemptId: attempt.id },
     });
 
+    const savedAnswers = await prisma.attemptAnswer.findMany({
+      where: { attemptId: attempt.id },
+      orderBy: { questionId: 'asc' },
+    });
+
     expect(updated.status).toBe(AttemptStatus.TIMED_OUT);
     expect(updated.score).toBe(0);
     expect(updated.maxScore).toBe(3);
     expect(result).not.toBeNull();
     expect(result?.score).toBe(0);
     expect(result?.gradingStatus).toBe(GradingStatus.COMPLETE);
+    expect(result?.percentage).toBe(0);
+    expect(savedAnswers.every((answer) => answer.pointsEarned === 0)).toBe(true);
+    expect(savedAnswers.every((answer) => answer.isCorrect === false)).toBe(true);
   });
 
   // ---------------------------------------------------------------------
@@ -225,6 +233,8 @@ describe('AttemptExpirationService (integration)', () => {
     // No synthetic rows should have been created for the skipped questions —
     // only the one real answer should exist in the database.
     expect(savedAnswers).toHaveLength(1);
+    expect(savedAnswers[0].pointsEarned).toBe(1);
+    expect(savedAnswers[0].isCorrect).toBe(true);
   });
 
   // ---------------------------------------------------------------------
@@ -254,6 +264,7 @@ describe('AttemptExpirationService (integration)', () => {
     expect(result?.score).toBe(2); // MCQ + short text correct, essay pending
     expect(essayAnswer?.pointsEarned).toBeNull(); // null for pending state
     expect(essayAnswer?.isCorrect).toBeNull(); // pending signal
+    expect(result?.percentage).toBeCloseTo(66.67, 2);
   });
 
   // ---------------------------------------------------------------------
