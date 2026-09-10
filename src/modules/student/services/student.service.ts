@@ -382,14 +382,15 @@ export class StudentService {
       );
     }
 
+    let normalizedForSubmit: SaveAnswerItemDto[] = [];
     if (items.length > 0) {
-      const normalized = await this.normalizeAnswerItems(refreshed.quizId, items);
-      await this.orchestrator.saveAnswers(attemptId, studentId, normalized);
+      normalizedForSubmit = await this.normalizeAnswerItems(refreshed.quizId, items);
+      await this.orchestrator.saveAnswers(attemptId, studentId, normalizedForSubmit);
     }
 
     return this.withAttemptMetadata(
       attemptId,
-      await this.orchestrator.submit(attemptId, studentId, []),
+      await this.orchestrator.submit(attemptId, studentId, normalizedForSubmit),
     );
   }
 
@@ -477,6 +478,32 @@ export class StudentService {
 
     return items.map((item) => {
       const type = typeByQuestionId.get(item.questionId)!;
+
+      if (type === QuestionType.MULTI_SELECT) {
+        if (item.textAnswer != null && item.textAnswer !== '') {
+          throw new BadRequestException(
+            'Multi-select questions must use selectedOptionIds, not textAnswer.',
+          );
+        }
+        if (item.selectedOptionId != null && (item.selectedOptionId as string) !== '') {
+          throw new BadRequestException(
+            'Multi-select questions must use selectedOptionIds, not selectedOptionId.',
+          );
+        }
+        const ids = (item as any).selectedOptionIds ?? [];
+        if (!Array.isArray(ids)) {
+          throw new BadRequestException(
+            'selectedOptionIds must be an array for MULTI_SELECT.',
+          );
+        }
+        return {
+          questionId: item.questionId,
+          selectedOptionIds: ids,
+          selectedOptionId: null,
+          textAnswer: null,
+        } as any;
+      }
+
       const isChoiceQuestion =
         type === QuestionType.MCQ || type === QuestionType.TRUE_FALSE;
 
@@ -484,6 +511,11 @@ export class StudentService {
         if (item.textAnswer != null && item.textAnswer !== '') {
           throw new BadRequestException(
             'Choice questions must use selectedOptionId, not textAnswer.',
+          );
+        }
+        if ((item as any).selectedOptionIds != null) {
+          throw new BadRequestException(
+            'Choice questions must use selectedOptionId, not selectedOptionIds.',
           );
         }
         return {
@@ -496,6 +528,11 @@ export class StudentService {
       if (item.selectedOptionId != null && item.selectedOptionId !== '') {
         throw new BadRequestException(
           'Text questions must use textAnswer, not selectedOptionId.',
+        );
+      }
+      if ((item as any).selectedOptionIds != null) {
+        throw new BadRequestException(
+          'Text questions must use textAnswer, not selectedOptionIds.',
         );
       }
 
