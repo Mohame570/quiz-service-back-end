@@ -9,7 +9,7 @@ import {
 import { AnalyticsService } from '../services/analytics.service';
 import { DashboardSummaryDto } from '../dto/dashboard-summary.dto';
 import { QuizAttemptsResponseDto } from '../dto/quiz-attempts-response.dto';
-import { QuizMetricSummaryDto, StudentQuizMetricDto } from '../dto/quiz-metric.dto';
+import { QuizMetricSummaryDto, StudentQuizMetricDto, DashboardMetricsDto } from '../dto/quiz-metric.dto';
 import { analyticsEvents$ } from '../analytics.events';
 import { map } from 'rxjs/operators';
 import { Observable } from 'rxjs';
@@ -31,6 +31,16 @@ export class AnalyticsController {
   @Get()
   async getAnalytics(): Promise<DashboardSummaryDto> {
     return this.analyticsService.getAnalytics();
+  }
+
+  // Implements the Sprint 2 brief — live, org-wide dashboard metrics
+  // (participation/completion/absence/follow-up/score distribution)
+  // aggregated across every quiz. Declared before the /quizzes/:quizId/*
+  // routes only as a readability convention; NestJS route matching
+  // isn't order-sensitive here since the paths don't overlap.
+  @Get('dashboard')
+  async getDashboardMetrics(): Promise<DashboardMetricsDto> {
+    return this.analyticsService.getDashboardMetrics();
   }
 
   @Get('quizzes/:quizTitle/attempts')

@@ -13,7 +13,7 @@ Recommended approach:
   - `student.md` — L4 student entry flow
   - `attempts.md` — L5 attempts / solving contract
   - `notifications.md` — L7 email and delivery logs
-  - analytics contract: `docs/analytics_contract.md`
+  - analytics contract: `docs/analytics-contract.md`
 - document request shape, response shape, auth requirements, and important side effects
 - note any dependency on another module's endpoint or Prisma model
 - update the contract doc whenever a shared interface changes
