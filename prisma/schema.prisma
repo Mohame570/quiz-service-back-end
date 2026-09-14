@@ -57,6 +57,13 @@ enum QuestionType {
   TRUE_FALSE
   SHORT_TEXT
   ESSAY
+  MULTI_SELECT
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
 }
 
 enum GradingStatus {
@@ -69,9 +76,9 @@ enum GradingStatus {
 // -----------------------------------------------------------------------
 
 model Attempt {
-  id        String        @id @default(cuid())
+  id        String         @id @default(cuid())
   quizId    String
-  quiz      Quiz          @relation(fields: [quizId], references: [id])
+  quiz      Quiz           @relation(fields: [quizId], references: [id])
   studentId String
   student   StudentProfile @relation(fields: [studentId], references: [userId])
 
@@ -113,12 +120,14 @@ model AttemptAnswer {
   id        String @id @default(cuid())
   attemptId String
 
-  questionId       String
-  question         Question @relation(fields: [questionId], references: [id])
+  questionId        String
+  question          Question @relation(fields: [questionId], references: [id])
   /// The option the student chose; null means the question was skipped.
-  selectedOptionId String?
+  selectedOptionId  String?
+  /// For MULTI_SELECT: selectedOptionIds
+  selectedOptionIds String[] @default([])
   /// Free-text response for SHORT_TEXT and ESSAY questions.
-  textAnswer String?
+  textAnswer        String?
 
   /// Populated by the scoring service; null until graded.
   isCorrect Boolean?
@@ -132,6 +141,14 @@ model AttemptAnswer {
 
   /// Updated on every upsert so the solving module can track last save.
   answeredAt DateTime @default(now())
+
+  /// Snapshot — frozen at submit time for immutability
+  snapshotText           String?
+  snapshotOptions        String[]      @default([])
+  snapshotCorrectAnswer  String?
+  snapshotCorrectAnswers String[]      @default([])
+  snapshotType           QuestionType?
+  snapshotPoints         Int?
 
   attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
@@ -163,21 +180,21 @@ model EmailDeliveryLog {
 }
 
 model Quiz {
-  id              String     @id @default(cuid())
+  id              String           @id @default(cuid())
   title           String
   description     String?
-  status          QuizStatus @default(DRAFT)
+  status          QuizStatus       @default(DRAFT)
   durationMinutes Int?
   passingScore    Int?
   startsAt        DateTime?
   endsAt          DateTime?
   createdById     String?
-  creator         User?      @relation(fields: [createdById], references: [id])
+  creator         User?            @relation(fields: [createdById], references: [id])
   quizQuestions   QuizQuestion[]
   attempts        Attempt[]
   students        StudentProfile[]
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@index([status])
   @@index([createdById])
@@ -208,6 +225,7 @@ model User {
   emailVerified              Boolean   @default(false) @map("email_verified")
   verificationToken          String?   @unique @map("verification_token")
   verificationTokenExpiresAt DateTime? @map("verification_token_expires_at")
+  lastVerificationSentAt     DateTime? @map("last_verification_sent_at")
   isActive                   Boolean   @default(true) @map("is_active")
   createdAt                  DateTime  @default(now()) @map("created_at")
   updatedAt                  DateTime  @updatedAt @map("updated_at")
@@ -229,14 +247,18 @@ model StudentProfile {
 }
 
 model Question {
-  id            String       @id @default(cuid())
-  type          QuestionType
-  text          String 
-  options       String[]
-  correctAnswer String
-  points        Int          @default(1)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  type           QuestionType
+  text           String
+  options        String[]
+  correctAnswer  String       @default("")
+  correctAnswers String[]     @default([])
+  points         Int          @default(1)
+  difficulty     Difficulty   @default(MEDIUM)
+  topic          String?
+  tags           String[]     @default([])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   attemptAnswers AttemptAnswer[]
   quizQuestions  QuizQuestion[]
@@ -249,8 +271,8 @@ model QuizQuestion {
   questionId String
   order      Int?
 
-  quiz       Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  quiz     Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@id([quizId, questionId])
   @@index([quizId])
@@ -260,23 +282,23 @@ model QuizQuestion {
 
 // Result model — populated by ScoringService after submission
 model Result {
-  id         String   @id @default(cuid())
-  attemptId  String   @unique
-  studentId  String
-  quizId     String
-  score      Int
-  maxScore   Int
-  percentage Float
-  passed     Boolean?
+  id                String        @id @default(cuid())
+  attemptId         String        @unique
+  studentId         String
+  quizId            String
+  score             Int
+  maxScore          Int
+  percentage        Float
+  passed            Boolean?
   gradingStatus     GradingStatus @default(COMPLETE)
   pendingEssayCount Int           @default(0)
-  gradedAt   DateTime @default(now())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  attempt    Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  gradedAt          DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  attempt           Attempt       @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
   @@index([studentId])
   @@index([quizId])
   @@index([passed])
   @@map("results")
 }
-

@@ -205,8 +205,12 @@ describe('AttemptExpirationService (integration)', () => {
     expect(result?.score).toBe(0);
     expect(result?.gradingStatus).toBe(GradingStatus.COMPLETE);
     expect(result?.percentage).toBe(0);
-    expect(savedAnswers.every((answer) => answer.pointsEarned === 0)).toBe(true);
-    expect(savedAnswers.every((answer) => answer.isCorrect === false)).toBe(true);
+    expect(savedAnswers.every((answer) => answer.pointsEarned === 0)).toBe(
+      true,
+    );
+    expect(savedAnswers.every((answer) => answer.isCorrect === false)).toBe(
+      true,
+    );
   });
 
   // ---------------------------------------------------------------------
@@ -399,5 +403,209 @@ describe('AttemptExpirationService (integration)', () => {
     await expirationService.finalizeExpiredAttempts(); // second run should find nothing
 
     expect(scoreAttemptSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses the original snapshot after the question is changed before timeout', async () => {
+    const attempt = await createExpiredAttempt([
+      {
+        questionId: mcqQuestionId,
+        selectedOptionId: 'A',
+      },
+    ]);
+
+    // Create the snapshot before the question is modified.
+    // This represents the answer being submitted/snapshotted earlier.
+    await scoringService.scoreAttempt(attempt.id);
+
+    const beforeChange = await prisma.attemptAnswer.findFirstOrThrow({
+      where: {
+        attemptId: attempt.id,
+        questionId: mcqQuestionId,
+      },
+    });
+
+    expect(beforeChange.snapshotType).toBe(QuestionType.MCQ);
+    expect(beforeChange.snapshotCorrectAnswer).toBe('A');
+    expect(beforeChange.snapshotPoints).toBe(1);
+
+    // Change the live question after the snapshot exists.
+    await prisma.question.update({
+      where: { id: mcqQuestionId },
+      data: {
+        text: 'Changed question text',
+        correctAnswer: 'B',
+        points: 99,
+      },
+    });
+
+    // The attempt is already expired, so the cron will finalize it.
+    await expirationService.finalizeExpiredAttempts();
+
+    const finalAnswer = await prisma.attemptAnswer.findFirstOrThrow({
+      where: {
+        attemptId: attempt.id,
+        questionId: mcqQuestionId,
+      },
+    });
+
+    const finalAttempt = await prisma.attempt.findUniqueOrThrow({
+      where: { id: attempt.id },
+    });
+
+    // The snapshot remains unchanged.
+    expect(finalAnswer.snapshotCorrectAnswer).toBe('A');
+    expect(finalAnswer.snapshotPoints).toBe(1);
+
+    // The student's original answer "A" is still graded as correct.
+    expect(finalAnswer.isCorrect).toBe(true);
+    expect(finalAnswer.pointsEarned).toBe(1);
+
+    expect(finalAttempt.status).toBe(AttemptStatus.TIMED_OUT);
+  });
+
+  it('creates a missing snapshot when an attempt is automatically timed out', async () => {
+    const attempt = await createExpiredAttempt([
+      {
+        questionId: mcqQuestionId,
+        selectedOptionId: 'A',
+      },
+    ]);
+
+    // Confirm the answer starts without a snapshot.
+    const beforeTimeout = await prisma.attemptAnswer.findFirstOrThrow({
+      where: {
+        attemptId: attempt.id,
+        questionId: mcqQuestionId,
+      },
+    });
+
+    expect(beforeTimeout.snapshotType).toBeNull();
+    expect(beforeTimeout.snapshotCorrectAnswer).toBeNull();
+    expect(beforeTimeout.snapshotPoints).toBeNull();
+
+    // The cron timeout flow must create the snapshot and score the attempt.
+    await expirationService.finalizeExpiredAttempts();
+
+    const afterTimeout = await prisma.attemptAnswer.findFirstOrThrow({
+      where: {
+        attemptId: attempt.id,
+        questionId: mcqQuestionId,
+      },
+    });
+
+    const updatedAttempt = await prisma.attempt.findUniqueOrThrow({
+      where: { id: attempt.id },
+    });
+
+    // The timeout flow created the snapshot.
+    expect(afterTimeout.snapshotText).toBe('Test MCQ');
+    expect(afterTimeout.snapshotOptions).toEqual(['A', 'B']);
+    expect(afterTimeout.snapshotType).toBe(QuestionType.MCQ);
+    expect(afterTimeout.snapshotCorrectAnswer).toBe('A');
+    expect(afterTimeout.snapshotPoints).toBe(1);
+
+    // The answer was graded using the newly created snapshot.
+    expect(afterTimeout.isCorrect).toBe(true);
+    expect(afterTimeout.pointsEarned).toBe(1);
+
+    // The attempt was finalized normally.
+    expect(updatedAttempt.status).toBe(AttemptStatus.TIMED_OUT);
+    expect(updatedAttempt.score).toBe(1);
+  });
+
+  it('snapshots and grades MULTI_SELECT answers using snapshotCorrectAnswers', async () => {
+    const multiSelectQuestion = await prisma.question.create({
+      data: {
+        type: QuestionType.MULTI_SELECT,
+        text: 'Select the correct options',
+        options: ['A', 'B', 'C'],
+        correctAnswer: '',
+        correctAnswers: ['A', 'C'],
+        points: 2,
+      },
+    });
+
+    await prisma.quizQuestion.create({
+      data: {
+        quizId,
+        questionId: multiSelectQuestion.id,
+        order: 3,
+      },
+    });
+
+    try {
+      const startedAt = new Date(Date.now() - 60 * 60 * 1000);
+
+      const attempt = await prisma.attempt.create({
+        data: {
+          quizId,
+          studentId,
+          status: AttemptStatus.IN_PROGRESS,
+          startedAt,
+          expiresAt: new Date(startedAt.getTime() + 10 * 60_000),
+        },
+      });
+
+      await prisma.attemptAnswer.create({
+        data: {
+          attemptId: attempt.id,
+          questionId: multiSelectQuestion.id,
+
+          // The student's selected answers.
+          selectedOptionIds: ['A', 'C'],
+        },
+      });
+
+      const beforeTimeout = await prisma.attemptAnswer.findFirstOrThrow({
+        where: {
+          attemptId: attempt.id,
+          questionId: multiSelectQuestion.id,
+        },
+      });
+
+      expect(beforeTimeout.snapshotCorrectAnswers).toEqual([]);
+
+      // Automatic timeout creates the snapshot and scores the attempt.
+      await expirationService.finalizeExpiredAttempts();
+
+      const afterTimeout = await prisma.attemptAnswer.findFirstOrThrow({
+        where: {
+          attemptId: attempt.id,
+          questionId: multiSelectQuestion.id,
+        },
+      });
+
+      const result = await prisma.result.findUniqueOrThrow({
+        where: { attemptId: attempt.id },
+      });
+
+      // The correct answers were copied into the snapshot.
+      expect(afterTimeout.snapshotCorrectAnswers).toEqual(['A', 'C']);
+      expect(afterTimeout.snapshotType).toBe(QuestionType.MULTI_SELECT);
+      expect(afterTimeout.snapshotPoints).toBe(2);
+
+      // MULTI_SELECT grading used snapshotCorrectAnswers.
+      expect(afterTimeout.isCorrect).toBe(true);
+      expect(afterTimeout.pointsEarned).toBe(2);
+
+      expect(result.score).toBe(2);
+    } finally {
+      await prisma.attemptAnswer.deleteMany({
+        where: {
+          questionId: multiSelectQuestion.id,
+        },
+      });
+
+      await prisma.quizQuestion.deleteMany({
+        where: {
+          quizId,
+          questionId: multiSelectQuestion.id,
+        },
+      });
+
+      await prisma.question.delete({
+        where: { id: multiSelectQuestion.id },
+      });
+    }
   });
 });
