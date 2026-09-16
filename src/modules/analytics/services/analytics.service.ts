@@ -5,7 +5,10 @@ import { DashboardSummaryDto } from '../dto/dashboard-summary.dto';
 import { QuizAttemptsResponseDto } from '../dto/quiz-attempts-response.dto';
 import { QuizStudentScoreDto } from '../dto/quiz-attempt.dto';
 import {
+  DashboardMetricsDto,
   QuizMetricSummaryDto,
+  ScoreDistributionBucketDto,
+  SCORE_DISTRIBUTION_RANGES,
   StudentQuizMetricDto,
   StudentQuizStatus,
 } from '../dto/quiz-metric.dto';
@@ -312,6 +315,115 @@ export class AnalyticsService {
       participationRate: assignedCount > 0 ? participationCount / assignedCount : 0,
       completionRate: assignedCount > 0 ? completionCount / assignedCount : 0,
       averageScore,
+    };
+  }
+
+  /**
+   * Implements the Sprint 2 brief: a live, org-wide dashboard summary
+   * computed directly from database records — no hardcoded KPI
+   * constants, no mock fallbacks. Reuses getQuizMetricSummary() and
+   * getStudentQuizMetrics() (already covered by docs/analytics-contract.md
+   * §4-§7 rules) rather than re-deriving the status logic, so the
+   * per-quiz table in this response and the standalone per-quiz
+   * endpoints can never disagree.
+   *
+   * Honest empty-state handling: with zero quizzes in the database this
+   * returns real zeros and null (not NaN) for every rate/average, and
+   * all five score-distribution buckets present at count 0 — the
+   * frontend is expected to render that as an explicit "no data yet"
+   * state rather than treating 0 as a real participation rate.
+   */
+  async getDashboardMetrics(): Promise<DashboardMetricsDto> {
+    const quizzes = await this.prisma.quiz.findMany({
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const emptyDistribution: ScoreDistributionBucketDto[] = SCORE_DISTRIBUTION_RANGES.map(
+      (range) => ({ range, count: 0 }),
+    );
+
+    if (quizzes.length === 0) {
+      return {
+        totalQuizzes: 0,
+        distinctStudentCount: 0,
+        assignedCount: 0,
+        participationCount: 0,
+        completionCount: 0,
+        absenceCount: 0,
+        followUpCount: 0,
+        participationRate: 0,
+        completionRate: 0,
+        averageScore: null,
+        scoreDistribution: emptyDistribution,
+        quizzes: [],
+      };
+    }
+
+    const quizSummaries: QuizMetricSummaryDto[] = [];
+    const allStudentMetrics: StudentQuizMetricDto[] = [];
+
+    for (const { id } of quizzes) {
+      const [summary, studentMetrics] = await Promise.all([
+        this.getQuizMetricSummary(id),
+        this.getStudentQuizMetrics(id),
+      ]);
+      quizSummaries.push(summary);
+      allStudentMetrics.push(...studentMetrics);
+    }
+
+    const distinctStudentCount = new Set(allStudentMetrics.map((m) => m.studentId)).size;
+
+    const assignedCount = quizSummaries.reduce((sum, q) => sum + q.assignedCount, 0);
+    const participationCount = quizSummaries.reduce((sum, q) => sum + q.participationCount, 0);
+    const completionCount = quizSummaries.reduce((sum, q) => sum + q.completionCount, 0);
+    const absenceCount = quizSummaries.reduce((sum, q) => sum + q.absenceCount, 0);
+    const followUpCount = quizSummaries.reduce((sum, q) => sum + q.followUpCount, 0);
+
+    const percentages = allStudentMetrics
+      .filter((m) => m.percentage !== null)
+      .map((m) => m.percentage as number);
+    const averageScore =
+      percentages.length > 0
+        ? percentages.reduce((sum, p) => sum + p, 0) / percentages.length
+        : null;
+
+    // Half-open intervals ([0,20), [20,40), [40,60), [60,80), [80,100]) so
+    // every possible percentage (including fractional, e.g. 43.33) lands
+    // in exactly one bucket — bucketing on the label string's parsed
+    // integers would leave gaps like 20.5 matching neither "0-20" nor
+    // "21-40".
+    const bucketBounds: Array<[number, number]> = [
+      [0, 20],
+      [20, 40],
+      [40, 60],
+      [60, 80],
+      [80, 100],
+    ];
+    const distribution: ScoreDistributionBucketDto[] = SCORE_DISTRIBUTION_RANGES.map(
+      (range, index) => {
+        const [lo, hi] = bucketBounds[index];
+        const isLastBucket = index === bucketBounds.length - 1;
+        const count = percentages.filter((p) =>
+          isLastBucket ? p >= lo && p <= hi : p >= lo && p < hi,
+        ).length;
+        return { range, count };
+      },
+    );
+
+    return {
+      totalQuizzes: quizzes.length,
+      distinctStudentCount,
+      assignedCount,
+      participationCount,
+      completionCount,
+      absenceCount,
+      followUpCount,
+      participationRate: assignedCount > 0 ? participationCount / assignedCount : 0,
+      completionRate: assignedCount > 0 ? completionCount / assignedCount : 0,
+      averageScore,
+      scoreDistribution: distribution,
+      quizzes: quizSummaries,
     };
   }
 }

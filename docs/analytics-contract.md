@@ -1,8 +1,7 @@
 # Analytics Data Contract
 
 **Owner module:** `AnalyticsModule`
-**Status:** Sprint 1 — foundational contract for dashboard-facing metrics
-**Related:** `docs/analytics_contract.md` (existing endpoint-level contract for the two shipped `GET` routes; this document defines the underlying metric vocabulary those and future endpoints must conform to)
+**Status:** Sprint 1 metric vocabulary, extended in Sprint 2 with the live dashboard, quiz-metric, and follow-up endpoints that implement it (see §13).
 
 ## 1. Purpose
 
@@ -259,6 +258,97 @@ A quiz with no assigned students at all has all counts at zero, but this is **no
 
 ## 12. Handover notes (Sprint 1 → Sprint 2)
 
-- This contract defines vocabulary and payload shape only — it does not yet correspond to a shipped endpoint. `analytics.service.ts` currently implements `getAnalytics()` and `getQuizAttempts()`, neither of which yet return the `status` enum or `ABSENT`/`COMPLETED_PENDING_REVIEW` distinctions defined here.
-- `prisma/seeds/analytics-mock.ts` (companion to this document) seeds one quiz covering all five states plus the zero-assignment edge case, for use in building and testing the endpoints that will implement this contract.
-- Recommended next step for whoever picks this up: implement a `getQuizMetricSummary(quizId)` and `getStudentQuizMetrics(quizId)` service method matching §6/§7 exactly, backed by the seed data in §8 for verification.
+- **Sprint 1** shipped this contract as vocabulary and payload shape only, plus `getAnalytics()` and `getQuizAttempts()` — neither of which returned the `status` enum or `ABSENT`/`COMPLETED_PENDING_REVIEW` distinctions defined above.
+- **Sprint 2** implemented the contract: `AnalyticsService.getStudentQuizMetrics(quizId)` and `getQuizMetricSummary(quizId)` match §6/§7 exactly, and a new `getDashboardMetrics()` aggregates every quiz into one org-wide payload (`GET /analytics/dashboard`) — see §13 for the endpoint list and §14 for the score-distribution and empty-state rules that endpoint adds. `getAnalytics()` and `getQuizAttempts()` remain unchanged for backward compatibility with any existing callers.
+- `prisma/seeds/analytics-mock.ts` (companion to this document) seeds one quiz covering all five states plus the zero-assignment edge case; it is the fixture used by both the Sprint 1 payload examples in §8 and the Sprint 2 automated tests in `backend/test/analytics/`.
+- Sprint 2 also added a Learner Follow-Up Engine (`FollowUpModule`) built directly on `getStudentQuizMetrics()` rather than re-deriving status — see §15.
+
+## 13. Shipped endpoints (Sprint 2)
+
+All routes below are admin-only (`JwtAuthGuard` + `RolesGuard` + `@Roles(UserRole.ADMIN)`) and mounted under the global `/api` prefix.
+
+| Method | Path | Returns | Notes |
+|---|---|---|---|
+| GET | `/analytics` | `DashboardSummaryDto` | Sprint 1 org-wide counts (kept for backward compatibility) |
+| GET | `/analytics/dashboard` | `DashboardMetricsDto` | **New.** Live org-wide participation/completion/absence/follow-up + score distribution, aggregated across every quiz. §14 |
+| GET | `/analytics/quizzes/:quizTitle/attempts` | `QuizAttemptsResponseDto` | Sprint 1 per-quiz attempt list (kept for backward compatibility) |
+| GET | `/analytics/quizzes/:quizId/metrics` | `QuizMetricSummaryDto` | Implements §7 for one quiz |
+| GET | `/analytics/quizzes/:quizId/student-metrics` | `StudentQuizMetricDto[]` | Implements §6 for one quiz |
+| GET | `/analytics/events` (SSE) | `MessageEvent` stream | Live-update channel, unrelated to the metrics above |
+| GET | `/follow-up` | `FollowUpSummaryDto` | **New.** Org-wide learner follow-up queue, categorized. §15 |
+| GET | `/follow-up/quizzes/:quizId` | `FollowUpSummaryDto` | **New.** Follow-up queue scoped to one quiz |
+
+## 14. Payload schema — org-wide dashboard metrics (`GET /analytics/dashboard`)
+
+```typescript
+interface DashboardMetricsDto {
+  totalQuizzes: number;
+  distinctStudentCount: number;      // unique students across all quizzes (not summed per-quiz)
+  assignedCount: number;             // sum of each quiz's assignedCount
+  participationCount: number;
+  completionCount: number;
+  absenceCount: number;
+  followUpCount: number;
+  participationRate: number;         // 0 when assignedCount = 0, never NaN
+  completionRate: number;            // 0 when assignedCount = 0, never NaN
+  averageScore: number | null;       // null when nobody has completed anything yet
+  scoreDistribution: { range: '0-20' | '21-40' | '41-60' | '61-80' | '81-100'; count: number }[];
+  quizzes: QuizMetricSummary[];      // §7 shape, one entry per quiz
+}
+```
+
+**Empty-cohort rule:** with zero quizzes in the database, every count is a real `0`, `averageScore` is `null` (never `NaN`), and `scoreDistribution` still contains all five buckets at `count: 0` — the frontend renders this as an explicit "no data yet" state rather than a chart with missing bars or a `0%` that looks like a real rate. This is the same empty-state discipline as §4/§5, applied at the org-wide level.
+
+**Score-distribution buckets** are half-open intervals — `[0,20)`, `[20,40)`, `[40,60)`, `[60,80)`, `[80,100]` — computed from `Result.percentage` across all `COMPLETED` + `COMPLETED_PENDING_REVIEW` students. Half-open (rather than parsing the label text) means a fractional percentage such as `43.33` lands in exactly one bucket instead of matching neither `41-60` label boundary.
+
+## 15. Learner Follow-Up Engine (Sprint 2)
+
+The Follow-Up Engine turns the per-student `status` from §6 into an actionable, categorized queue for admins — it does not introduce new status logic; every category below is a deterministic function of `StudentQuizMetric.status` (plus quiz metadata: `passingScore`, `endsAt`, and the in-progress attempt's `expiresAt`), so the follow-up queue and the per-student metrics endpoint can never disagree on why a student is or isn't flagged.
+
+### 15.1 Categories
+
+| Category | Trigger | Recommended action |
+|---|---|---|
+| `PENDING_ESSAY_REVIEW` | `status = COMPLETED_PENDING_REVIEW` | Grade the pending essay response(s) to finalize the score |
+| `AT_RISK_LOW_SCORE` | `status = COMPLETED` and `percentage < quiz.passingScore` (default 60 if unset) | Reach out with remediation resources or offer a retake |
+| `STALLED_IN_PROGRESS` | `status = IN_PROGRESS` and the attempt's `expiresAt` is already in the past | Investigate the stalled attempt and manually finalize or reset it |
+| `ABANDONED_NOT_COMPLETED` | `status = PARTICIPATED_NOT_COMPLETED` (`TIMED_OUT` or `ABANDONED`) | Contact the student to check for technical issues and offer a makeup attempt |
+| `ABSENT_NO_SHOW` | `status = ABSENT` | Escalate the absence and schedule a makeup session |
+| `NOT_STARTED_CLOSING_SOON` | `status = NOT_STARTED` and `quiz.endsAt` is within the next 24 hours | Send an urgent reminder before the window closes |
+
+A student can only ever land in one category per quiz — categories are checked in the priority order above (e.g. a `COMPLETED_PENDING_REVIEW` student is always `PENDING_ESSAY_REVIEW`, never re-evaluated against the score threshold, since grading it is the actionable next step). `COMPLETED` students above the passing threshold, `NOT_STARTED` students with more than 24h left, and actively progressing `IN_PROGRESS` students within their time window require no follow-up and are not queued.
+
+### 15.2 Payload schema
+
+```typescript
+interface FollowUpEntryDto {
+  studentId: string;
+  studentName: string;
+  quizId: string;
+  quizTitle: string;
+  category: FollowUpCategory;
+  reason: string;               // human-readable trigger explanation
+  recommendedAction: string;
+  status: StudentQuizStatus;    // §6 status this was derived from
+  score: number | null;
+  maxScore: number | null;
+  percentage: number | null;
+  pendingEssayCount: number;
+  attemptId: string | null;
+}
+
+interface FollowUpCategoryGroupDto {
+  category: FollowUpCategory;
+  label: string;
+  description: string;
+  count: number;
+  entries: FollowUpEntryDto[];
+}
+
+interface FollowUpSummaryDto {
+  totalFollowUps: number;
+  categories: FollowUpCategoryGroupDto[]; // always all 6 categories, even at count 0
+}
+```
+
+**Empty-cohort rule:** with zero quizzes (or zero students needing follow-up), `totalFollowUps` is `0` and `categories` still contains all 6 category groups at `count: 0` with empty `entries` arrays — same "always show the full shape, never omit a bucket" discipline as §14's score distribution.

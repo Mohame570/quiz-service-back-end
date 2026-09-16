@@ -5,6 +5,8 @@ import request from 'supertest';
 import { AnalyticsController } from '../src/modules/analytics/controllers/analytics.controller';
 import { AnalyticsService } from '../src/modules/analytics/services/analytics.service';
 import { PrismaService } from '../src/common/prisma/prisma.service';
+import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../src/modules/auth/guards/roles.gaurd';
 
 describe('Analytics endpoint', () => {
   let app: INestApplication;
@@ -50,7 +52,16 @@ describe('Analytics endpoint', () => {
         AnalyticsService,
         { provide: PrismaService, useValue: prismaMock as unknown as PrismaService },
       ],
-    }).compile();
+    })
+      // AnalyticsController is admin-gated (JwtAuthGuard + RolesGuard);
+      // this suite only exercises AnalyticsService's business logic
+      // through the controller, so auth is stubbed rather than tested
+      // here (see test/analytics/ for the Sprint 2 endpoints).
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');

@@ -25,5 +25,8 @@ import { AnalyticsGradingService } from './services/analytics-grading.service';
   ],
   controllers: [AnalyticsController, AnalyticsGradingController],
   providers: [AnalyticsService, AnalyticsGradingService],
+  // Exported so FollowUpModule can reuse getStudentQuizMetrics() rather
+  // than re-deriving the §6 status logic independently.
+  exports: [AnalyticsService],
 })
 export class AnalyticsModule {}
