@@ -13,6 +13,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { QuestionsModule } from './modules/questions/questions.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { StudentModule } from './modules/student/student.module';
+import { ScheduleModule } from '@nestjs/schedule';
 import { UsersModule } from './modules/users/users.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { UsersModule } from './modules/users/users.module';
       load: [configuration],
       validationSchema: envValidationSchema,
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     HealthModule,
     AuthModule,

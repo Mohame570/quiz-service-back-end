@@ -22,6 +22,12 @@ export class UpdateQuestionDto {
   correctAnswer?: string;
 
   @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  correctAnswers?: string[];
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   points?: number;
