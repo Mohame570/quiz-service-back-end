@@ -20,6 +20,12 @@ export class SaveAnswerItemDto {
   @IsString()
   selectedOptionId?: string | null;
 
+  /// For MULTI_SELECT: multiple selected options
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  selectedOptionIds?: string[] | null;
+
   /// Free-text response for SHORT_TEXT and ESSAY questions.
   @IsOptional()
   @IsString()

@@ -20,7 +20,7 @@ describe('QuestionsController (e2e)', () => {
     await app.init();
 
     prisma = app.get<PrismaService>(PrismaService);
-    
+
     // We mock PrismaService to avoid DB connection issues if Docker is not available in the environment
     jest.spyOn(prisma.quiz, 'findMany').mockImplementation((async (args: any): Promise<any> => {
       const ids = args.where?.id?.in || [];
@@ -35,30 +35,30 @@ describe('QuestionsController (e2e)', () => {
 
     jest.spyOn(prisma.question, 'create').mockImplementation((async (args: any): Promise<any> => {
       const { quizQuestions, ...rest } = args.data;
-      return { 
-        id: 'new-q-id', 
+      return {
+        id: 'new-q-id',
         ...rest,
         quizQuestions: quizQuestions?.create ? quizQuestions.create.map((c: any) => ({ quizId: c.quizId, quiz: { id: c.quizId } })) : [],
-        createdAt: new Date(), 
-        updatedAt: new Date() 
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
     }) as any);
 
     jest.spyOn(prisma.question, 'findUnique').mockImplementation((async (args: any): Promise<any> => {
       if (args.where.id === 'valid-q-id') {
-        return { 
+        return {
           id: 'valid-q-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', points: 1, createdAt: new Date(), updatedAt: new Date(),
           quizQuestions: [{ quiz: { status: 'DRAFT' } }]
         };
       }
       if (args.where.id === 'published-q-id') {
-        return { 
+        return {
           id: 'published-q-id', type: 'MCQ', text: 'Old text', options: ['A', 'B'], correctAnswer: 'A', points: 1, createdAt: new Date(), updatedAt: new Date(),
           quizQuestions: [{ quiz: { status: 'PUBLISHED' } }]
         };
       }
       if (args.where.id === 'answered-q-id') {
-        return { 
+        return {
           id: 'answered-q-id', type: 'MCQ', text: 'Answered', options: ['A', 'B'], correctAnswer: 'A', points: 1, createdAt: new Date(), updatedAt: new Date(),
           quizQuestions: [{ quiz: { status: 'DRAFT' } }]
         };
@@ -311,5 +311,45 @@ describe('QuestionsController (e2e)', () => {
         points: 5
       })
       .expect(201);
+  });
+
+  it('/questions (POST) - Success MULTI_SELECT', () => {
+    return adminPost('/questions')
+      .send({
+        quizIds: ['valid-quiz-id'],
+        type: 'MULTI_SELECT',
+        text: 'Select all prime numbers',
+        options: ['2', '3', '4', '5'],
+        correctAnswers: ['2', '3', '5']
+      })
+      .expect(201)
+      .expect((res: any) => {
+        expect(res.body.type).toBe('MULTI_SELECT');
+        expect(res.body.correctAnswers).toEqual(['2', '3', '5']);
+      });
+  });
+
+  it('/questions (POST) - Fail MULTI_SELECT missing correctAnswers', () => {
+    return adminPost('/questions')
+      .send({
+        quizIds: ['valid-quiz-id'],
+        type: 'MULTI_SELECT',
+        text: 'Select all prime',
+        options: ['2', '3', '4'],
+        correctAnswers: []
+      })
+      .expect(400);
+  });
+
+  it('/questions (POST) - Fail MULTI_SELECT correctAnswers not in options', () => {
+    return adminPost('/questions')
+      .send({
+        quizIds: ['valid-quiz-id'],
+        type: 'MULTI_SELECT',
+        text: 'Select all prime',
+        options: ['2', '3', '4'],
+        correctAnswers: ['5']
+      })
+      .expect(400);
   });
 });
