@@ -118,11 +118,13 @@ export class AttemptsService {
           attemptId: id,
           questionId: item.questionId,
           selectedOptionId: item.selectedOptionId ?? null,
+          selectedOptionIds: (item as any).selectedOptionIds ?? [],
           textAnswer: item.textAnswer ?? null,
           answeredAt: now,
         },
         update: {
           selectedOptionId: item.selectedOptionId ?? null,
+          selectedOptionIds: (item as any).selectedOptionIds ?? [],
           textAnswer: item.textAnswer ?? null,
           answeredAt: now,
         },
@@ -162,17 +164,39 @@ export class AttemptsService {
                 attemptId: id,
                 questionId: item.questionId,
                 selectedOptionId: item.selectedOptionId ?? null,
+                selectedOptionIds: (item as any).selectedOptionIds ?? [],
                 textAnswer: item.textAnswer ?? null,
                 answeredAt: now,
               },
               update: {
                 selectedOptionId: item.selectedOptionId ?? null,
+                selectedOptionIds: (item as any).selectedOptionIds ?? [],
                 textAnswer: item.textAnswer ?? null,
                 answeredAt: now,
               },
             }),
           ),
         );
+
+        // Snapshot: freeze question state at submit time for immutability
+        const questionIds = items.map((i) => i.questionId);
+        const questions = await tx.question.findMany({ where: { id: { in: questionIds } } });
+        const qMap = new Map(questions.map((q) => [q.id, q]));
+        for (const item of items) {
+          const q: any = qMap.get(item.questionId);
+          if (!q) continue;
+          await tx.attemptAnswer.update({
+            where: { attemptId_questionId: { attemptId: id, questionId: item.questionId } },
+            data: {
+              snapshotText: q.text,
+              snapshotOptions: q.options,
+              snapshotCorrectAnswer: q.correctAnswer,
+              snapshotCorrectAnswers: q.correctAnswers ?? [],
+              snapshotType: q.type,
+              snapshotPoints: q.points,
+            },
+          });
+        }
       }
 
       await tx.attempt.update({
@@ -295,10 +319,17 @@ export class AttemptsService {
       attemptId: answer.attemptId,
       questionId: answer.questionId,
       selectedOptionId: answer.selectedOptionId,
+      selectedOptionIds: answer.selectedOptionIds ?? [],
       textAnswer: answer.textAnswer,
       pointsEarned: answer.pointsEarned ?? null,
       isCorrect: answer.isCorrect,
       answeredAt: answer.answeredAt,
+      snapshotText: answer.snapshotText,
+      snapshotOptions: answer.snapshotOptions,
+      snapshotCorrectAnswer: answer.snapshotCorrectAnswer,
+      snapshotCorrectAnswers: answer.snapshotCorrectAnswers,
+      snapshotType: answer.snapshotType,
+      snapshotPoints: answer.snapshotPoints,
     };
   }
 }

@@ -3,14 +3,14 @@
 // Unit-style integration tests for the admin notification monitoring endpoints.
 // Uses a mocked PrismaService so tests run fast without a live database.
 
-import { ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { EmailDeliveryStatus, NotificationTemplateKey } from '../src/generated/prisma/client';
+import { EmailDeliveryStatus } from '../src/generated/prisma/client';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 import { MailTransportService } from '../src/modules/notifications/services/mail-transport.service';
 import { NotificationService } from '../src/modules/notifications/services/notification.service';
 import { NotificationsAdminController } from '../src/modules/notifications/controllers/notifications-admin.controller';
 import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
+import { ConfigService } from '@nestjs/config';
 
 function makePrismaMock() {
   return {
@@ -41,9 +41,6 @@ describe('NotificationsAdminController', () => {
   let prisma: ReturnType<typeof makePrismaMock>;
   let mailTransport: ReturnType<typeof makeMailTransportMock>;
 
-  const adminReq = { user: { sub: 'admin-1', email: 'admin@test.com', role: 'ADMIN' } };
-  const studentReq = { user: { sub: 'student-1', email: 'student@test.com', role: 'STUDENT' } };
-
   beforeEach(async () => {
     prisma = makePrismaMock();
     mailTransport = makeMailTransportMock();
@@ -54,13 +51,21 @@ describe('NotificationsAdminController', () => {
         NotificationService,
         { provide: PrismaService, useValue: prisma },
         { provide: MailTransportService, useValue: mailTransport },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue(mockJwtAuthGuard)
       .compile();
 
-    controller = module.get<NotificationsAdminController>(NotificationsAdminController);
+    controller = module.get<NotificationsAdminController>(
+      NotificationsAdminController,
+    );
     service = module.get<NotificationService>(NotificationService);
   });
 
@@ -71,31 +76,31 @@ describe('NotificationsAdminController', () => {
   // -----------------------------------------------------------------------
 
   describe('GET /api/admin/notifications/delivery-summary', () => {
-    it('rejects non-admin users', async () => {
-      await expect(
-        controller.getDeliverySummary(studentReq),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
     it('returns aggregated counts and per-quiz invitation breakdown', async () => {
       prisma.emailDeliveryLog.count
-        .mockResolvedValueOnce(50)  // total
-        .mockResolvedValueOnce(42)  // sent
-        .mockResolvedValueOnce(5)   // failed
-        .mockResolvedValueOnce(3);  // pending
+        .mockResolvedValueOnce(50) // total
+        .mockResolvedValueOnce(42) // sent
+        .mockResolvedValueOnce(5) // failed
+        .mockResolvedValueOnce(3); // pending
 
       prisma.emailDeliveryLog.findMany.mockResolvedValue([
         {
-          id: 'log-1', status: EmailDeliveryStatus.SENT,
-          correlationId: 'invitation:quiz-1', metadata: {},
+          id: 'log-1',
+          status: EmailDeliveryStatus.SENT,
+          correlationId: 'invitation:quiz-1',
+          metadata: {},
         },
         {
-          id: 'log-2', status: EmailDeliveryStatus.SENT,
-          correlationId: 'invitation:quiz-1', metadata: {},
+          id: 'log-2',
+          status: EmailDeliveryStatus.SENT,
+          correlationId: 'invitation:quiz-1',
+          metadata: {},
         },
         {
-          id: 'log-3', status: EmailDeliveryStatus.FAILED,
-          correlationId: 'invitation:quiz-2', metadata: {},
+          id: 'log-3',
+          status: EmailDeliveryStatus.FAILED,
+          correlationId: 'invitation:quiz-2',
+          metadata: {},
         },
       ]);
 
@@ -104,7 +109,7 @@ describe('NotificationsAdminController', () => {
         { id: 'quiz-2', title: 'Practice Quiz' },
       ]);
 
-      const result = await controller.getDeliverySummary(adminReq);
+      const result = await controller.getDeliverySummary();
 
       expect(result.overall.total).toBe(50);
       expect(result.overall.sent).toBe(42);
@@ -124,7 +129,7 @@ describe('NotificationsAdminController', () => {
       prisma.emailDeliveryLog.findMany.mockResolvedValue([]);
       prisma.quiz.findMany.mockResolvedValue([]);
 
-      const result = await controller.getDeliverySummary(adminReq);
+      const result = await controller.getDeliverySummary();
 
       expect(result.overall.total).toBe(0);
       expect(result.overall.sent).toBe(0);
@@ -137,17 +142,26 @@ describe('NotificationsAdminController', () => {
   // -----------------------------------------------------------------------
 
   describe('GET /api/admin/notifications/invitation-status', () => {
-    it('rejects non-admin users', async () => {
-      await expect(
-        controller.getInvitationStatus(studentReq),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
     it('returns quiz-grouped invitation delivery stats', async () => {
       prisma.emailDeliveryLog.findMany.mockResolvedValue([
-        { id: 'log-1', status: EmailDeliveryStatus.SENT, correlationId: 'invitation:quiz-1', metadata: {} },
-        { id: 'log-2', status: EmailDeliveryStatus.FAILED, correlationId: 'invitation:quiz-1', metadata: {} },
-        { id: 'log-3', status: EmailDeliveryStatus.PENDING, correlationId: 'invitation:quiz-2', metadata: {} },
+        {
+          id: 'log-1',
+          status: EmailDeliveryStatus.SENT,
+          correlationId: 'invitation:quiz-1',
+          metadata: {},
+        },
+        {
+          id: 'log-2',
+          status: EmailDeliveryStatus.FAILED,
+          correlationId: 'invitation:quiz-1',
+          metadata: {},
+        },
+        {
+          id: 'log-3',
+          status: EmailDeliveryStatus.PENDING,
+          correlationId: 'invitation:quiz-2',
+          metadata: {},
+        },
       ]);
 
       prisma.quiz.findMany.mockResolvedValue([
@@ -155,7 +169,7 @@ describe('NotificationsAdminController', () => {
         { id: 'quiz-2', title: 'Practice' },
       ]);
 
-      const result = await controller.getInvitationStatus(adminReq);
+      const result = await controller.getInvitationStatus();
 
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({

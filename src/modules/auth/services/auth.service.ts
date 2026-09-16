@@ -2,6 +2,8 @@ import {
   ConflictException,
   Injectable,
   UnauthorizedException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -36,6 +38,36 @@ export class AuthService {
     private readonly notificationService: NotificationService,
   ) {}
 
+  /**
+   * Build verification URL using env-driven FRONTEND_BASE_URL.
+   * Centralized to ensure reliability and testability.
+   */
+  private buildVerificationUrl(token: string): string {
+    const rawBase =
+      this.configService.get<string>('frontend.baseUrl') ??
+      this.configService.get<string>('FRONTEND_BASE_URL') ??
+      'http://localhost:3000';
+    // Normalize: remove trailing slash
+    const baseUrl = rawBase.replace(/\/+$/, '');
+    return `${baseUrl}/verify-email?token=${encodeURIComponent(token)}`;
+  }
+
+  private getVerificationTokenExpiresAt(): Date {
+    const hours =
+      this.configService.get<number>('verification.tokenExpiresHours') ??
+      this.configService.get<number>('VERIFICATION_TOKEN_EXPIRES_HOURS') ??
+      24;
+    return new Date(Date.now() + hours * 60 * 60 * 1000);
+  }
+
+  private getResendCooldownSeconds(): number {
+    return (
+      this.configService.get<number>('verification.resendCooldownSeconds') ??
+      this.configService.get<number>('VERIFICATION_RESEND_COOLDOWN_SECONDS') ??
+      60
+    );
+  }
+
   async register(dto: RegisterDto): Promise<AuthResult> {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -49,7 +81,7 @@ export class AuthService {
 
     const verificationToken = randomUUID();
 
-    const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const verificationTokenExpiresAt = this.getVerificationTokenExpiresAt();
 
     const role =  UserRole.STUDENT;
     
@@ -62,6 +94,7 @@ export class AuthService {
         emailVerified: false,
         verificationToken,
         verificationTokenExpiresAt,
+        lastVerificationSentAt: new Date(),
         ...(role === UserRole.STUDENT
           ? { studentProfile: { create: {} } }
           : {}),
@@ -71,9 +104,7 @@ export class AuthService {
     await this.notificationService.sendVerificationEmail({
       recipientEmail: user.email,
       recipientName: user.name ?? undefined,
-      verificationUrl: `${this.configService.get<string>(
-        'FRONTEND_BASE_URL',
-        )}/verify-email?token=${verificationToken}`,
+      verificationUrl: this.buildVerificationUrl(verificationToken),
       });
 
 
@@ -99,14 +130,16 @@ export class AuthService {
       return null;
     }
 
-    if (!user.isActive) {
-      return null;
-    }
-
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
       return null;
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException(
+        'This account has been deactivated. Please contact an administrator.',
+      );
     }
 
     return user;
@@ -167,7 +200,7 @@ export class AuthService {
   return { success: true };
 }
 
-async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean }> {
+async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean; retryAfter?: number }> {
   // 1. Find user by email
   const user = await this.prisma.user.findUnique({
     where: { email: dto.email },
@@ -183,27 +216,44 @@ async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean
     return { success: true };
   }
 
-  // 4. Generate new token
+  // 4. Cooldown check
+  const cooldownSeconds = this.getResendCooldownSeconds();
+  if ((user as any).lastVerificationSentAt) {
+    const elapsed = Date.now() - new Date((user as any).lastVerificationSentAt).getTime();
+    const remainingMs = cooldownSeconds * 1000 - elapsed;
+    if (remainingMs > 0) {
+      const retryAfter = Math.ceil(remainingMs / 1000);
+      throw new HttpException(
+        {
+          message: `Please wait ${retryAfter}s before requesting another verification email`,
+          retryAfter,
+          cooldownSeconds,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  // 5. Generate new token
   const verificationToken = randomUUID();
 
-  const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const verificationTokenExpiresAt = this.getVerificationTokenExpiresAt();
 
-  // 5. Update user with new token
+  // 6. Update user with new token and cooldown timestamp
   await this.prisma.user.update({
     where: { id: user.id },
     data: {
       verificationToken,
       verificationTokenExpiresAt,
+      lastVerificationSentAt: new Date(),
     },
   });
 
-  // 6. Send email again
+  // 7. Send email again using env-driven base URL
   await this.notificationService.sendVerificationEmail({
     recipientEmail: user.email,
     recipientName: user.name ?? undefined,
-    verificationUrl: `${this.configService.get<string>(
-      'FRONTEND_BASE_URL',
-    )}/verify-email?token=${verificationToken}`,
+    verificationUrl: this.buildVerificationUrl(verificationToken),
   });
 
   return { success: true };

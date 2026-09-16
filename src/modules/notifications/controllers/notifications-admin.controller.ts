@@ -10,7 +10,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Post,
   Request,
@@ -24,9 +23,13 @@ import {
 } from '../dto/delivery-summary.dto';
 import { SendQuizInvitationAdminDto } from '../dto/send-quiz-invitation-admin.dto';
 import { NotificationDispatchResultDto } from '../dto/notification-dispatch-result.dto';
+import { RolesGuard } from '../../auth/guards/roles.gaurd';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../../generated/prisma/enums';
 
 @Controller('admin/notifications')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 export class NotificationsAdminController {
   constructor(private readonly notificationService: NotificationService) {}
 
@@ -37,8 +40,7 @@ export class NotificationsAdminController {
    * across all delivery logs, plus a per-quiz invitation breakdown.
    */
   @Get('delivery-summary')
-  async getDeliverySummary(@Request() req: any): Promise<DeliverySummaryDto> {
-    this.assertAdmin(req);
+  async getDeliverySummary(): Promise<DeliverySummaryDto> {
     return this.notificationService.getDeliverySummary();
   }
 
@@ -48,10 +50,7 @@ export class NotificationsAdminController {
    * Returns invitation delivery status grouped by quiz.
    */
   @Get('invitation-status')
-  async getInvitationStatus(
-    @Request() req: any,
-  ): Promise<InvitationStatusDto[]> {
-    this.assertAdmin(req);
+  async getInvitationStatus(): Promise<InvitationStatusDto[]> {
     return this.notificationService.getInvitationStatus();
   }
 
@@ -64,17 +63,14 @@ export class NotificationsAdminController {
   async sendInvitation(
     @Body() dto: SendQuizInvitationAdminDto,
     @Request() req: any,
-  ): Promise<{ sent: number; failed: number; results: NotificationDispatchResultDto[] }> {
-    this.assertAdmin(req);
+  ): Promise<{
+    sent: number;
+    failed: number;
+    results: NotificationDispatchResultDto[];
+  }> {
     return this.notificationService.sendQuizInvitationToStudents(
       dto,
       req.user?.name,
     );
-  }
-
-  private assertAdmin(req: any): void {
-    if (req.user?.role !== 'ADMIN') {
-      throw new ForbiddenException('Admin access required.');
-    }
   }
 }
