@@ -18,7 +18,8 @@ export class IsValidCorrectAnswerConstraint implements ValidatorConstraintInterf
     if (typeof correctAnswer !== 'string' || correctAnswer.trim() === '') {
       return false;
     }
-    if (object.type === QuestionType.SHORT_TEXT) {
+
+    if (object.type === QuestionType.SHORT_TEXT || object.type === QuestionType.FILL_BLANK || object.type === QuestionType.CODE_CONTEXT) {
       return correctAnswer.trim().length > 0;
     }
     if (object.type === QuestionType.TRUE_FALSE) {
@@ -38,6 +39,12 @@ export class IsValidCorrectAnswerConstraint implements ValidatorConstraintInterf
     }
     if (object.type === QuestionType.SHORT_TEXT) {
       return 'correctAnswer must be a non-empty string for SHORT_TEXT questions';
+    }
+        if (object.type === QuestionType.FILL_BLANK) {
+      return 'correctAnswer must be a non-empty string for FILL_BLANK questions';
+    }
+    if (object.type === QuestionType.CODE_CONTEXT) {
+      return 'correctAnswer must be a non-empty string for CODE_CONTEXT questions';
     }
     if (object.type === QuestionType.ESSAY) {
       return 'correctAnswer must be a string for ESSAY questions';
@@ -71,6 +78,15 @@ export class CreateQuestionDto {
 
   @Validate(IsValidCorrectAnswerConstraint)
   correctAnswer?: string;
+
+  @ValidateIf(o => o.type === QuestionType.CODE_CONTEXT)
+  @IsString()
+  @IsNotEmpty()
+  codeSnippet?: string;
+
+  @IsOptional()
+  @IsString()
+  codeLanguage?: string;
 
   @ValidateIf(o => o.type === QuestionType.MULTI_SELECT)
   @IsArray()

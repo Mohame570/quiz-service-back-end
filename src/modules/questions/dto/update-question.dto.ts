@@ -27,6 +27,14 @@ export class UpdateQuestionDto {
   @IsString({ each: true })
   correctAnswers?: string[];
 
+    @IsOptional()
+  @IsString()
+  codeSnippet?: string;
+
+  @IsOptional()
+  @IsString()
+  codeLanguage?: string;
+
   @IsOptional()
   @IsInt()
   @Min(1)

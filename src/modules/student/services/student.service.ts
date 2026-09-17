@@ -316,11 +316,13 @@ export class StudentService {
       .slice()
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map(
-        (q, idx): StudentAttemptQuestionDto => ({
+            (q, idx): StudentAttemptQuestionDto => ({
           id: q.id,
           type: q.type,
           text: q.text,
           options: q.options,
+          codeSnippet: (q as any).codeSnippet ?? null,
+          codeLanguage: (q as any).codeLanguage ?? null,
           order: idx,
         }),
       );
@@ -398,6 +400,73 @@ export class StudentService {
   // GET /api/student/attempts/:attemptId/result
   // -------------------------------------------------------------------------
 
+  async getOfficialScore(studentId: string, quizId: string) {
+    return this.orchestrator.getOfficialScore(quizId, studentId);
+  }
+
+
+  // -------------------------------------------------------------------------
+  // GET /api/student/profile
+  // -------------------------------------------------------------------------
+
+  async getProfile(studentId: string) {
+    const attempts = await this.prisma.attempt.findMany({
+      where: {
+        studentId,
+        status: { in: [AttemptStatus.SUBMITTED, AttemptStatus.TIMED_OUT] },
+      },
+      include: {
+        quiz: { select: { title: true } },
+        answers: {
+          include: { question: { select: { topic: true, tags: true } } },
+        },
+      },
+      orderBy: { submittedAt: 'desc' },
+    });
+
+    const history = attempts.map((a) => ({
+      attemptId: a.id,
+      quizId: a.quizId,
+      quizTitle: (a as any).quiz?.title ?? 'Quiz',
+      score: a.score,
+      maxScore: a.maxScore,
+      percentage:
+        a.score != null && a.maxScore
+          ? Math.round((a.score / a.maxScore) * 100 * 100) / 100
+          : null,
+      submittedAt: a.submittedAt,
+    }));
+
+    const topics = new Map<string, { correct: number; total: number }>();
+    for (const a of attempts) {
+      for (const ans of (a as any).answers ?? []) {
+        if (ans.isCorrect == null) continue;
+        const keys = new Set<string>([
+          ...((ans.question?.tags ?? []) as string[]),
+          ...(ans.question?.topic ? [ans.question.topic as string] : []),
+        ]);
+        for (const key of keys) {
+          const entry = topics.get(key) ?? { correct: 0, total: 0 };
+          entry.total += 1;
+          if (ans.isCorrect) entry.correct += 1;
+          topics.set(key, entry);
+        }
+      }
+    }
+
+    const topicSignals = [...topics.entries()]
+      .map(([topic, v]) => ({
+        topic,
+        correct: v.correct,
+        total: v.total,
+        rate: v.total > 0 ? Math.round((v.correct / v.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    return { history, topicSignals };
+  }
+
+  
   async getAttemptResult(
     studentId: string,
     attemptId: string,
@@ -538,7 +607,7 @@ export class StudentService {
 
       const textAnswer = item.textAnswer ?? null;
       const normalizedText =
-        type === QuestionType.SHORT_TEXT
+       type === QuestionType.SHORT_TEXT || type === QuestionType.FILL_BLANK || type === QuestionType.CODE_CONTEXT
           ? normalizeShortTextAnswer(textAnswer)
           : textAnswer === null
             ? null

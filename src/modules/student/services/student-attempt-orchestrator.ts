@@ -39,6 +39,10 @@ export class StudentAttemptOrchestrator {
     return this.attempts.getResult(attemptId, studentId);
   }
 
+  getOfficialScore(quizId: string, studentId: string) {
+    return this.attempts.getOfficialScore(quizId, studentId);
+  }
+
   listQuizQuestions(quizId: string) {
     return this.questions.findByQuiz(quizId);
   }

@@ -12,6 +12,9 @@ This document is the single source of truth for scoring. The backend `ScoringSer
 | **ESSAY** | `textAnswer` | `hasText ? pending : incorrect` — requires manual grading | `null` if hasText (PARTIAL), `0` if empty |
 | **MULTI_SELECT** | `selectedOptionIds: string[]` | **Exact set match**: `selected.length >0 && selected.length===correct.length && every selected ∈ correct && every correct ∈ selected` | `points` if true else `0` |
 
+| **FILL_BLANK** | `textAnswer` (string) | `normalize(textAnswer) === normalize(correctAnswer)` (trim, lowercase, collapse spaces) | `points` if true else `0` |
+| **CODE_CONTEXT** | `textAnswer` (string) + read-only `codeSnippet` display | `normalize(textAnswer) === normalize(correctAnswer)` — code block is context only, never scored | `points` if true else `0` |
+
 ## MULTI_SELECT Details
 - Authoring: `options: string[]` (≥2, unique), `correctAnswers: string[]` (≥1, unique, subset of `options`)
 - Solving: checkboxes → `selectedOptionIds`
@@ -45,3 +48,7 @@ On `POST /attempts/:id/submit` the service runs a transaction that copies `text,
 - `src/modules/attempts/services/scoring.service.ts: gradeAnswer()` — implements this matrix
 - `src/modules/attempts/services/attempts.service.ts: submit()` — snapshot transaction
 - `src/modules/questions/dto/create-question.dto.ts` — validates `correctAnswers` for MULTI_SELECT
+
+## Retake Policy
+- `Quiz.maxAttempts` (null = unlimited). `POST start` counts finalized attempts (`SUBMITTED` + `TIMED_OUT`) per student and rejects with 403 once `count >= maxAttempts`.
+- `Quiz.scoreStrategy`: `BEST` = highest `score` across finalized attempts; `LATEST` = most recent `submittedAt`. Resolved server-side in `GET /api/student/quizzes/:quizId/official-score`.

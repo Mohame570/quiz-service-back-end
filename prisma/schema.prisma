@@ -58,6 +58,8 @@ enum QuestionType {
   SHORT_TEXT
   ESSAY
   MULTI_SELECT
+  CODE_CONTEXT
+  FILL_BLANK
 }
 
 enum Difficulty {
@@ -69,6 +71,11 @@ enum Difficulty {
 enum GradingStatus {
   PARTIAL
   COMPLETE
+}
+
+enum ScoreStrategy {
+  BEST
+  LATEST
 }
 
 // -----------------------------------------------------------------------
@@ -108,6 +115,8 @@ model Attempt {
   @@index([studentId, quizId])
   @@index([status, expiresAt])
   @@map("attempts")
+
+
 }
 
 // CheatingEventLog intentionally keeps a raw attemptId (no Prisma relation).
@@ -143,6 +152,8 @@ model AttemptAnswer {
   answeredAt DateTime @default(now())
 
   /// Snapshot — frozen at submit time for immutability
+  snapshotCodeSnippet  String?
+  snapshotCodeLanguage String?
   snapshotText           String?
   snapshotOptions        String[]      @default([])
   snapshotCorrectAnswer  String?
@@ -188,6 +199,10 @@ model Quiz {
   passingScore    Int?
   startsAt        DateTime?
   endsAt          DateTime?
+    /// Max submitted attempts per student; null = unlimited.
+  maxAttempts Int?
+  /// Official score resolution when multiple attempts exist.
+  scoreStrategy ScoreStrategy @default(LATEST)
   createdById     String?
   creator         User?            @relation(fields: [createdById], references: [id])
   quizQuestions   QuizQuestion[]
@@ -257,6 +272,9 @@ model Question {
   difficulty     Difficulty   @default(MEDIUM)
   topic          String?
   tags           String[]     @default([])
+  /// For CODE_CONTEXT: read-only code block shown to the student.
+  codeSnippet  String?
+  codeLanguage String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
