@@ -28,10 +28,19 @@ export class AttemptsService {
   // Start
   // -----------------------------------------------------------------------
 
-  async start(quizId: string, studentId: string): Promise<AttemptResponseDto> {
+  async    start(quizId: string, studentId: string): Promise<AttemptResponseDto> {
     const [quiz, studentProfile] = await Promise.all([
       this.prisma.quiz.findUnique({ where: { id: quizId } }),
-      this.prisma.studentProfile.findUnique({ where: { userId: studentId } }),
+      this.prisma.studentProfile.findUnique({ 
+        where: { userId: studentId },
+        select: {
+        userId: true,
+        quizzes: {
+          where: { id: quizId },
+          select: { id: true },
+        },
+      },
+      }),
     ]);
 
     if (!quiz) {
@@ -42,10 +51,29 @@ export class AttemptsService {
       throw new ForbiddenException('Student profile not found.');
     }
 
+    if (studentProfile.quizzes.length === 0) {
+      throw new ForbiddenException(
+        'You are not assigned to this quiz.',
+      );
+    }
+    const now = new Date();
+    if (quiz.startsAt && now < quiz.startsAt) {
+      throw new ConflictException(`Quiz has not opened yet ${quiz.startsAt}`)
+    }
+
+    if (quiz.endsAt && now >= quiz.endsAt) {
+      throw new ConflictException(`Quiz window has closed`)
+    }
+
     const startedAt = new Date();
-    const expiresAt = new Date(
+    const durationDeadline = new Date(
       startedAt.getTime() + (quiz.durationMinutes ?? 30) * 60_000,
     );
+    
+    const expiresAt =
+      quiz.endsAt && quiz.endsAt < durationDeadline
+        ? quiz.endsAt
+        : durationDeadline;
 
     const attempt = await this.prisma.attempt.create({
       data: {
@@ -103,7 +131,7 @@ export class AttemptsService {
   ): Promise<AttemptAnswerResponseDto[]> {
     const attempt = await this.findAttemptOrThrow(id, studentId);
     this.assertInProgress(attempt);
-
+    await this.assertWithinAttemptWindow(attempt);
     const now = new Date();
 
     const upserts = items.map((item) =>
@@ -146,6 +174,7 @@ export class AttemptsService {
   ): Promise<AttemptResponseDto> {
     const attempt = await this.findAttemptOrThrow(id, studentId);
     this.assertInProgress(attempt);
+    await this.assertWithinAttemptWindow(attempt);
 
     const now = new Date();
 
@@ -278,6 +307,39 @@ export class AttemptsService {
         `Cannot modify a '${attempt.status.toLowerCase()}' attempt.`,
       );
     }
+  }
+
+  private async assertWithinAttemptWindow(attempt: {
+    id: string;
+    quizId: string;
+    expiresAt: Date;
+  }): Promise<void> {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: attempt.quizId },
+      select: { endsAt: true },
+    });
+
+    const deadline =
+      quiz?.endsAt && quiz.endsAt < attempt.expiresAt
+        ? quiz.endsAt
+        : attempt.expiresAt;
+
+    if (new Date() < deadline) {
+      return;
+    }
+
+    const timedOutAt = new Date();
+    await this.prisma.attempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: AttemptStatus.TIMED_OUT,
+        submittedAt: timedOutAt,
+      },
+    });
+
+    throw new ConflictException(
+      'The quiz window has closed or the attempt time has expired.',
+    );
   }
 
   // -----------------------------------------------------------------------

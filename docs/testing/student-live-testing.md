@@ -6,6 +6,27 @@
 
 This is the feature-specific live testing note for the student-facing API. It complements the static unit tests in `test/student.e2e-spec.ts` by exercising the full quiz-solving flow end-to-end against the real Docker stack.
 
+## Sprint 3 live coverage
+
+The Sprint 3 matrix is covered by `test/live/sprint3-window.live-spec.ts` using the real API, PostgreSQL, JWT guards, and MailHog:
+
+| Scenario | Expected result |
+|---|---|
+| Assigned student, active window | `201`, `IN_PROGRESS` |
+| Start before `startsAt` | `409`, no attempt created |
+| Start at/after `endsAt` | `409`, no attempt created |
+| Window closes during an attempt | Late answer save returns `409`; attempt becomes `TIMED_OUT` |
+| Unassigned student, direct attempt route | `403 Forbidden` |
+| Unassigned student, student start route | `404 Not Found` |
+| Invitation before registration | MailHog invitation, registration, verification, automatic quiz linking |
+
+Run it with:
+
+```powershell
+$env:LIVE_TESTS = "1"
+npm run test:live -- test/live/sprint3-window.live-spec.ts
+```
+
 ## What static tests already cover
 
 `test/student.e2e-spec.ts` runs in-process with a mocked `PrismaService` and mocked orchestrator. It proves:

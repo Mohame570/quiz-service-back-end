@@ -36,6 +36,12 @@ enum NotificationTemplateKey {
   QUIZ_INVITATION
 }
 
+enum InvitationStatus {
+  PENDING
+  CLAIMED
+  EXPIRED
+}
+
 enum CheatingEventType {
   TAB_HIDDEN
   WINDOW_BLUR
@@ -173,9 +179,13 @@ model EmailDeliveryLog {
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 
+  invitationId String?
+  invitation   Invitation? @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+
   @@index([status, createdAt])
   @@index([templateKey, recipientEmail])
   @@index([correlationId])
+  @@index([invitationId])
   @@map("email_delivery_logs")
 }
 
@@ -193,6 +203,7 @@ model Quiz {
   quizQuestions   QuizQuestion[]
   attempts        Attempt[]
   students        StudentProfile[]
+  invitations     Invitation[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -232,6 +243,7 @@ model User {
 
   quizzes        Quiz[]
   studentProfile StudentProfile?
+  invitations    Invitation[]
 
   @@map("users")
 }
@@ -301,4 +313,28 @@ model Result {
   @@index([quizId])
   @@index([passed])
   @@map("results")
+}
+
+model Invitation {
+  id             String           @id @default(cuid())
+  quizId         String
+  recipientEmail String
+  userId         String?
+  status         InvitationStatus @default(PENDING)
+
+  createdAt DateTime  @default(now())
+  claimedAt DateTime?
+  expiresAt DateTime?
+  updatedAt DateTime  @updatedAt
+
+  quiz Quiz  @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  emailDeliveryLogs EmailDeliveryLog[]
+
+  @@unique([quizId, recipientEmail])
+  @@index([recipientEmail, status])
+  @@index([userId, status])
+  @@index([quizId, status])
+  @@map("invitations")
 }

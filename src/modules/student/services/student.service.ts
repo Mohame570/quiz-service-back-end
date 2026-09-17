@@ -30,6 +30,7 @@ import {
   remainingSeconds,
 } from './attempt-timer.util';
 import { normalizeShortTextAnswer } from '../../attempts/utils/text-answer.util';
+import { InvitationService } from '../../auth/services/invitation.service';
 
 /// Student-facing response shape: the attempts module's full response with
 /// the student-only `expiresAt` field and the `Result` summary appended.
@@ -89,6 +90,7 @@ export class StudentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orchestrator: StudentAttemptOrchestrator,
+    private readonly invitationService: InvitationService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -183,38 +185,16 @@ export class StudentService {
     if (!quiz) {
       throw new NotFoundException('Quiz not found or not available.');
     }
-
-    const alreadyAssigned = await this.prisma.quiz.findFirst({
-      where: {
-        id: quizId,
-        students: { some: { userId: studentId } },
-      },
-      select: { id: true },
-    });
-
-    if (alreadyAssigned) {
-      return {
-        quizId: quiz.id,
-        title: quiz.title,
-        assigned: false,
-        alreadyAssigned: true,
-      };
-    }
-
-    await this.prisma.quiz.update({
-      where: { id: quizId },
-      data: {
-        students: { connect: { userId: studentId } },
-      },
-    });
+    const result = await this.prisma.$transaction((tx) =>
+      this.invitationService.claimInvitation(tx, studentId, quizId),
+  );
 
     return {
       quizId: quiz.id,
       title: quiz.title,
-      assigned: true,
-      alreadyAssigned: false,
+      ...result,
     };
-  }
+}
 
   // -------------------------------------------------------------------------
   // GET /api/student/attempts/active
@@ -280,10 +260,15 @@ export class StudentService {
     }
 
     const created = await this.orchestrator.startAttempt(quizId, studentId);
-    const expiresAt = computeExpiresAt(
+    const durationDeadline = computeExpiresAt(
       created.startedAt,
       quiz.durationMinutes ?? 30,
     );
+
+    const expiresAt =
+      quiz.endsAt && quiz.endsAt < durationDeadline
+        ? quiz.endsAt
+        : durationDeadline;
 
     await this.prisma.attempt.update({
       where: { id: created.id },
