@@ -16,6 +16,7 @@ import { StudentModule } from './modules/student/student.module';
 import { FollowUpModule } from './modules/follow-up/follow-up.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { UsersModule } from './modules/users/users.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { UsersModule } from './modules/users/users.module';
     StudentModule,
     FollowUpModule,
     UsersModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}

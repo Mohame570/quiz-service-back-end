@@ -302,3 +302,17 @@ model Result {
   @@index([passed])
   @@map("results")
 }
+// OrganizationSettings model — singleton for institutional defaults
+model OrganizationSettings {
+  id                       String   @id @default("default")
+  organizationName         String   @default("PitIQ")
+  timezoneLabel            String   @default("UTC")
+  defaultPassThreshold     Int      @default(50)
+  defaultDurationMinutes   Int      @default(60)
+  integrityReviewThreshold Int      @default(3)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("organization_settings")
+}
+
