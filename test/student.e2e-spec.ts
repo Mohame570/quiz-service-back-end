@@ -7,7 +7,11 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { PrismaService } from '../src/common/prisma/prisma.service';
-import { AttemptStatus, QuestionType, QuizStatus } from '../src/generated/prisma/client';
+import {
+  AttemptStatus,
+  QuestionType,
+  QuizStatus,
+} from '../src/generated/prisma/client';
 import { StudentAttemptOrchestrator } from '../src/modules/student/services/student-attempt-orchestrator';
 import { StudentService } from '../src/modules/student/services/student.service';
 import {
@@ -15,6 +19,7 @@ import {
   isExpired,
   remainingSeconds,
 } from '../src/modules/student/services/attempt-timer.util';
+import { InvitationService } from '../src/modules/auth/services/invitation.service';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -50,8 +55,7 @@ function makeQuiz(overrides: Partial<any> = {}): any {
 function makeAttempt(overrides: Partial<any> = {}): any {
   const startedAt = overrides.startedAt ?? new Date('2099-01-01T10:00:00Z');
   const expiresAt =
-    overrides.expiresAt ??
-    new Date(startedAt.getTime() + 30 * 60_000);
+    overrides.expiresAt ?? new Date(startedAt.getTime() + 30 * 60_000);
   return {
     id: ATTEMPT_ID,
     quizId: QUIZ_PUBLISHED_ACTIVE,
@@ -80,7 +84,7 @@ function makeOrchestratorMock() {
 }
 
 function makePrismaMock() {
-  return {
+  const prisma = {
     quiz: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -102,7 +106,23 @@ function makePrismaMock() {
     result: {
       findUnique: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn(),
+    },
+
+    studentProfile: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+
+    invitation: {
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
+  prisma.$transaction.mockImplementation((callback) => callback(prisma));
+  return prisma;
 }
 
 const RESULT_ROW = {
@@ -130,6 +150,7 @@ describe('StudentService', () => {
       providers: [
         StudentService,
         StudentAttemptOrchestrator,
+        InvitationService,
         { provide: PrismaService, useValue: prisma },
       ],
     })
@@ -211,7 +232,10 @@ describe('StudentService', () => {
 
     it('returns NOT_STARTED when no attempt exists for the student', async () => {
       prisma.quiz.findMany.mockResolvedValueOnce([
-        makeQuiz({ id: QUIZ_PUBLISHED_ACTIVE, quizQuestions: [{ questionId: 'q1' }] }),
+        makeQuiz({
+          id: QUIZ_PUBLISHED_ACTIVE,
+          quizQuestions: [{ questionId: 'q1' }],
+        }),
       ]);
       prisma.attempt.findMany.mockResolvedValueOnce([]);
 
@@ -456,16 +480,38 @@ describe('StudentService', () => {
           title: 'Active Quiz',
         })
         .mockResolvedValueOnce(null);
-      prisma.quiz.update.mockResolvedValueOnce({});
+      prisma.user.findUnique.mockResolvedValue({
+        id: STUDENT_ID,
+        email: 'student@example.com',
+      });
+
+      prisma.studentProfile.findUnique.mockResolvedValue({
+        userId: STUDENT_ID,
+        quizzes: [],
+      });
+
+      prisma.invitation.findFirst.mockResolvedValue({
+        id: 'invitation-1',
+      });
+
+      prisma.invitation.update.mockResolvedValue({});
+
+      prisma.studentProfile.update.mockResolvedValue({});
 
       const result = await service.acceptQuizInvitation(
         STUDENT_ID,
         QUIZ_PUBLISHED_ACTIVE,
       );
 
-      expect(prisma.quiz.update).toHaveBeenCalledWith({
-        where: { id: QUIZ_PUBLISHED_ACTIVE },
-        data: { students: { connect: { userId: STUDENT_ID } } },
+      expect(prisma.studentProfile.update).toHaveBeenCalledWith({
+        where: { userId: STUDENT_ID },
+        data: {
+          quizzes: {
+            connect: {
+              id: QUIZ_PUBLISHED_ACTIVE,
+            },
+          },
+        },
       });
       expect(result).toEqual({
         quizId: QUIZ_PUBLISHED_ACTIVE,
@@ -483,6 +529,21 @@ describe('StudentService', () => {
         })
         .mockResolvedValueOnce({ id: QUIZ_PUBLISHED_ACTIVE });
 
+      prisma.user.findUnique.mockResolvedValue({
+        id: STUDENT_ID,
+        email: 'student@example.com',
+      });
+
+      prisma.studentProfile.findUnique.mockResolvedValue({
+        userId: STUDENT_ID,
+        quizzes: [{ id: QUIZ_PUBLISHED_ACTIVE }],
+      });
+
+      prisma.invitation.findFirst.mockResolvedValue({
+        id: 'invitation-1',
+      });
+
+      prisma.invitation.update.mockResolvedValue({});
       const result = await service.acceptQuizInvitation(
         STUDENT_ID,
         QUIZ_PUBLISHED_ACTIVE,
@@ -727,7 +788,7 @@ describe('StudentService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('throws ForbiddenException for another student\'s attempt', async () => {
+    it("throws ForbiddenException for another student's attempt", async () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ studentId: OTHER_STUDENT_ID }),
       );
@@ -1171,7 +1232,7 @@ describe('StudentService', () => {
       expect(result.result).toBeNull();
     });
 
-    it('throws ForbiddenException for another student\'s attempt', async () => {
+    it("throws ForbiddenException for another student's attempt", async () => {
       prisma.attempt.findUnique.mockResolvedValueOnce(
         makeAttempt({ studentId: OTHER_STUDENT_ID }),
       );
@@ -1243,15 +1304,15 @@ describe('attempt-timer util', () => {
     const expiresAt = new Date(startedAt.getTime() + 30 * 60_000);
 
     it('returns true when now > expiresAt', () => {
-      expect(
-        isExpired(expiresAt, new Date(expiresAt.getTime() + 1)),
-      ).toBe(true);
+      expect(isExpired(expiresAt, new Date(expiresAt.getTime() + 1))).toBe(
+        true,
+      );
     });
 
     it('returns false when now <= expiresAt', () => {
-      expect(
-        isExpired(expiresAt, new Date(expiresAt.getTime() - 1)),
-      ).toBe(false);
+      expect(isExpired(expiresAt, new Date(expiresAt.getTime() - 1))).toBe(
+        false,
+      );
     });
   });
 

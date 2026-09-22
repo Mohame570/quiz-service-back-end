@@ -14,10 +14,10 @@ import { ScoringService } from '../src/modules/attempts/services/scoring.service
 // ---------------------------------------------------------------------------
 
 const STUDENT_ID = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
-const QUIZ_ID    = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
+const QUIZ_ID = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
 const ATTEMPT_ID = 'cccccccc-cccc-4ccc-cccc-cccccccccccc';
-const Q1_ID      = 'dddddddd-dddd-4ddd-dddd-dddddddddddd';
-const OPT1_ID    = 'eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee';
+const Q1_ID = 'dddddddd-dddd-4ddd-dddd-dddddddddddd';
+const OPT1_ID = 'eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee';
 
 function makeAttempt(overrides: Partial<any> = {}): any {
   return {
@@ -26,6 +26,7 @@ function makeAttempt(overrides: Partial<any> = {}): any {
     studentId: STUDENT_ID,
     startedAt: new Date('2026-06-01T10:00:00Z'),
     submittedAt: null,
+    expiresAt: new Date('2099-01-01T00:00:00Z'),
     status: AttemptStatus.IN_PROGRESS,
     score: null,
     maxScore: null,
@@ -86,7 +87,17 @@ describe('AttemptsService', () => {
       providers: [
         AttemptsService,
         { provide: PrismaService, useValue: prisma },
-        { provide: ScoringService, useValue: { scoreAttempt: jest.fn().mockImplementation(async (id) => prisma.attempt.findUnique({ where: { id }, include: { answers: true } })) } },
+        {
+          provide: ScoringService,
+          useValue: {
+            scoreAttempt: jest.fn().mockImplementation(async (id) =>
+              prisma.attempt.findUnique({
+                where: { id },
+                include: { answers: true },
+              }),
+            ),
+          },
+        },
       ],
     }).compile();
 
@@ -94,7 +105,10 @@ describe('AttemptsService', () => {
     scoringService = module.get(ScoringService);
 
     prisma.quiz.findUnique.mockResolvedValue({ id: QUIZ_ID });
-    prisma.studentProfile.findUnique.mockResolvedValue({ userId: STUDENT_ID });
+    prisma.studentProfile.findUnique.mockResolvedValue({
+      userId: STUDENT_ID,
+      quizzes: [{ id: QUIZ_ID }],
+    });
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -207,7 +221,9 @@ describe('AttemptsService', () => {
   describe('findOne()', () => {
     it('returns the attempt with answers', async () => {
       const answer = makeAnswer();
-      prisma.attempt.findUnique.mockResolvedValue(makeAttempt({ answers: [answer] }));
+      prisma.attempt.findUnique.mockResolvedValue(
+        makeAttempt({ answers: [answer] }),
+      );
 
       const result = await service.findOne(ATTEMPT_ID, STUDENT_ID);
 
@@ -324,7 +340,9 @@ describe('AttemptsService', () => {
       });
       prisma.attempt.findUnique.mockResolvedValue(makeAttempt());
       prisma.attempt.update.mockResolvedValue(submitted);
-      prisma.$transaction.mockImplementation(async (callback: any) => callback(prisma as any));
+      prisma.$transaction.mockImplementation(async (callback: any) =>
+        callback(prisma as any),
+      );
       (scoringService.scoreAttempt as jest.Mock).mockResolvedValue(submitted);
 
       const result = await service.submit(ATTEMPT_ID, STUDENT_ID, []);
@@ -344,7 +362,9 @@ describe('AttemptsService', () => {
       });
       prisma.attempt.findUnique.mockResolvedValue(makeAttempt({ startedAt }));
       prisma.attempt.update.mockResolvedValue(submitted);
-      prisma.$transaction.mockImplementation(async (callback: any) => callback(prisma as any));
+      prisma.$transaction.mockImplementation(async (callback: any) =>
+        callback(prisma as any),
+      );
       (scoringService.scoreAttempt as jest.Mock).mockResolvedValue(submitted);
 
       const result = await service.submit(ATTEMPT_ID, STUDENT_ID, []);
@@ -373,12 +393,17 @@ describe('AttemptsService', () => {
       });
       prisma.attempt.findUnique.mockResolvedValue(makeAttempt());
       prisma.attempt.update.mockResolvedValue(scored);
-      prisma.$transaction.mockImplementation(async (callback: any) => callback(prisma as any));
+      prisma.$transaction.mockImplementation(async (callback: any) =>
+        callback(prisma as any),
+      );
       (scoringService.scoreAttempt as jest.Mock).mockResolvedValue(scored);
 
       const result = await service.submit(ATTEMPT_ID, STUDENT_ID, []);
 
-      expect(scoringService.scoreAttempt).toHaveBeenCalledWith(ATTEMPT_ID);
+      expect(scoringService.scoreAttempt).toHaveBeenCalledWith(
+        ATTEMPT_ID,
+        prisma,
+      );
       expect(result.score).toBe(1);
       expect(result.maxScore).toBe(1);
     });
