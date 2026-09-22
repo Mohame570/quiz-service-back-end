@@ -5,52 +5,47 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 
-import { InvitationStatus} from '../../../generated/prisma/client';
+import { InvitationStatus } from '../../../generated/prisma/client';
 import { TransactionClient } from '../../../generated/prisma/internal/prismaNamespace';
 
 @Injectable()
 export class InvitationService {
-
-  constructor(
-  ) {}
+  constructor() {}
 
   async claimPendingInvitationsForUser(tx: TransactionClient, userId: string) {
     const now = new Date();
     const user = await tx.user.findUnique({
-        where: {
-            id: userId,
-        },
-        select: { id: true, email: true },
+      where: {
+        id: userId,
+      },
+      select: { id: true, email: true },
     });
     if (!user) {
-        throw new NotFoundException("404 Student account not found")
+      throw new NotFoundException('404 Student account not found');
     }
     const invitations = await tx.invitation.findMany({
-        where: {
-            status: InvitationStatus.PENDING,
-            recipientEmail: user?.email,
-            OR: [
-                { expiresAt: null },
-                { expiresAt: { gt: now } },
-            ],
-        },
-        orderBy: {
-            createdAt: 'desc',
+      where: {
+        status: InvitationStatus.PENDING,
+        recipientEmail: user?.email,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
     for (const invitation of invitations) {
-            await tx.invitation.update({
-      where: {
-        id: invitation.id,
-      },
-      data: {
-        userId: user?.id,
-        status: InvitationStatus.CLAIMED,
-        claimedAt: now,
-      },
-    });
+      await tx.invitation.update({
+        where: {
+          id: invitation.id,
+        },
+        data: {
+          userId: user?.id,
+          status: InvitationStatus.CLAIMED,
+          claimedAt: now,
+        },
+      });
 
-    await tx.studentProfile.update({
+      await tx.studentProfile.update({
         where: {
           userId: user?.id,
         },
@@ -63,14 +58,13 @@ export class InvitationService {
         },
       });
     }
-
   }
-  async claimInvitation(tx: TransactionClient, userId: string, quizId: string){
+  async claimInvitation(tx: TransactionClient, userId: string, quizId: string) {
     const user = await tx.user.findUnique({
-        where: {
-            id: userId,
-        },
-        select: { id: true, email: true },
+      where: {
+        id: userId,
+      },
+      select: { id: true, email: true },
     });
     const now = new Date();
 
@@ -89,18 +83,19 @@ export class InvitationService {
       throw new NotFoundException('Student profile not found.');
     }
     const invitation = await tx.invitation.findFirst({
-        where: {
-            quizId,
-            status: InvitationStatus.PENDING,
-            recipientEmail: user?.email,
-        },
-        orderBy: {
-            createdAt: 'desc',
+      where: {
+        quizId,
+        status: InvitationStatus.PENDING,
+        recipientEmail: user?.email,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
     if (!invitation) {
-        const claimedInvitation = await tx.invitation.findFirst({
-            where: {
+      const claimedInvitation = await tx.invitation.findFirst({
+        where: {
           quizId,
           recipientEmail: user?.email,
           status: InvitationStatus.CLAIMED,
@@ -116,7 +111,7 @@ export class InvitationService {
           alreadyAssigned: true,
         };
       }
-              const expiredInvitation = await tx.invitation.findFirst({
+      const expiredInvitation = await tx.invitation.findFirst({
         where: {
           quizId,
           recipientEmail: user?.email,
@@ -128,7 +123,6 @@ export class InvitationService {
       });
 
       if (expiredInvitation) {
-
         throw new GoneException('This quiz invitation has expired.');
       }
 
@@ -136,11 +130,6 @@ export class InvitationService {
         'You do not have an active invitation to this quiz.',
       );
     }
-        
-      console.log('Claiming invitation:', invitation.id);
-      console.log('Quiz ID:', invitation.quizId);
-      console.log('Recipient email:', invitation.recipientEmail);
-      console.log('Previous status:', invitation.status);
     // mark it as claimed
 
     await tx.invitation.update({
@@ -154,10 +143,9 @@ export class InvitationService {
       },
     });
 
-
     const alreadyAssigned = studentProfile.quizzes.length > 0;
 
-        if (!alreadyAssigned) {
+    if (!alreadyAssigned) {
       await tx.studentProfile.update({
         where: {
           userId: user?.id,
@@ -176,5 +164,5 @@ export class InvitationService {
       assigned: !alreadyAssigned,
       alreadyAssigned,
     };
-}
+  }
 }
