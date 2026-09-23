@@ -171,6 +171,11 @@ model Quiz {
   passingScore    Int?
   startsAt        DateTime?
   endsAt          DateTime?
+  /// Topic/category labels (e.g. "midterm", "arrays") used to scope the
+  /// cohort distribution view and the filtered CSV export. Defaults to
+  /// an empty array — never null — so `tags: { hasSome: [...] }` filters
+  /// behave predictably against untagged quizzes (they simply never match).
+  tags            String[]   @default([])
   createdById     String?
   creator         User?      @relation(fields: [createdById], references: [id])
   quizQuestions   QuizQuestion[]
@@ -222,9 +227,16 @@ model StudentProfile {
   userId String @id
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /// Free-text cohort/batch label (e.g. "2026-Batch-A"), used to scope
+  /// cohort distribution reporting and the filtered CSV export. Nullable —
+  /// students not yet assigned to a cohort are simply excluded when a
+  /// cohort filter is applied, never coerced into a fake bucket.
+  cohort String?
+
   attempts Attempt[]
   quizzes  Quiz[]
 
+  @@index([cohort])
   @@map("student_profiles")
 }
 
