@@ -29,11 +29,13 @@ enum EmailDeliveryStatus {
   SENT
   FAILED
   RETRYING
+  SKIPPED
 }
 
 enum NotificationTemplateKey {
   VERIFICATION
   QUIZ_INVITATION
+  QUIZ_REMINDER
 }
 
 enum InvitationStatus {

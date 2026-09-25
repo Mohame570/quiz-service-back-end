@@ -125,4 +125,19 @@ export class QuizController {
   async findAll(@Query() queryDto: QuizQueryDto): Promise<QuizListResponseDto> {
     return this.quizService.findAll(queryDto);
   }
+
+  @Get(':quizId/invitations')
+  async getInvitations(@Param('quizId') quizId: string) {
+    return this.quizService.getInvitationsForQuiz(quizId);
+  }
+
+  @Get(':quizId/reminders/preview')
+  async getRemindPreview(@Param('quizId') quizId: string) {
+    return this.quizService.getRemindPreview(quizId);
+  }
+
+  @Post(':quizId/reminders')
+  async sendReminders(@Param('quizId') quizId: string) {
+    return this.quizService.sendQuizReminders(quizId);
+  }
 }
