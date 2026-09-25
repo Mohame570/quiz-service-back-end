@@ -27,22 +27,34 @@ export class IntegrityService {
   // Admin: suspicious-attempts view
   // -----------------------------------------------------------------------
 
+  private async resolveIntegrityThreshold(threshold?: number): Promise<number> {
+    if (threshold !== undefined && threshold !== null) {
+      return threshold;
+    }
+    const settings = await this.prisma.organizationSettings.findFirst({
+      where: { id: 'default' },
+    });
+    return settings?.integrityReviewThreshold ?? 3;
+  }
+
   /**
    * Returns attempts that exceed a configurable cheating-event threshold,
    * ordered by event count descending. Each entry includes the most recent
    * events so the admin can triage without additional queries.
    */
   async getSuspiciousAttempts(
-    threshold: number = 3,
+    threshold?: number,
     quizId?: string,
   ): Promise<SuspiciousAttemptDto[]> {
+    const effectiveThreshold = await this.resolveIntegrityThreshold(threshold);
+
     // Aggregate cheating events by attemptId
     const grouped = await this.prisma.cheatingEventLog.groupBy({
       by: ['attemptId'],
       _count: { id: true },
       _max: { occurredAt: true },
       where: { attemptId: { not: '' } },
-      having: { id: { _count: { gte: threshold } } },
+      having: { id: { _count: { gte: effectiveThreshold } } },
       orderBy: { _count: { id: 'desc' } },
     });
 

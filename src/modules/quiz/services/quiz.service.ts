@@ -82,6 +82,23 @@ export class QuizService {
     }
   }
 
+  private async resolveQuizDefaults(
+    dto: CreateQuizDto,
+  ): Promise<{ durationMinutes: number; passingScore: number }> {
+    let durationMinutes = dto.durationMinutes;
+    let passingScore = dto.passingScore;
+
+    if (durationMinutes === undefined || passingScore === undefined) {
+      const settings = await this.prisma.organizationSettings.findFirst({
+        where: { id: 'default' },
+      });
+      durationMinutes ??= settings?.defaultDurationMinutes ?? 60;
+      passingScore ??= settings?.defaultPassThreshold ?? 50;
+    }
+
+    return { durationMinutes, passingScore };
+  }
+
   /**
    * Create a new quiz
    */
@@ -96,6 +113,9 @@ export class QuizService {
     const endsAt = this.parseNullableDate(createQuizDto.endsAt);
     this.ensureQuizDateRangeIsValid(startsAt, endsAt);
 
+    const { durationMinutes, passingScore } =
+      await this.resolveQuizDefaults(createQuizDto);
+
     return this.prisma.quiz.create({
       data: {
         title: createQuizDto.title,
@@ -103,9 +123,9 @@ export class QuizService {
         status: createQuizDto.status
           ? this.mapStatusToEnum(createQuizDto.status)
           : QuizStatus.DRAFT,
-        durationMinutes: createQuizDto.durationMinutes,
-        passingScore: createQuizDto.passingScore,
-         maxAttempts: createQuizDto.maxAttempts,
+        durationMinutes,
+        passingScore,
+        maxAttempts: createQuizDto.maxAttempts,
         scoreStrategy: createQuizDto.scoreStrategy,
         startsAt,
         endsAt,

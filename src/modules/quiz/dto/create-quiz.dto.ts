@@ -27,13 +27,17 @@ export class CreateQuizDto {
   @IsEnum(QuizStatusEnum)
   status!: QuizStatusEnum;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  durationMinutes!: number;
+  durationMinutes?: number;
 
+  @IsOptional()
+  @Type(() => Number)
   @IsInt()
-  passingScore!: number;
+  @Min(0)
+  passingScore?: number;
 
   @IsOptional()
   @IsDateString()
