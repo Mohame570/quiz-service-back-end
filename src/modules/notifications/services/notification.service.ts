@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   EmailDeliveryLog,
   EmailDeliveryStatus,
+  InvitationStatus,
   NotificationTemplateKey,
   Prisma,
   QuizStatus,
@@ -72,6 +73,7 @@ export class NotificationService implements NotificationServiceInterface {
       renderedTemplate,
       correlationId: input.correlationId,
       metadata: input.metadata,
+      invitationId: input.invitationId,
     });
   }
 
@@ -100,12 +102,28 @@ export class NotificationService implements NotificationServiceInterface {
     const results: NotificationDispatchResultDto[] = [];
 
     for (const email of input.recipientEmails) {
+      const invitation = await this.prisma.invitation.upsert({
+        where: {
+          quizId_recipientEmail: {
+            quizId: quiz.id,
+            recipientEmail: email,
+          },
+        },
+        create: {
+          quizId: quiz.id,
+          recipientEmail: email,
+          status: InvitationStatus.PENDING,
+        },
+        update: {},
+      });
+
       const invitationUrl = `${baseUrl}/invitation/${input.quizId}?email=${encodeURIComponent(email)}`;
       const result = await this.sendQuizInvitationEmail({
         recipientEmail: email,
         quizTitle: quiz.title,
         invitationUrl,
         invitedByName,
+        invitationId: invitation.id,
         correlationId: `invitation:${input.quizId}`,
         metadata: { quizId: input.quizId },
       });
@@ -312,6 +330,7 @@ export class NotificationService implements NotificationServiceInterface {
     renderedTemplate: RenderedEmailTemplate;
     correlationId?: string;
     metadata?: Prisma.InputJsonValue;
+    invitationId?: string;
   }): Promise<NotificationDispatchResultDto> {
     const deliveryLog = await this.prisma.emailDeliveryLog.create({
       data: {
@@ -321,6 +340,7 @@ export class NotificationService implements NotificationServiceInterface {
         status: EmailDeliveryStatus.PENDING,
         attemptCount: 0,
         ...(input.correlationId ? { correlationId: input.correlationId } : {}),
+        ...(input.invitationId ? { invitationId: input.invitationId } : {}),
         metadata: this.buildMetadata(input.renderedTemplate, input.metadata),
       },
     });

@@ -6,6 +6,8 @@ import { GradingStatus, QuestionType } from '../../../generated/prisma/client';
 import { AttemptResponseDto } from '../dto/attempt-response.dto';
 import { normalizeShortText as normalizeShortTextValue } from '../utils/text-answer.util';
 import { TransactionClient } from '../../../generated/prisma/internal/prismaNamespace';
+import { AttemptStatus } from '../../../generated/prisma/client';
+import { analyticsEvents$ } from '../../analytics/analytics.events';
 
 interface QuestionMeta {
   id: string;
@@ -521,6 +523,51 @@ export class ScoringService {
     });
 
     return this.toResponseDto(scored);
+  }
+
+  // ScoringService
+  async finalizeExpiredAttempt(
+    attemptId: string,
+  ): Promise<AttemptResponseDto | null> {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const claim = await tx.attempt.updateMany({
+        where: {
+          id: attemptId,
+          status: AttemptStatus.IN_PROGRESS,
+          expiresAt: { lte: new Date() },
+        },
+        data: {
+          status: AttemptStatus.TIMED_OUT,
+          submittedAt: new Date(),
+        },
+      });
+
+      if (claim.count === 0) {
+        return null; // someone else (cron, or another concurrent request) already finalized it
+      }
+
+      // snapshot + score, same as submit()'s success path
+      return this.scoreAttempt(attemptId, tx);
+    });
+
+    if (result) {
+      try {
+        analyticsEvents$.next({
+          type: 'attempt_submitted',
+          payload: {
+            quizId: result.quizId,
+            attemptId: result.id,
+            studentId: result.studentId,
+            score: result.score ?? null,
+            submittedAt: result.submittedAt ?? null,
+          },
+        });
+      } catch (e) {
+        this.logger.error('Failed to emit analytics event', e);
+      }
+    }
+
+    return result;
   }
 
   private toResponseDto(attempt: any): AttemptResponseDto {

@@ -28,25 +28,9 @@ export class AttemptExpirationService {
     for (const expiredAttempt of expiredAttempts) {
       try {
         // update the status first thing
-        const result = await this.prisma.$transaction(async (tx) => {
-          const claim = await tx.attempt.updateMany({
-            where: {
-              id: expiredAttempt.id,
-              status: AttemptStatus.IN_PROGRESS,
-              expiresAt: { lte: new Date() },
-            },
-            data: {
-              status: AttemptStatus.TIMED_OUT,
-              submittedAt: new Date(),
-            },
-          });
-          if (claim.count === 0) {
-            return;
-          }
-          // Score within the same transaction so status and Result
-          // are committed or rolled back together.
-          return await this.scoringService.scoreAttempt(expiredAttempt.id, tx);
-        });
+        const result = await this.scoringService.finalizeExpiredAttempt(
+          expiredAttempt.id,
+        );
 
         if (!result) {
           this.logger.log(
