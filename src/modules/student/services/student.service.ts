@@ -70,6 +70,7 @@ interface QuizRow {
   status: QuizStatus;
   durationMinutes: number | null;
   passingScore: number | null;
+  maxAttempts: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
   quizQuestions?: { questionId: string }[];
@@ -656,6 +657,7 @@ export class StudentService {
       description: quiz.description,
       durationMinutes: quiz.durationMinutes,
       passingScore: quiz.passingScore,
+      maxAttempts: quiz.maxAttempts,
       startsAt: quiz.startsAt,
       endsAt: quiz.endsAt,
       questionCount: quiz.quizQuestions?.length ?? 0,
