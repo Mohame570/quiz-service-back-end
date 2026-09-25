@@ -4,6 +4,15 @@
 **Module:** `src/modules/student/`  
 **Sprint:** 2
 
+### Sprint 3 scheduling and access additions
+
+- `startsAt` and `endsAt` are enforced by the server, not only by the client UI.
+- Starting before `startsAt` or at/after `endsAt` returns `409 Conflict`.
+- An active attempt is limited to `min(startedAt + durationMinutes, endsAt)`.
+- Answer saves and submissions after that deadline are rejected with `409 Conflict` and the attempt is marked `TIMED_OUT`.
+- An unassigned student cannot accept an invitation (`403`), cannot start through `/api/attempts` (`403`), and receives `404 Quiz not found or not available.` through the student start route.
+- Student-facing window times use the named Cairo timezone (`Cairo time / GMT+3`).
+
 > **Public API surface.** The frontend must call only `/api/auth` and `/api/student`. The `/api/attempts`, `/api/questions`, and `/api/admin/quizzes` endpoints are reserved for internal use and for the Student service's `StudentAttemptOrchestrator`.
 
 ## Endpoints

@@ -1,5 +1,25 @@
 # Notifications Live Testing (L7)
 
+## Sprint 3 invitation walkthrough
+
+The live Sprint 3 spec verifies:
+
+```text
+Admin sends quiz invitation
+  -> MailHog receives the invitation email
+  -> prospective student registers with that email
+  -> MailHog receives the verification email
+  -> student verifies the account
+  -> pending invitation is claimed and the quiz appears for the student
+```
+
+Automated coverage is in `test/live/sprint3-window.live-spec.ts`:
+
+```powershell
+$env:LIVE_TESTS = "1"
+npm run test:live -- test/live/sprint3-window.live-spec.ts
+```
+
 **Owner:** Mohamed Waleed (L7)  
 **Module:** `src/modules/notifications/`  
 **General guide:** `docs/testing/live-server-testing.md`

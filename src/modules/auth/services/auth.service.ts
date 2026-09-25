@@ -19,7 +19,7 @@ import { AuthResult, SafeUser } from '../types/auth.types';
 import { randomUUID } from 'crypto';
 import { NotFoundException } from '@nestjs/common';
 import { NotificationService } from '../../notifications/services/notification.service';
-
+import { InvitationService } from './invitation.service';
 type JwtPayload = {
   sub: string;
   email: string;
@@ -34,7 +34,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-
+    private readonly invitationService: InvitationService,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -187,8 +187,8 @@ export class AuthService {
     throw new UnauthorizedException('invalid or expired verification token');
   }
 
-  // 5. Update user as verified
-  await this.prisma.user.update({
+  return this.prisma.$transaction(async (tx) => {
+    await tx.user.update({
     where: { id: user.id },
     data: {
       emailVerified: true,
@@ -196,8 +196,9 @@ export class AuthService {
       verificationTokenExpiresAt: null,
     },
   });
-
+  await this.invitationService.claimPendingInvitationsForUser(tx, user.id);
   return { success: true };
+  })
 }
 
 async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean; retryAfter?: number }> {
