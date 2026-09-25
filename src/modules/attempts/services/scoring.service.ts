@@ -242,7 +242,9 @@ export class ScoringService {
           pointsEarned: isCorrect ? effective.points : 0,
         };
       }
-      case QuestionType.SHORT_TEXT: {
+       case QuestionType.SHORT_TEXT:
+      case QuestionType.FILL_BLANK:
+      case QuestionType.CODE_CONTEXT: {
         const isCorrect = this.compareShortText(
           answer.textAnswer,
           effective.correctAnswer,
@@ -306,6 +308,8 @@ export class ScoringService {
         correctAnswer: true,
         correctAnswers: true,
         points: true,
+        codeSnippet: true,
+        codeLanguage: true,
       },
     });
 
@@ -339,6 +343,8 @@ export class ScoringService {
           snapshotCorrectAnswer: question.correctAnswer,
           snapshotCorrectAnswers: question.correctAnswers ?? [],
           snapshotPoints: question.points,
+           snapshotCodeSnippet: question.codeSnippet,
+          snapshotCodeLanguage: question.codeLanguage,
         },
       });
     }

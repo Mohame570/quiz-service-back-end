@@ -125,6 +125,8 @@ export class QuizService {
           : QuizStatus.DRAFT,
         durationMinutes,
         passingScore,
+        maxAttempts: createQuizDto.maxAttempts,
+        scoreStrategy: createQuizDto.scoreStrategy,
         startsAt,
         endsAt,
         createdById: userId,
@@ -177,6 +179,12 @@ export class QuizService {
         }),
         ...(updateQuizDto.passingScore !== undefined && {
           passingScore: updateQuizDto.passingScore,
+        }),
+                ...(updateQuizDto.maxAttempts !== undefined && {
+          maxAttempts: updateQuizDto.maxAttempts,
+        }),
+        ...(updateQuizDto.scoreStrategy !== undefined && {
+          scoreStrategy: updateQuizDto.scoreStrategy,
         }),
         ...(updateQuizDto.startsAt !== undefined && {
           startsAt,
@@ -326,6 +334,8 @@ export class QuizService {
         passingScore: original.passingScore,
         startsAt: original.startsAt,
         endsAt: original.endsAt,
+        maxAttempts: original.maxAttempts,
+        scoreStrategy: original.scoreStrategy,
         createdById: original.createdById,
         quizQuestions: {
           create: original.quizQuestions.map((qq) => ({

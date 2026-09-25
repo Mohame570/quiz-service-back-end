@@ -45,6 +45,15 @@ export class StudentController {
     return this.studentService.listQuizzesForStudent(req.user.sub);
   }
 
+
+    // -------------------------------------------------------------------------
+  // GET /api/student/profile
+  // -------------------------------------------------------------------------
+
+  @Get('profile')
+  async getProfile(@Request() req: any) {
+    return this.studentService.getProfile(req.user.sub);
+  }
   // -------------------------------------------------------------------------
   // GET /api/student/quizzes/:quizId
   // -------------------------------------------------------------------------
@@ -56,7 +65,17 @@ export class StudentController {
   ): Promise<StudentQuizInstructionsDto> {
     return this.studentService.getQuizInstructions(req.user.sub, quizId);
   }
+  // -------------------------------------------------------------------------
+  // GET /api/student/quizzes/:quizId/official-score
+  // -------------------------------------------------------------------------
 
+  @Get('quizzes/:quizId/official-score')
+  async getOfficialScore(
+    @Param('quizId') quizId: string,
+    @Request() req: any,
+  ) {
+    return this.studentService.getOfficialScore(req.user.sub, quizId);
+  }
   // -------------------------------------------------------------------------
   // POST /api/student/quizzes/:quizId/accept-invitation
   // -------------------------------------------------------------------------

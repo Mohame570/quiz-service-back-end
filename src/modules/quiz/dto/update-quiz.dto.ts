@@ -11,7 +11,7 @@ import {
 import { Transform, Type } from 'class-transformer';
 import { QuizDateRangeConstraint } from './quiz-date-range.validator';
 import { QuizStatusEnum } from './quiz-status.enum';
-
+import { ScoreStrategy } from '../../../generated/prisma/client';
 export class UpdateQuizDto {
   @IsOptional()
   @IsString()
@@ -51,4 +51,14 @@ export class UpdateQuizDto {
   @IsOptional()
   @IsString()
   createdById?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  maxAttempts?: number;
+
+  @IsOptional()
+  @IsEnum(ScoreStrategy)
+  scoreStrategy?: ScoreStrategy;
 }

@@ -82,6 +82,7 @@ function setupRecalculateMocks(
   prisma.quiz.findUnique.mockResolvedValue({ passingScore: 50 });
   prisma.result.upsert.mockResolvedValue({});
   prisma.$transaction.mockResolvedValue([]);
+  prisma.attempt.findUnique.mockResolvedValue(scoredAttempt);
 }
 
 function setupScoreMocks(
@@ -101,7 +102,7 @@ function setupScoreMocks(
   prisma.attemptAnswer.update.mockResolvedValue({});
   prisma.attempt.update.mockResolvedValue(scoredAttempt);
   prisma.result.upsert.mockResolvedValue({});
-
+  
   prisma.$transaction.mockImplementation(async (operations: any) => {
     return Promise.all(operations);
   });
@@ -194,12 +195,12 @@ describe('ScoringService', () => {
     });
 
     it('scores 0/0 when no answers were submitted', async () => {
+      const emptyScored = makeAttempt({ answers: [], score: 0, maxScore: 0 });
+      
       prisma.attempt.findUnique
         .mockResolvedValueOnce(makeAttempt({ answers: [] }))
-        .mockResolvedValueOnce(makeAttempt({ answers: [] }))
-        .mockResolvedValueOnce(
-          makeAttempt({ answers: [], score: 0, maxScore: 0 }),
-        );
+        .mockResolvedValueOnce(emptyScored);
+      
       prisma.question.findMany.mockResolvedValue([]);
       prisma.quiz.findUnique.mockResolvedValue({ passingScore: 50 });
       prisma.$transaction.mockResolvedValue([]);

@@ -51,6 +51,21 @@ export class AttemptsService {
       throw new ForbiddenException('Student profile not found.');
     }
 
+    if (quiz.maxAttempts != null) {
+      const consumed = await this.prisma.attempt.count({
+        where: {
+          quizId,
+          studentId,
+          status: { in: [AttemptStatus.SUBMITTED, AttemptStatus.TIMED_OUT] },
+        },
+      });
+      if (consumed >= quiz.maxAttempts) {
+        throw new ForbiddenException(
+          `Attempt limit reached (${quiz.maxAttempts}).`,
+        );
+      }
+    }
+
     if (studentProfile.quizzes.length === 0) {
       throw new ForbiddenException('You are not assigned to this quiz.');
     }
@@ -84,6 +99,45 @@ export class AttemptsService {
       include: { answers: true },
     });
     return this.toResponseDto(attempt);
+  }
+
+    // -----------------------------------------------------------------------
+  // Official score (BEST vs LATEST)
+  // -----------------------------------------------------------------------
+
+  async getOfficialScore(quizId: string, studentId: string) {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { scoreStrategy: true },
+    });
+    if (!quiz) throw new NotFoundException('Quiz not found.');
+
+    const attempts = await this.prisma.attempt.findMany({
+      where: {
+        quizId,
+        studentId,
+        status: { in: [AttemptStatus.SUBMITTED, AttemptStatus.TIMED_OUT] },
+        score: { not: null },
+      },
+      orderBy: { submittedAt: 'desc' },
+    });
+
+    if (attempts.length === 0) {
+      return { quizId, strategy: quiz.scoreStrategy, officialScore: null, attemptId: null, attemptsCount: 0 };
+    }
+
+    const official =
+      quiz.scoreStrategy === 'BEST'
+        ? attempts.reduce((a, b) => (b.score! > a.score! ? b : a))
+        : attempts[0]; // LATEST — newest first
+
+    return {
+      quizId,
+      strategy: quiz.scoreStrategy,
+      officialScore: official.score,
+      attemptId: official.id,
+      attemptsCount: attempts.length,
+    };
   }
 
   // -----------------------------------------------------------------------
@@ -228,6 +282,8 @@ export class AttemptsService {
               snapshotCorrectAnswers: q.correctAnswers ?? [],
               snapshotType: q.type,
               snapshotPoints: q.points,
+              snapshotCodeSnippet: q.codeSnippet ?? null,
+              snapshotCodeLanguage: q.codeLanguage ?? null,
             },
           });
         }

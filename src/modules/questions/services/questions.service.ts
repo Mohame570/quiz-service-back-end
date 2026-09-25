@@ -30,14 +30,22 @@ export class QuestionsService {
       const uniqueCorrect = new Set((data as any).correctAnswers);
       if (uniqueCorrect.size !== (data as any).correctAnswers.length) throw new BadRequestException('correctAnswers must be unique');
       for (const ans of (data as any).correctAnswers) if (!data.options.includes(ans)) throw new BadRequestException(`correctAnswer "${ans}" must be one of the options`);
+   
+
+    } else if (data.type === QuestionType.CODE_CONTEXT) {
+      if (!data.codeSnippet || !data.codeSnippet.trim()) throw new BadRequestException('CODE_CONTEXT must include a non-empty codeSnippet');
+      if (!data.correctAnswer || !data.correctAnswer.trim()) throw new BadRequestException('correctAnswer must be a non-empty string for CODE_CONTEXT questions');
+    } else if (data.type === QuestionType.FILL_BLANK) {
+      if (!data.correctAnswer || !data.correctAnswer.trim()) throw new BadRequestException('correctAnswer must be a non-empty string for FILL_BLANK questions');
     }
+
     let correctAnswer = data.correctAnswer ?? '';
-    if (data.type === QuestionType.SHORT_TEXT) {
-      if (!correctAnswer.trim()) throw new BadRequestException('correctAnswer must be a non-empty string for SHORT_TEXT questions');
-      correctAnswer = normalizeShortText(correctAnswer);
+    if (data.type === QuestionType.SHORT_TEXT || data.type === QuestionType.FILL_BLANK || data.type === QuestionType.CODE_CONTEXT) {
+      if (!correctAnswer.trim()) throw new BadRequestException(`correctAnswer must be a non-empty string for ${data.type} questions`);      correctAnswer = normalizeShortText(correctAnswer);
     }
     const question = await this.prisma.question.create({
       data: {
+        codeSnippet: data.codeSnippet, codeLanguage: data.codeLanguage,
         type: data.type, text: data.text, options: data.options || [], correctAnswer, points: data.points ?? 1,
         correctAnswers: (data as any).correctAnswers ?? [], difficulty: data.difficulty ?? Difficulty.MEDIUM, topic: data.topic, tags: data.tags ?? [],
         quizQuestions: data.quizIds?.length ? { create: data.quizIds.map((quizId, index) => ({ quizId, order: index })) } : undefined
@@ -55,8 +63,10 @@ export class QuestionsService {
     const merged = {
       type: data.type ?? question.type, text: data.text ?? question.text, options: data.options ?? question.options,
       correctAnswer: data.correctAnswer ?? question.correctAnswer, correctAnswers: (data as any).correctAnswers ?? (question as any).correctAnswers,
+       codeSnippet: data.codeSnippet ?? (question as any).codeSnippet, codeLanguage: data.codeLanguage ?? (question as any).codeLanguage,
     };
     if (merged.type === QuestionType.TRUE_FALSE) {
+  
       merged.options = ['True', 'False'];
       if (merged.correctAnswer !== 'True' && merged.correctAnswer !== 'False') throw new BadRequestException('correctAnswer must be "True" or "False" for TRUE_FALSE questions');
     } else if (merged.type === QuestionType.MCQ) {
@@ -70,6 +80,13 @@ export class QuestionsService {
       if (!Array.isArray(ca) || ca.length < 1) throw new BadRequestException('MULTI_SELECT must have at least 1 correct answer');
       if (new Set(ca).size !== ca.length) throw new BadRequestException('correctAnswers must be unique');
       for (const a of ca) if (!merged.options.includes(a)) throw new BadRequestException(`correctAnswer "${a}" must be one of the options`);
+          } else if (merged.type === QuestionType.CODE_CONTEXT) {
+      if (!(merged as any).codeSnippet || !(merged as any).codeSnippet.trim()) throw new BadRequestException('CODE_CONTEXT must include a non-empty codeSnippet');
+      if (!merged.correctAnswer.trim()) throw new BadRequestException('correctAnswer must be a non-empty string for CODE_CONTEXT questions');
+      merged.correctAnswer = normalizeShortText(merged.correctAnswer);
+    } else if (merged.type === QuestionType.FILL_BLANK) {
+      if (!merged.correctAnswer.trim()) throw new BadRequestException('correctAnswer must be a non-empty string for FILL_BLANK questions');
+      merged.correctAnswer = normalizeShortText(merged.correctAnswer);
     } else if (merged.type === QuestionType.SHORT_TEXT) {
       if (!merged.correctAnswer.trim()) throw new BadRequestException('correctAnswer must be a non-empty string for SHORT_TEXT questions');
       merged.correctAnswer = normalizeShortText(merged.correctAnswer);
@@ -78,6 +95,7 @@ export class QuestionsService {
       where: { id }, data: {
         type: data.type, text: data.text, options: data.options,
         correctAnswer: data.correctAnswer !== undefined || data.type !== undefined ? merged.correctAnswer : undefined,
+         codeSnippet: data.codeSnippet, codeLanguage: data.codeLanguage,
         points: data.points, difficulty: data.difficulty, topic: data.topic, tags: data.tags, correctAnswers: (data as any).correctAnswers,
       }, include: { quizQuestions: { include: { quiz: true } } }
     });
