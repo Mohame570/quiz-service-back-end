@@ -17,6 +17,14 @@ export interface NotificationServiceInterface {
     input: SendQuizInvitationEmailDto,
   ): Promise<NotificationDispatchResultDto>;
 
+  sendQuizReminderEmail(
+    input: any,
+  ): Promise<NotificationDispatchResultDto>;
+
+  sendPasswordResetEmail(
+    input: any,
+  ): Promise<NotificationDispatchResultDto>;
+
   /** @deprecated Use sendVerificationEmail — kept for Sprint 1 callers */
   queueVerificationEmail(
     input: SendVerificationEmailDto,

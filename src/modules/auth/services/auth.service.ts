@@ -1,9 +1,11 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
   HttpException,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -15,15 +17,18 @@ import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { ResendVerificationDto } from '../dto/resend-verification.dto';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { AuthResult, SafeUser } from '../types/auth.types';
-import { randomUUID } from 'crypto';
-import { NotFoundException } from '@nestjs/common';
+import { randomUUID, randomBytes, createHash } from 'crypto';
 import { NotificationService } from '../../notifications/services/notification.service';
 import { InvitationService } from './invitation.service';
+
 type JwtPayload = {
   sub: string;
   email: string;
   role: User['role'];
+  tokenVersion?: number;
 };
 
 @Injectable()
@@ -111,11 +116,26 @@ export class AuthService {
     return this.buildAuthResult(user);
   }
 
-  async login(dto: LoginDto): Promise<AuthResult> {
+  async login(
+    dto: LoginDto,
+    metadata?: { ipAddress?: string; userAgent?: string },
+  ): Promise<AuthResult> {
     const user = await this.validateUser(dto.email, dto.password);
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    try {
+      await this.prisma.signInActivity.create({
+        data: {
+          userId: user.id,
+          ipAddress: metadata?.ipAddress,
+          userAgent: metadata?.userAgent,
+        },
+      });
+    } catch {
+      // Non-blocking telemetry
     }
 
     return this.buildAuthResult(user);
@@ -260,6 +280,109 @@ async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean
   return { success: true };
 }
 
+  private buildPasswordResetUrl(token: string): string {
+    const rawBase =
+      this.configService.get<string>('frontend.baseUrl') ??
+      this.configService.get<string>('FRONTEND_BASE_URL') ??
+      'http://localhost:3000';
+    const baseUrl = rawBase.replace(/\/+$/, '');
+    return `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    const genericResponse = {
+      message:
+        'If an account exists for this email, a password reset link has been sent.',
+    };
+
+    if (!user || !user.isActive) {
+      return genericResponse;
+    }
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await this.prisma.$transaction([
+      this.prisma.passwordResetToken.deleteMany({
+        where: { userId: user.id, usedAt: null },
+      }),
+      this.prisma.passwordResetToken.create({
+        data: {
+          tokenHash,
+          userId: user.id,
+          expiresAt,
+        },
+      }),
+    ]);
+
+    await this.notificationService.sendPasswordResetEmail({
+      recipientEmail: user.email,
+      recipientName: user.name ?? undefined,
+      resetUrl: this.buildPasswordResetUrl(rawToken),
+      expiresInMinutes: 60,
+    });
+
+    return genericResponse;
+  }
+
+  async resetPassword(
+    dto: ResetPasswordDto,
+  ): Promise<{ success: boolean; message: string }> {
+    const tokenHash = createHash('sha256').update(dto.token).digest('hex');
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (!resetToken) {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    if (resetToken.usedAt !== null) {
+      throw new BadRequestException(
+        'This password reset token has already been used',
+      );
+    }
+
+    if (resetToken.expiresAt < new Date()) {
+      throw new BadRequestException('Password reset token has expired');
+    }
+
+    if (!resetToken.user || !resetToken.user.isActive) {
+      throw new BadRequestException('User account is invalid or deactivated');
+    }
+
+    const passwordHash = await this.hashPassword(dto.newPassword);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: resetToken.userId },
+        data: {
+          passwordHash,
+          tokenVersion: { increment: 1 },
+        },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: {
+          usedAt: new Date(),
+        },
+      }),
+    ]);
+
+    return {
+      success: true,
+      message:
+        'Password has been reset successfully. Please sign in with your new password.',
+    };
+  }
+
   private async buildAuthResult(user: User): Promise<AuthResult> {
     const tokens = await this.createTokens(user);
 
@@ -274,6 +397,7 @@ async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean
       sub: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
     };
 
     const expiresIn = (this.configService.get<string>(

@@ -20,10 +20,7 @@ export class InvitationService {
   constructor(private readonly prisma: PrismaService) {}
 
   @Cron(CronExpression.EVERY_30_MINUTES)
-  async expireStaleInvitations() {
-    // you can simply treat an unaccepted invite as expired once the quiz's `endsAt` has passed.
-    // find the quiz for each invitation
-    // see if the quiz expires then invitation is expired.
+  async expireStaleInvitations(): Promise<number> {
     const now = new Date();
     const closedQuizIds = await this.prisma.quiz.findMany({
       where: {
@@ -36,7 +33,6 @@ export class InvitationService {
     });
 
     if (closedQuizIds.length === 0) {
-      this.logger.log('there is no closed quizes .. ');
       return 0;
     }
 
@@ -48,7 +44,7 @@ export class InvitationService {
       data: { status: InvitationStatus.EXPIRED },
     });
 
-    this.logger.log(`Expired Invitations ${count}`);
+    this.logger.log(`Expired ${count} stale invitations.`);
     return count;
   }
 
@@ -59,11 +55,12 @@ export class InvitationService {
     now = new Date(),
   ): boolean {
     if (invitationStatus === InvitationStatus.CLAIMED) return false;
+    if (invitationStatus === InvitationStatus.EXPIRED) return true;
 
     if (quizEndsAt && quizEndsAt <= now) return true;
 
     if (
-      (quizStatus && quizStatus === QuizStatus.ARCHIVED) ||
+      quizStatus === QuizStatus.ARCHIVED ||
       quizStatus === QuizStatus.CLOSED
     ) {
       return true;
@@ -74,35 +71,37 @@ export class InvitationService {
   async getEligibleRecipientsForQuiz(
     quizId: string,
   ): Promise<EligibleRecipient[]> {
-    // get invtiations that has quiz Id == quiz Id, status is Pending, not expired
-    // get invitaions for a specific quiz and where its status is pending , not expired is null.
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { id: true, status: true, endsAt: true },
+    });
+    if (!quiz) throw new NotFoundException(`Quiz '${quizId}' not found`);
 
-    const quiz = await this.prisma.quiz.findUnique({ where: { id: quizId } });
-    if (!quiz) throw new NotFoundException('Quiz not found');
-
+    const now = new Date();
     if (
-      (quiz.endsAt && quiz.endsAt <= new Date()) ||
-      quiz.status === QuizStatus.CLOSED ||
-      quiz.status === QuizStatus.ARCHIVED
+      quiz.status !== QuizStatus.PUBLISHED ||
+      (quiz.endsAt && quiz.endsAt <= now)
     ) {
-      return [] as EligibleRecipient[];
+      return [];
     }
 
     const invitations = await this.prisma.invitation.findMany({
       where: {
         quizId,
         status: InvitationStatus.PENDING,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: now } },
+        ],
       },
       select: { recipientEmail: true, id: true },
       orderBy: { createdAt: 'asc' },
     });
 
-    return invitations.map((i) => {
-      return {
-        invitationId: i.id,
-        recipientEmail: i.recipientEmail,
-      };
-    });
+    return invitations.map((i) => ({
+      invitationId: i.id,
+      recipientEmail: i.recipientEmail,
+    }));
   }
 
   async claimPendingInvitationsForUser(tx: TransactionClient, userId: string) {

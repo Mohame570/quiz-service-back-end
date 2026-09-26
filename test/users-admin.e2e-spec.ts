@@ -54,6 +54,24 @@ describe('Users admin endpoints (e2e)', () => {
         return Promise.resolve({ ...found, ...data });
       }),
     },
+    signInActivity: {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'act-1',
+          userId: 'admin-1',
+          ipAddress: '127.0.0.1',
+          userAgent: 'Mozilla/5.0',
+          signedInAt: new Date('2026-09-26T20:00:00Z'),
+          user: {
+            id: 'admin-1',
+            email: 'admin@example.com',
+            name: 'Admin Boss',
+            role: UserRole.ADMIN,
+          },
+        },
+      ]),
+      count: jest.fn().mockResolvedValue(1),
+    },
     $transaction: jest.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
   };
 
@@ -185,6 +203,22 @@ describe('Users admin endpoints (e2e)', () => {
         .patch('/api/admin/users/non-existent-id/status')
         .send({ isActive: false })
         .expect(404);
+    });
+  });
+
+  describe('GET /api/admin/users/sign-in-activity', () => {
+    it('returns paginated list of sign-in activities', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/admin/users/sign-in-activity?page=1&pageSize=10')
+        .expect(200);
+
+      expect(res.body).toHaveProperty('items');
+      expect(res.body.items).toHaveLength(1);
+      expect(res.body.items[0]).toHaveProperty('userEmail', 'admin@example.com');
+      expect(res.body.items[0]).toHaveProperty('ipAddress', '127.0.0.1');
+      expect(res.body).toHaveProperty('total', 1);
+      expect(res.body).toHaveProperty('page', 1);
+      expect(res.body).toHaveProperty('pageSize', 10);
     });
   });
 });

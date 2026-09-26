@@ -112,4 +112,65 @@ export class UsersService {
 
     return updatedUser;
   }
+
+  /**
+   * List recent sign-in events with user identity and timestamps.
+   */
+  async getSignInActivity(params: { page?: number; pageSize?: number }): Promise<{
+    items: {
+      id: string;
+      userId: string;
+      userEmail: string;
+      userName: string | null;
+      userRole: UserRole;
+      ipAddress: string | null;
+      userAgent: string | null;
+      signedInAt: Date;
+    }[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.max(1, Math.min(100, params.pageSize ?? 20));
+    const skip = (page - 1) * pageSize;
+
+    const [activities, total] = await this.prisma.$transaction([
+      this.prisma.signInActivity.findMany({
+        skip,
+        take: pageSize,
+        orderBy: { signedInAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              email: true,
+              name: true,
+              role: true,
+            },
+          },
+        },
+      }),
+      this.prisma.signInActivity.count(),
+    ]);
+
+    const items = activities.map((activity) => ({
+      id: activity.id,
+      userId: activity.userId,
+      userEmail: activity.user.email,
+      userName: activity.user.name,
+      userRole: activity.user.role,
+      ipAddress: activity.ipAddress,
+      userAgent: activity.userAgent,
+      signedInAt: activity.signedInAt,
+    }));
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize) || 1,
+    };
+  }
 }

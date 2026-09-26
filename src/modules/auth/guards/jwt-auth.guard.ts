@@ -6,57 +6,70 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../../common/prisma/prisma.service';
 
 type JwtPayload = {
   sub: string;
   email: string;
   role: string;
+  tokenVersion?: number;
 };
 
 /**
  * JwtAuthGuard
  * -------------------------
- * This guard checks if the request contains a valid JWT token.
- * It verifies the token, extracts the user data (sub, email, role),
- * and attaches it to `request.user` so it can be used in controllers.
- * If the token is missing, invalid, or expired, the request is rejected.
+ * Verifies JWT tokens, ensures the user is active, and verifies that the token's
+ * version matches the current user tokenVersion. If a password reset has occurred,
+ * older sessions are immediately rejected.
  */
-
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
-    // 1. Extract Authorization header
     const authHeader = request.headers.authorization;
-
     if (!authHeader) {
       throw new UnauthorizedException('Missing Authorization header');
     }
 
-    // 2. Extract token from "Bearer <token>"
     const [type, token] = authHeader.split(' ');
-
     if (type !== 'Bearer' || !token) {
       throw new UnauthorizedException('Invalid Authorization format');
     }
 
     try {
-      // 3. Verify token
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.configService.get<string>('jwt.secret'),
       });
 
-      // 4. Attach user to request
-      request.user = payload;
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, isActive: true, tokenVersion: true },
+      });
 
+      if (!user || !user.isActive) {
+        throw new UnauthorizedException('User account is inactive or not found');
+      }
+
+      if (
+        payload.tokenVersion !== undefined &&
+        payload.tokenVersion !== user.tokenVersion
+      ) {
+        throw new UnauthorizedException('Session has expired. Please sign in again.');
+      }
+
+      request.user = payload;
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid or expired token');
     }
   }

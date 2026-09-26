@@ -33,12 +33,14 @@ import {
   InvitationStatusDto,
 } from '../dto/delivery-summary.dto';
 import { SendQuizReminderEmailDto } from '../dto/send-quiz-invitation-reminder-email';
+import { renderQuizReminderEmailTemplate } from '../templates/quiz-invitation-reminder-email.template';
+import { SendPasswordResetEmailDto } from '../dto/send-password-reset-email.dto';
+import { renderPasswordResetEmailTemplate } from '../templates/password-reset-email.template';
+
 interface StoredRenderedContent {
   html: string;
   text: string;
 }
-
-import { renderQuizReminderEmailTemplate } from '../templates/quiz-invitation-reminder-email.template';
 
 @Injectable()
 export class NotificationService implements NotificationServiceInterface {
@@ -89,6 +91,20 @@ export class NotificationService implements NotificationServiceInterface {
       correlationId: input.correlationId,
       metadata: input.metadata,
       invitationId: input.invitationId,
+    });
+  }
+
+  async sendPasswordResetEmail(
+    input: SendPasswordResetEmailDto,
+  ): Promise<NotificationDispatchResultDto> {
+    const renderedTemplate = renderPasswordResetEmailTemplate(input);
+
+    return this.dispatchEmail({
+      recipientEmail: input.recipientEmail,
+      templateKey: NotificationTemplateKey.PASSWORD_RESET,
+      renderedTemplate,
+      correlationId: input.correlationId,
+      metadata: input.metadata,
     });
   }
   async sendQuizInvitationToStudents(
@@ -167,10 +183,17 @@ export class NotificationService implements NotificationServiceInterface {
         results.push(result);
       } else {
         results.push({
+          deliveryLogId: '',
           status: EmailDeliveryStatus.SKIPPED,
-          recipientEmail: email,
-          reason: 'already_claimed',
-        } as any);
+          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+          subject: `Invitation: ${quiz.title}`,
+          html: '',
+          text: '',
+          errorMessage: 'Skipped: recipient already claimed invitation',
+          providerMessageId: null,
+          deliveredAt: null,
+          attemptCount: 0,
+        });
       }
     }
 

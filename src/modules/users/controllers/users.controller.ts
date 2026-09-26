@@ -33,6 +33,21 @@ export class UsersController {
   }
 
   /**
+   * GET /api/admin/users/sign-in-activity
+   * Returns recent sign-in events with user identity and timestamps
+   */
+  @Get('sign-in-activity')
+  async getSignInActivity(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.usersService.getSignInActivity({
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    });
+  }
+
+  /**
    * PATCH /api/admin/users/:id/status
    * Activate or deactivate a user account (students only, self-deactivation prevented)
    */

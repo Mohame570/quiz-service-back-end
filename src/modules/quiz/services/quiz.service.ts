@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateQuizDto } from '../dto/create-quiz.dto';
@@ -15,16 +16,19 @@ import {
   QuizQuestion,
   QuizStatus,
   Prisma,
+  InvitationStatus,
+  EmailDeliveryStatus,
+  NotificationTemplateKey,
 } from '../../../generated/prisma/client';
 import { QuestionsService } from '../../questions/services/questions.service';
-import { InvitationStatus } from '../../../generated/prisma/client';
 import { InvitationService } from '../../auth/services/invitation.service';
 import { ConfigService } from '@nestjs/config';
-import { EmailDeliveryStatus } from '../../../generated/prisma/client';
 import { NotificationService } from '../../notifications/services/notification.service';
 
 @Injectable()
 export class QuizService {
+  private readonly logger = new Logger(QuizService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly questionsService: QuestionsService,
@@ -300,43 +304,80 @@ export class QuizService {
   }
 
   /**
-   * get Invitations for a quiz
+   * Get all invitations for a quiz with real-time status resolution.
    */
   async getInvitationsForQuiz(quizId: string): Promise<
     {
+      id: string;
       recipientEmail: string;
       status: InvitationStatus;
       createdAt: Date;
+      claimedAt: Date | null;
+      expiresAt: Date | null;
     }[]
   > {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { id: true, endsAt: true, status: true },
+    });
+    if (!quiz) {
+      throw new NotFoundException(`Quiz '${quizId}' not found.`);
+    }
+
     const invitations = await this.prisma.invitation.findMany({
-      where: {
-        quizId: quizId,
-      },
+      where: { quizId },
       select: {
+        id: true,
         recipientEmail: true,
         status: true,
         createdAt: true,
+        claimedAt: true,
+        expiresAt: true,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     });
 
-    const statusOrder: Record<InvitationStatus, number> = {
-      PENDING: 0,
-      CLAIMED: 1,
-      EXPIRED: 2,
+    const now = new Date();
+    const isQuizExpired =
+      (quiz.endsAt && quiz.endsAt <= now) ||
+      quiz.status === QuizStatus.CLOSED ||
+      quiz.status === QuizStatus.ARCHIVED;
+
+    const mapped = invitations.map((inv) => {
+      let accurateStatus: InvitationStatus = inv.status;
+      if (inv.status === InvitationStatus.PENDING) {
+        if (isQuizExpired || (inv.expiresAt && inv.expiresAt <= now)) {
+          accurateStatus = InvitationStatus.EXPIRED;
+        }
+      }
+      return {
+        id: inv.id,
+        recipientEmail: inv.recipientEmail,
+        status: accurateStatus,
+        createdAt: inv.createdAt,
+        claimedAt: inv.claimedAt,
+        expiresAt: inv.expiresAt,
+      };
+    });
+
+    const statusPriority: Record<InvitationStatus, number> = {
+      [InvitationStatus.PENDING]: 0,
+      [InvitationStatus.CLAIMED]: 1,
+      [InvitationStatus.EXPIRED]: 2,
     };
 
-    return invitations.sort(
+    return mapped.sort(
       (a, b) =>
-        statusOrder[a.status] - statusOrder[b.status] ||
+        statusPriority[a.status] - statusPriority[b.status] ||
         b.createdAt.getTime() - a.createdAt.getTime(),
     );
   }
 
-  async getRemindPreview(quizId: string) {
+  async getRemindPreview(quizId: string): Promise<{
+    quizId: string;
+    count: number;
+    recipients: string[];
+  }> {
     const quiz = await this.prisma.quiz.findUnique({
       where: { id: quizId },
       select: { id: true, endsAt: true, status: true },
@@ -350,7 +391,7 @@ export class QuizService {
       await this.invitationService.getEligibleRecipientsForQuiz(quizId);
 
     return {
-      quizId: quizId,
+      quizId,
       count: recipients.length,
       recipients: recipients.map((i) => i.recipientEmail),
     };
@@ -359,22 +400,32 @@ export class QuizService {
   async sendQuizReminders(quizId: string) {
     const quiz = await this.prisma.quiz.findUnique({
       where: { id: quizId },
-      select: { id: true, title: true },
+      select: { id: true, title: true, endsAt: true, status: true },
     });
-    if (!quiz) throw new NotFoundException('Quiz not found.');
+    if (!quiz) {
+      throw new NotFoundException(`Quiz '${quizId}' not found.`);
+    }
+
+    if (quiz.status !== QuizStatus.PUBLISHED) {
+      throw new BadRequestException('Can only send reminders for published quizzes.');
+    }
+
     const eligibleRecipients =
       await this.invitationService.getEligibleRecipientsForQuiz(quizId);
 
-    const baseUrl =
-      this.configService.get<string>('INVITATION_BASE_URL') ??
+    const rawBase =
+      this.configService.get<string>('frontend.baseUrl') ??
+      this.configService.get<string>('FRONTEND_BASE_URL') ??
       'http://localhost:3000';
+    const baseUrl = rawBase.replace(/\/+$/, '');
+
     const results = [];
     for (const recipient of eligibleRecipients) {
-      // send email
       try {
         const result = await this.notificationService.sendQuizReminderEmail({
           recipientEmail: recipient.recipientEmail,
           quizTitle: quiz.title,
+          availableUntil: quiz.endsAt ?? undefined,
           invitationUrl: `${baseUrl}/invitation/${quizId}?email=${encodeURIComponent(recipient.recipientEmail)}`,
           correlationId: `reminder:${recipient.invitationId}`,
           metadata: { quizId },
@@ -382,11 +433,20 @@ export class QuizService {
         });
         results.push(result);
       } catch (error) {
+        this.logger.error(
+          `Failed sending reminder to ${recipient.recipientEmail}: ${error instanceof Error ? error.message : error}`,
+        );
         results.push({
-          recipientEmail: recipient.recipientEmail,
+          deliveryLogId: '',
           status: EmailDeliveryStatus.FAILED,
-          errorMessage:
-            error instanceof Error ? error.message : 'Unknown error',
+          templateKey: NotificationTemplateKey.QUIZ_REMINDER,
+          subject: `Reminder: ${quiz.title}`,
+          html: '',
+          text: '',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          providerMessageId: null,
+          deliveredAt: null,
+          attemptCount: 1,
         });
       }
     }
@@ -395,8 +455,7 @@ export class QuizService {
       quizId,
       attempted: eligibleRecipients.length,
       sent: results.filter((r) => r.status === EmailDeliveryStatus.SENT).length,
-      failed: results.filter((r) => r.status === EmailDeliveryStatus.FAILED)
-        .length,
+      failed: results.filter((r) => r.status === EmailDeliveryStatus.FAILED).length,
       results,
     };
   }
