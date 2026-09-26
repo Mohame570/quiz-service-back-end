@@ -619,11 +619,11 @@ export class StudentService {
   }
 
   private reasonForBlockedWindow(quiz: QuizRow, now: Date): string {
-    if (quiz.startsAt && quiz.startsAt.getTime() > now.getTime()) {
-      return 'Quiz has not started yet.';
+       if (quiz.startsAt && quiz.startsAt.getTime() > now.getTime()) {
+      return `Quiz opens on ${quiz.startsAt.toUTCString()}. Come back then to start.`;
     }
     if (quiz.endsAt && quiz.endsAt.getTime() < now.getTime()) {
-      return 'Quiz window has closed.';
+      return 'Quiz window has closed. Your submitted attempts and results are still available in your profile.';
     }
     return 'Quiz is not currently available.';
   }

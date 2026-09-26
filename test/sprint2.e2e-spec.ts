@@ -200,7 +200,8 @@ describe('ScoringService', () => {
       prisma.attempt.findUnique
         .mockResolvedValueOnce(makeAttempt({ answers: [] }))
         .mockResolvedValueOnce(emptyScored);
-      
+      prisma.attempt.findUnique.mockResolvedValue(emptyScored);
+
       prisma.question.findMany.mockResolvedValue([]);
       prisma.quiz.findUnique.mockResolvedValue({ passingScore: 50 });
       prisma.$transaction.mockResolvedValue([]);

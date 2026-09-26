@@ -263,7 +263,10 @@ describe('Sprint3 — retake policy and official score', () => {
       durationMinutes: 30,
       maxAttempts,
     });
-    prisma.studentProfile.findUnique.mockResolvedValue({ userId: STUDENT_ID });
+    prisma.studentProfile.findUnique.mockResolvedValue({
+      userId: STUDENT_ID,
+      quizzes: [{ quizId: QUIZ_ID }],
+    });
     prisma.attempt.create.mockImplementation(async ({ data }: any) =>
       makeAttempt({ ...data, status: AttemptStatus.IN_PROGRESS }),
     );

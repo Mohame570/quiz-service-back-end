@@ -115,6 +115,8 @@ model Attempt {
 
   answers AttemptAnswer[]
   result  Result?
+    certificate Certificate?
+
 
   @@index([studentId])
   @@index([quizId])
@@ -331,6 +333,29 @@ model Result {
   @@index([quizId])
   @@index([passed])
   @@map("results")
+}
+
+// Certificate — issued strictly for official passing attempts.
+// All display fields are frozen at issuance so later edits never alter it.
+model Certificate {
+  id        String @id @default(cuid())
+  /// Shareable public code, e.g. CERT-8F3K2A
+  code      String @unique
+  attemptId String @unique
+  attempt   Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  studentId String
+  quizId    String
+  /// Frozen display snapshot
+  recipientName String
+  quizTitle     String
+  score         Int
+  maxScore      Int
+  percentage    Float
+  issuedAt DateTime @default(now())
+
+  @@index([studentId])
+  @@index([quizId])
+  @@map("certificates")
 }
 
 model Invitation {

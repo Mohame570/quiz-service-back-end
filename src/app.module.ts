@@ -17,6 +17,7 @@ import { FollowUpModule } from './modules/follow-up/follow-up.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { UsersModule } from './modules/users/users.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { CertificatesModule } from './modules/certificates/certificates.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    CertificatesModule,
     HealthModule,
     AuthModule,
     QuizModule,
