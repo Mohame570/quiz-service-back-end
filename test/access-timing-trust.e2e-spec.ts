@@ -10,7 +10,12 @@
 // 4. Password reset token security: single-use enforcement, expiration rejection, invalid token rejection.
 // 5. Session management & tokenVersion invalidation: rejecting JWTs with outdated tokenVersion upon password reset.
 
-import { ExecutionContext, INestApplication, UnauthorizedException, ValidationPipe } from '@nestjs/common';
+import {
+  ExecutionContext,
+  INestApplication,
+  UnauthorizedException,
+  ValidationPipe,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
@@ -22,7 +27,11 @@ import { NotificationService } from '../src/modules/notifications/services/notif
 import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
 import { QuizService } from '../src/modules/quiz/services/quiz.service';
 import { InvitationService } from '../src/modules/auth/services/invitation.service';
-import { InvitationStatus, QuizStatus, UserRole } from '../src/generated/prisma/client';
+import {
+  InvitationStatus,
+  QuizStatus,
+  UserRole,
+} from '../src/generated/prisma/client';
 
 describe('Access, Timing & Trust (E2E & Integration)', () => {
   let app: INestApplication;
@@ -36,7 +45,8 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
   const mockStudent = {
     id: 'student-cuid-1',
     email: 'student@example.com',
-    passwordHash: '$2b$12$LXhNGSmcMMwxNMV2rLCLtu50MMKYkSlkAaD2JWfnJe2CqbWlV9vbK',
+    passwordHash:
+      '$2b$12$LXhNGSmcMMwxNMV2rLCLtu50MMKYkSlkAaD2JWfnJe2CqbWlV9vbK',
     name: 'Eligible Student',
     role: UserRole.STUDENT,
     isActive: true,
@@ -53,7 +63,9 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ transform: true, whitelist: true }),
+    );
     await app.init();
 
     prisma = app.get<PrismaService>(PrismaService);
@@ -66,18 +78,20 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
 
   beforeEach(() => {
     // Reset and mock notification dispatch methods before each test
-    jest.spyOn(notificationService, 'sendPasswordResetEmail').mockResolvedValue({
-      deliveryLogId: 'log-prt-1',
-      status: 'SENT' as any,
-      templateKey: 'PASSWORD_RESET' as any,
-      subject: 'Reset your password',
-      html: '<p>Reset</p>',
-      text: 'Reset',
-      errorMessage: null,
-      providerMessageId: 'mock-prt-id',
-      deliveredAt: new Date(),
-      attemptCount: 1,
-    });
+    jest
+      .spyOn(notificationService, 'sendPasswordResetEmail')
+      .mockResolvedValue({
+        deliveryLogId: 'log-prt-1',
+        status: 'SENT' as any,
+        templateKey: 'PASSWORD_RESET' as any,
+        subject: 'Reset your password',
+        html: '<p>Reset</p>',
+        text: 'Reset',
+        errorMessage: null,
+        providerMessageId: 'mock-prt-id',
+        deliveredAt: new Date(),
+        attemptCount: 1,
+      });
 
     jest.spyOn(notificationService, 'sendQuizReminderEmail').mockResolvedValue({
       deliveryLogId: 'log-rem-1',
@@ -161,15 +175,25 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
         },
       ];
 
-      jest.spyOn(prisma.quiz, 'findUnique').mockResolvedValue(activeQuiz as any);
-      jest.spyOn(prisma.invitation, 'findMany').mockResolvedValue(invitations as any);
+      jest
+        .spyOn(prisma.quiz, 'findUnique')
+        .mockResolvedValue(activeQuiz as any);
+      jest
+        .spyOn(prisma.invitation, 'findMany')
+        .mockResolvedValue(invitations as any);
 
       const result = await quizService.getInvitationsForQuiz('quiz-1');
 
       expect(result).toHaveLength(4);
-      expect(result.find((i) => i.recipientEmail === 'accepted@example.com')?.status).toBe(InvitationStatus.CLAIMED);
-      expect(result.find((i) => i.recipientEmail === 'pending@example.com')?.status).toBe(InvitationStatus.PENDING);
-      expect(result.find((i) => i.recipientEmail === 'expired@example.com')?.status).toBe(InvitationStatus.EXPIRED);
+      expect(
+        result.find((i) => i.recipientEmail === 'accepted@example.com')?.status,
+      ).toBe(InvitationStatus.CLAIMED);
+      expect(
+        result.find((i) => i.recipientEmail === 'pending@example.com')?.status,
+      ).toBe(InvitationStatus.PENDING);
+      expect(
+        result.find((i) => i.recipientEmail === 'expired@example.com')?.status,
+      ).toBe(InvitationStatus.EXPIRED);
     });
 
     it('marks all unclaimed invitations as EXPIRED when quiz schedule window has closed', async () => {
@@ -194,8 +218,12 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
         },
       ];
 
-      jest.spyOn(prisma.quiz, 'findUnique').mockResolvedValue(closedQuiz as any);
-      jest.spyOn(prisma.invitation, 'findMany').mockResolvedValue(invitations as any);
+      jest
+        .spyOn(prisma.quiz, 'findUnique')
+        .mockResolvedValue(closedQuiz as any);
+      jest
+        .spyOn(prisma.invitation, 'findMany')
+        .mockResolvedValue(invitations as any);
 
       const result = await quizService.getInvitationsForQuiz('quiz-2');
 
@@ -260,7 +288,9 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
         },
       ];
 
-      jest.spyOn(prisma.quiz, 'findUnique').mockResolvedValue(activeQuiz as any);
+      jest
+        .spyOn(prisma.quiz, 'findUnique')
+        .mockResolvedValue(activeQuiz as any);
       jest
         .spyOn(invitationService, 'getEligibleRecipientsForQuiz')
         .mockResolvedValue(mockEligibleRecipients as any);
@@ -300,9 +330,15 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
         },
       );
 
-      jest.spyOn(prisma.passwordResetToken, 'deleteMany').mockResolvedValue({ count: 0 });
-      jest.spyOn(prisma.passwordResetToken, 'create').mockResolvedValue({ id: 'prt-1' } as any);
-      jest.spyOn(prisma, '$transaction').mockImplementation((async (ops: any) => {
+      jest
+        .spyOn(prisma.passwordResetToken, 'deleteMany')
+        .mockResolvedValue({ count: 0 });
+      jest
+        .spyOn(prisma.passwordResetToken, 'create')
+        .mockResolvedValue({ id: 'prt-1' } as any);
+      jest.spyOn(prisma, '$transaction').mockImplementation((async (
+        ops: any,
+      ) => {
         if (Array.isArray(ops)) return Promise.all(ops);
         if (typeof ops === 'function') return ops(prisma);
         return ops;
@@ -328,7 +364,9 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
       );
 
       // Verify that email was sent ONLY for registered user
-      expect(notificationService.sendPasswordResetEmail).toHaveBeenCalledTimes(1);
+      expect(notificationService.sendPasswordResetEmail).toHaveBeenCalledTimes(
+        1,
+      );
       expect(notificationService.sendPasswordResetEmail).toHaveBeenCalledWith(
         expect.objectContaining({
           recipientEmail: 'student@example.com',
@@ -345,7 +383,9 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
     const tokenHash = createHash('sha256').update(rawToken).digest('hex');
 
     it('rejects an invalid or non-existent token with 400 Bad Request', async () => {
-      jest.spyOn(prisma.passwordResetToken, 'findUnique').mockResolvedValue(null);
+      jest
+        .spyOn(prisma.passwordResetToken, 'findUnique')
+        .mockResolvedValue(null);
 
       const res = await request(app.getHttpServer())
         .post('/api/auth/reset-password')
@@ -355,7 +395,9 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
         })
         .expect(400);
 
-      expect(res.body.message).toContain('Invalid or expired password reset token');
+      expect(res.body.message).toContain(
+        'Invalid or expired password reset token',
+      );
     });
 
     it('rejects an expired token with 400 Bad Request', async () => {
@@ -368,7 +410,9 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
         user: mockStudent,
       };
 
-      jest.spyOn(prisma.passwordResetToken, 'findUnique').mockResolvedValue(expiredTokenRecord as any);
+      jest
+        .spyOn(prisma.passwordResetToken, 'findUnique')
+        .mockResolvedValue(expiredTokenRecord as any);
 
       const res = await request(app.getHttpServer())
         .post('/api/auth/reset-password')
@@ -391,7 +435,9 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
         user: mockStudent,
       };
 
-      jest.spyOn(prisma.passwordResetToken, 'findUnique').mockResolvedValue(usedTokenRecord as any);
+      jest
+        .spyOn(prisma.passwordResetToken, 'findUnique')
+        .mockResolvedValue(usedTokenRecord as any);
 
       const res = await request(app.getHttpServer())
         .post('/api/auth/reset-password')
@@ -401,10 +447,12 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
         })
         .expect(400);
 
-      expect(res.body.message).toContain('This password reset token has already been used');
+      expect(res.body.message).toContain(
+        'This password reset token has already been used',
+      );
     });
 
-    it('successfully resets password, marks token as used, and increments user tokenVersion', async () => {
+    it('successfully resets password, claims the token once, and increments tokenVersion', async () => {
       const validTokenRecord = {
         id: 'prt-valid',
         tokenHash,
@@ -413,45 +461,44 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
         usedAt: null,
         user: mockStudent,
       };
-
-      jest.spyOn(prisma.passwordResetToken, 'findUnique').mockResolvedValue(validTokenRecord as any);
-      const userUpdateSpy = jest.spyOn(prisma.user, 'update').mockResolvedValue({
-        ...mockStudent,
-        tokenVersion: 1,
-      } as any);
-      const tokenUpdateSpy = jest.spyOn(prisma.passwordResetToken, 'update').mockResolvedValue({
-        ...validTokenRecord,
-        usedAt: new Date(),
-      } as any);
-      jest.spyOn(prisma, '$transaction').mockImplementation((async (ops: any) => {
-        if (Array.isArray(ops)) return Promise.all(ops);
-        if (typeof ops === 'function') return ops(prisma);
-        return ops;
+      jest
+        .spyOn(prisma.passwordResetToken, 'findUnique')
+        .mockResolvedValue(validTokenRecord as any);
+      const userUpdateSpy = jest
+        .spyOn(prisma.user, 'update')
+        .mockResolvedValue({ ...mockStudent, tokenVersion: 1 } as any);
+      const tokenClaimSpy = jest
+        .spyOn(prisma.passwordResetToken, 'updateMany')
+        .mockResolvedValue({ count: 1 } as any);
+      jest.spyOn(prisma, '$transaction').mockImplementation((async (
+        operation: any,
+      ) => {
+        if (Array.isArray(operation)) return Promise.all(operation);
+        if (typeof operation === 'function') return operation(prisma);
+        return operation;
       }) as any);
 
       const res = await request(app.getHttpServer())
         .post('/api/auth/reset-password')
-        .send({
-          token: rawToken,
-          newPassword: 'BrandNewSecurePassword123!',
-        })
+        .send({ token: rawToken, newPassword: 'BrandNewSecurePassword123!' })
         .expect(200);
 
-      expect(res.body.message).toContain('Password has been reset successfully');
+      expect(res.body.message).toContain(
+        'Password has been reset successfully',
+      );
+      expect(tokenClaimSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: 'prt-valid',
+            usedAt: null,
+          }),
+          data: { usedAt: expect.any(Date) },
+        }),
+      );
       expect(userUpdateSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: mockStudent.id },
-          data: expect.objectContaining({
-            tokenVersion: { increment: 1 },
-          }),
-        }),
-      );
-      expect(tokenUpdateSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'prt-valid' },
-          data: expect.objectContaining({
-            usedAt: expect.any(Date),
-          }),
+          data: expect.objectContaining({ tokenVersion: { increment: 1 } }),
         }),
       );
     });
@@ -488,7 +535,9 @@ describe('Access, Timing & Trust (E2E & Integration)', () => {
       } as ExecutionContext;
 
       // JwtAuthGuard should reject the outdated token
-      await expect(jwtAuthGuard.canActivate(mockExecutionContext)).rejects.toThrow(
+      await expect(
+        jwtAuthGuard.canActivate(mockExecutionContext),
+      ).rejects.toThrow(
         new UnauthorizedException('Session has expired. Please sign in again.'),
       );
     });

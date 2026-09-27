@@ -89,7 +89,7 @@ export class AuthService {
     const verificationTokenExpiresAt = this.getVerificationTokenExpiresAt();
 
     const role =  UserRole.STUDENT;
-    
+
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
@@ -110,7 +110,7 @@ export class AuthService {
       recipientEmail: user.email,
       recipientName: user.name ?? undefined,
       verificationUrl: this.buildVerificationUrl(verificationToken),
-      });
+    });
 
 
     return this.buildAuthResult(user);
@@ -182,103 +182,105 @@ export class AuthService {
   }
 
   async verifyEmail(dto: VerifyEmailDto): Promise<{ success: boolean }> {
-  // 1. Find user by token
-  const user = await this.prisma.user.findFirst({
-    where: {
-      verificationToken: dto.token,
-    },
-  });
+    // 1. Find user by token
+    const user = await this.prisma.user.findFirst({
+      where: {
+        verificationToken: dto.token,
+      },
+    });
 
-  // 2. Token invalid or expired (not found)
-  if (!user) {
-    throw new UnauthorizedException('Invalid or expired verification token');
-  }
-
-  // 3. If already verified, we can just return success (idempotent behavior)
-  if (user.emailVerified) {
-    return { success: true };
-  }
-
-  //4. checks verificationTokenExpiresAt 
-  if (
-    user.verificationTokenExpiresAt &&
-    user.verificationTokenExpiresAt < new Date()
-  ) {
-    throw new UnauthorizedException('invalid or expired verification token');
-  }
-
-  return this.prisma.$transaction(async (tx) => {
-    await tx.user.update({
-    where: { id: user.id },
-    data: {
-      emailVerified: true,
-      verificationToken: null,
-      verificationTokenExpiresAt: null,
-    },
-  });
-  await this.invitationService.claimPendingInvitationsForUser(tx, user.id);
-  return { success: true };
-  })
-}
-
-async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean; retryAfter?: number }> {
-  // 1. Find user by email
-  const user = await this.prisma.user.findUnique({
-    where: { email: dto.email },
-  });
-
-  // 2. If user doesn't exist
-  if (!user) {
-    throw new NotFoundException('User not found');
-  }
-
-  // 3. If already verified
-  if (user.emailVerified) {
-    return { success: true };
-  }
-
-  // 4. Cooldown check
-  const cooldownSeconds = this.getResendCooldownSeconds();
-  if ((user as any).lastVerificationSentAt) {
-    const elapsed = Date.now() - new Date((user as any).lastVerificationSentAt).getTime();
-    const remainingMs = cooldownSeconds * 1000 - elapsed;
-    if (remainingMs > 0) {
-      const retryAfter = Math.ceil(remainingMs / 1000);
-      throw new HttpException(
-        {
-          message: `Please wait ${retryAfter}s before requesting another verification email`,
-          retryAfter,
-          cooldownSeconds,
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+    // 2. Token invalid or expired (not found)
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired verification token');
     }
+
+    // 3. If already verified, we can just return success (idempotent behavior)
+    if (user.emailVerified) {
+      return { success: true };
+    }
+
+    //4. checks verificationTokenExpiresAt
+    if (
+      user.verificationTokenExpiresAt &&
+      user.verificationTokenExpiresAt < new Date()
+    ) {
+      throw new UnauthorizedException('invalid or expired verification token');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerified: true,
+          verificationToken: null,
+          verificationTokenExpiresAt: null,
+        },
+      });
+      await this.invitationService.claimPendingInvitationsForUser(tx, user.id);
+      return { success: true };
+    });
   }
 
-  // 5. Generate new token
-  const verificationToken = randomUUID();
+  async resendVerification(
+    dto: ResendVerificationDto,
+  ): Promise<{ success: boolean; retryAfter?: number }> {
+    // 1. Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
 
-  const verificationTokenExpiresAt = this.getVerificationTokenExpiresAt();
+    // 2. If user doesn't exist
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
-  // 6. Update user with new token and cooldown timestamp
-  await this.prisma.user.update({
-    where: { id: user.id },
-    data: {
-      verificationToken,
-      verificationTokenExpiresAt,
-      lastVerificationSentAt: new Date(),
-    },
-  });
+    // 3. If already verified
+    if (user.emailVerified) {
+      return { success: true };
+    }
 
-  // 7. Send email again using env-driven base URL
-  await this.notificationService.sendVerificationEmail({
-    recipientEmail: user.email,
-    recipientName: user.name ?? undefined,
-    verificationUrl: this.buildVerificationUrl(verificationToken),
-  });
+    // 4. Cooldown check
+    const cooldownSeconds = this.getResendCooldownSeconds();
+    if ((user as any).lastVerificationSentAt) {
+    const elapsed = Date.now() - new Date((user as any).lastVerificationSentAt).getTime();
+      const remainingMs = cooldownSeconds * 1000 - elapsed;
+      if (remainingMs > 0) {
+        const retryAfter = Math.ceil(remainingMs / 1000);
+        throw new HttpException(
+          {
+            message: `Please wait ${retryAfter}s before requesting another verification email`,
+            retryAfter,
+            cooldownSeconds,
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
 
-  return { success: true };
-}
+    // 5. Generate new token
+    const verificationToken = randomUUID();
+
+    const verificationTokenExpiresAt = this.getVerificationTokenExpiresAt();
+
+    // 6. Update user with new token and cooldown timestamp
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationToken,
+        verificationTokenExpiresAt,
+        lastVerificationSentAt: new Date(),
+      },
+    });
+
+    // 7. Send email again using env-driven base URL
+    await this.notificationService.sendVerificationEmail({
+      recipientEmail: user.email,
+      recipientName: user.name ?? undefined,
+      verificationUrl: this.buildVerificationUrl(verificationToken),
+    });
+
+    return { success: true };
+  }
 
   private buildPasswordResetUrl(token: string): string {
     const rawBase =
@@ -360,21 +362,31 @@ async resendVerification(dto: ResendVerificationDto): Promise<{ success: boolean
 
     const passwordHash = await this.hashPassword(dto.newPassword);
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    await this.prisma.$transaction(async (tx) => {
+      const claimResult = await tx.passwordResetToken.updateMany({
+        where: {
+          id: resetToken.id,
+          usedAt: null,
+        },
+        data: {
+          usedAt: new Date(),
+        },
+      });
+
+      if (claimResult.count === 0) {
+        throw new BadRequestException(
+          'This password reset token has already been used or has expired',
+        );
+      }
+
+      await tx.user.update({
         where: { id: resetToken.userId },
         data: {
           passwordHash,
           tokenVersion: { increment: 1 },
         },
-      }),
-      this.prisma.passwordResetToken.update({
-        where: { id: resetToken.id },
-        data: {
-          usedAt: new Date(),
-        },
-      }),
-    ]);
+      });
+    });
 
     return {
       success: true,
