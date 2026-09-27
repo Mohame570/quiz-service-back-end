@@ -177,7 +177,7 @@ export class NotificationService implements NotificationServiceInterface {
           invitationUrl,
           invitedByName,
           invitationId: invitation.id,
-          correlationId: `invitation:${invitation.id}`,
+          correlationId: `invitation:${input.quizId}`,
           metadata: { quizId: quiz.id },
         });
         results.push(result);
