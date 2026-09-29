@@ -29,11 +29,14 @@ enum EmailDeliveryStatus {
   SENT
   FAILED
   RETRYING
+  SKIPPED
 }
 
 enum NotificationTemplateKey {
   VERIFICATION
   QUIZ_INVITATION
+  QUIZ_REMINDER
+  PASSWORD_RESET
 }
 
 enum InvitationStatus {
@@ -253,14 +256,46 @@ model User {
   verificationTokenExpiresAt DateTime? @map("verification_token_expires_at")
   lastVerificationSentAt     DateTime? @map("last_verification_sent_at")
   isActive                   Boolean   @default(true) @map("is_active")
+  tokenVersion               Int       @default(0) @map("token_version")
   createdAt                  DateTime  @default(now()) @map("created_at")
   updatedAt                  DateTime  @updatedAt @map("updated_at")
 
-  quizzes        Quiz[]
-  studentProfile StudentProfile?
-  invitations    Invitation[]
+  quizzes             Quiz[]
+  studentProfile      StudentProfile?
+  invitations         Invitation[]
+  passwordResetTokens PasswordResetToken[]
+  signInActivities    SignInActivity[]
 
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique @map("token_hash")
+  userId    String    @map("user_id")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
+}
+
+model SignInActivity {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  signedInAt DateTime @default(now()) @map("signed_in_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, signedInAt])
+  @@index([signedInAt])
+  @@map("sign_in_activities")
 }
 
 model StudentProfile {
