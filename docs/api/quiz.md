@@ -9,6 +9,15 @@
 - status: active
 - last updated: 2026-06-29
 
+### Sprint 3 scheduling contract
+
+`startsAt` and `endsAt` define the assessment window. They are accepted and returned as ISO 8601 timestamps; comparisons are performed server-side. The application displays them as Cairo time (`Africa/Cairo`, `Cairo time / GMT+3`).
+
+- `now < startsAt`: a start attempt is rejected with `409 Conflict`.
+- `now >= endsAt`: a start attempt is rejected with `409 Conflict`.
+- An attempt started before `endsAt` is limited to `endsAt` when that is earlier than its duration deadline.
+- The quiz must be `PUBLISHED` and the student assigned before an attempt can be started.
+
 ## Purpose
 
 Admin endpoints for managing quizzes. These endpoints provide CRUD operations for quiz creation, modification, and retrieval. The `/api/admin/` namespace preserves the intent for future admin authorization.

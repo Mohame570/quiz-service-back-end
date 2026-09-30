@@ -5,6 +5,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 
 import {
   AttemptStatus,
+  Difficulty,
   EmailDeliveryStatus,
   GradingStatus,
   NotificationTemplateKey,
@@ -631,6 +632,9 @@ await prisma.user.upsert({
       text: 'Which keyword declares a block-scoped variable in JavaScript?',
       options: ['var', 'let', 'const', 'static'],
       correctAnswer: 'let',
+      difficulty: Difficulty.EASY,
+      topic: 'JavaScript',
+      tags: ['javascript', 'variables', 'es6'],
     },
   });
   const nq1_2 = await prisma.question.create({
@@ -639,6 +643,9 @@ await prisma.user.upsert({
       text: 'Which method adds an element to the end of an array?',
       options: ['push', 'pop', 'shift', 'unshift'],
       correctAnswer: 'push',
+      difficulty: Difficulty.EASY,
+      topic: 'JavaScript',
+      tags: ['javascript', 'arrays'],
     },
   });
   const nq1_3 = await prisma.question.create({
@@ -647,6 +654,9 @@ await prisma.user.upsert({
       text: 'JavaScript is a single-threaded language.',
       options: ['True', 'False'],
       correctAnswer: 'True',
+      difficulty: Difficulty.MEDIUM,
+      topic: 'JavaScript',
+      tags: ['javascript', 'concurrency'],
     },
   });
   const nq1_4 = await prisma.question.create({
@@ -655,6 +665,9 @@ await prisma.user.upsert({
       text: 'What does `typeof null` return in JavaScript?',
       options: [],
       correctAnswer: 'object',
+      difficulty: Difficulty.HARD,
+      topic: 'JavaScript',
+      tags: ['javascript', 'types', 'quirk'],
     },
   });
 
@@ -1287,6 +1300,153 @@ await prisma.user.upsert({
   console.log(`    student1 → new-quiz-5: SUBMITTED (5/6, PARTIAL — essay pending admin grade)`);
 }
 
+async function seedQuestionMetadataBank(prisma: PrismaClient): Promise<void> {
+  // Clean previous tagged bank to keep seed idempotent
+  await prisma.question.deleteMany({
+    where: { topic: { in: ['JavaScript', 'Databases', 'Algorithms', 'Web', 'Geography'] } },
+  });
+
+  const taggedQuestions = [
+    {
+      type: QuestionType.MCQ,
+      text: 'What does "use strict" do in JavaScript?',
+      options: ['Enables strict mode', 'Disables hoisting', 'Enables async', 'No effect'],
+      correctAnswer: 'Enables strict mode',
+      difficulty: Difficulty.EASY,
+      topic: 'JavaScript',
+      tags: ['javascript', 'basics', 'syntax'],
+    },
+    {
+      type: QuestionType.MCQ,
+      text: 'Which paradigm does JavaScript support?',
+      options: ['OOP only', 'Functional only', 'Multi-paradigm', 'Procedural only'],
+      correctAnswer: 'Multi-paradigm',
+      difficulty: Difficulty.MEDIUM,
+      topic: 'JavaScript',
+      tags: ['javascript', 'paradigm', 'concepts'],
+    },
+    {
+      type: QuestionType.SHORT_TEXT,
+      text: 'Explain event loop in JavaScript (one sentence).',
+      options: [],
+      correctAnswer: 'Event loop handles async callbacks',
+      difficulty: Difficulty.HARD,
+      topic: 'JavaScript',
+      tags: ['javascript', 'event-loop', 'advanced'],
+    },
+    {
+      type: QuestionType.MCQ,
+      text: 'Which normal form removes transitive dependencies?',
+      options: ['1NF', '2NF', '3NF', 'BCNF'],
+      correctAnswer: '3NF',
+      difficulty: Difficulty.MEDIUM,
+      topic: 'Databases',
+      tags: ['databases', 'normalization', 'sql'],
+    },
+    {
+      type: QuestionType.TRUE_FALSE,
+      text: 'Indexes always improve write performance.',
+      options: ['True', 'False'],
+      correctAnswer: 'False',
+      difficulty: Difficulty.EASY,
+      topic: 'Databases',
+      tags: ['databases', 'indexes', 'performance'],
+    },
+    {
+      type: QuestionType.ESSAY,
+      text: 'Design a schema for a quiz platform with users, quizzes, and attempts.',
+      options: [],
+      correctAnswer: '',
+      difficulty: Difficulty.HARD,
+      topic: 'Databases',
+      tags: ['databases', 'schema-design', 'essay'],
+    },
+    {
+      type: QuestionType.MCQ,
+      text: 'What is the time complexity of quicksort average case?',
+      options: ['O(n)', 'O(n log n)', 'O(log n)', 'O(n^2)'],
+      correctAnswer: 'O(n log n)',
+      difficulty: Difficulty.MEDIUM,
+      topic: 'Algorithms',
+      tags: ['algorithms', 'sorting', 'complexity'],
+    },
+    {
+      type: QuestionType.TRUE_FALSE,
+      text: 'A binary search tree in worst case behaves like a linked list.',
+      options: ['True', 'False'],
+      correctAnswer: 'True',
+      difficulty: Difficulty.EASY,
+      topic: 'Algorithms',
+      tags: ['algorithms', 'data-structures', 'bst'],
+    },
+    {
+      type: QuestionType.SHORT_TEXT,
+      text: 'Name a hashing collision resolution technique.',
+      options: [],
+      correctAnswer: 'chaining',
+      difficulty: Difficulty.HARD,
+      topic: 'Algorithms',
+      tags: ['algorithms', 'hashing', 'advanced'],
+    },
+    {
+      type: QuestionType.MCQ,
+      text: 'What does CORS protect against?',
+      options: ['SQL injection', 'Cross-origin misuse', 'XSS only', 'CSRF only'],
+      correctAnswer: 'Cross-origin misuse',
+      difficulty: Difficulty.MEDIUM,
+      topic: 'Web',
+      tags: ['web', 'security', 'cors'],
+    },
+    {
+      type: QuestionType.SHORT_TEXT,
+      text: 'Which HTTP header carries the JWT?',
+      options: [],
+      correctAnswer: 'Authorization',
+      difficulty: Difficulty.EASY,
+      topic: 'Web',
+      tags: ['web', 'http', 'jwt'],
+    },
+    {
+      type: QuestionType.MCQ,
+      text: 'What is the capital of Australia?',
+      options: ['Sydney', 'Melbourne', 'Canberra', 'Perth'],
+      correctAnswer: 'Canberra',
+      difficulty: Difficulty.EASY,
+      topic: 'Geography',
+      tags: ['geography', 'capitals', 'trivia'],
+    },
+  ];
+
+  // Also enrich a few existing questions with metadata (idempotent update by text)
+  const updates = [
+    { text: 'Which HTTP status code means OK?', difficulty: Difficulty.EASY, topic: 'Web', tags: ['http', 'status-code'] },
+    { text: 'What does REST stand for?', difficulty: Difficulty.MEDIUM, topic: 'Web', tags: ['rest', 'api'] },
+  ];
+  for (const u of updates) {
+    await prisma.question.updateMany({
+      where: { text: u.text },
+      data: { difficulty: u.difficulty, topic: u.topic, tags: u.tags },
+    });
+  }
+
+  for (const q of taggedQuestions) {
+    await prisma.question.create({ data: q });
+  }
+
+  console.log('  ✓ Question metadata bank seeded (12 tagged questions: EASY/MEDIUM/HARD + topics/tags)');
+  const counts = await prisma.question.groupBy({
+    by: ['difficulty'],
+    _count: true,
+  });
+  console.log('    Difficulty distribution:', counts.map((c) => `${c.difficulty}:${c._count}`).join(', '));
+  const topics = await prisma.question.findMany({
+    where: { topic: { not: null } },
+    select: { topic: true },
+    distinct: ['topic'],
+  });
+  console.log('    Topics:', topics.map((t) => t.topic).join(', '));
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -1305,6 +1465,7 @@ async function main(): Promise<void> {
 
   await seedLiveTestFixtures(prisma);
   await seedFeatureTestData(prisma);
+  await seedQuestionMetadataBank(prisma);
 
   console.log('✅ Seed complete.');
 

@@ -2,22 +2,24 @@
 
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
-import {
-  GradingStatus,
-  QuestionType,
-} from '../../../generated/prisma/client';
+import { GradingStatus, QuestionType } from '../../../generated/prisma/client';
 import { AttemptResponseDto } from '../dto/attempt-response.dto';
 import { normalizeShortText as normalizeShortTextValue } from '../utils/text-answer.util';
+import { TransactionClient } from '../../../generated/prisma/internal/prismaNamespace';
+import { AttemptStatus } from '../../../generated/prisma/client';
+import { analyticsEvents$ } from '../../analytics/analytics.events';
 
 interface QuestionMeta {
   id: string;
   type: QuestionType;
   correctAnswer: string;
+  correctAnswers: string[];
   points: number;
 }
 
 interface GradedAnswerUpdate {
-  answerId: string;
+  answerId: string | null;
+  questionId: string;
   isCorrect: boolean | null;
   pointsEarned: number | null;
 }
@@ -31,56 +33,68 @@ interface AggregateScore {
   pendingEssayCount: number;
 }
 
+type PrismaOrTx = PrismaService | TransactionClient;
+
 @Injectable()
 export class ScoringService {
   private readonly logger = new Logger(ScoringService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async scoreAttempt(attemptId: string): Promise<AttemptResponseDto> {
-    const attempt = await this.prisma.attempt.findUnique({
+  async scoreAttempt(
+    attemptId: string,
+    tx: PrismaOrTx = this.prisma,
+  ): Promise<AttemptResponseDto> {
+    const attempt = await tx.attempt.findUnique({
       where: { id: attemptId },
       include: { answers: true },
     });
 
     if (!attempt) throw new NotFoundException('Attempt not found.');
 
+    await this.saveMissingSnapshots(attempt.answers, tx);
+
     const [questionMap, maxScore, quiz] = await this.loadQuizContext(
       attempt.quizId,
+      tx,
     );
 
-    if (attempt.answers.length === 0) {
-      return this.persistScore(attempt, [], {
-        score: 0,
-        maxScore,
-        percentage: 0,
-        passed: maxScore === 0 ? false : false,
-        gradingStatus: GradingStatus.COMPLETE,
-        pendingEssayCount: 0,
-      });
-    }
-
-    const graded = attempt.answers.map((answer) => {
-      const question = questionMap.get(answer.questionId);
-      if (!question) {
-        return {
-          answerId: answer.id,
-          isCorrect: null as boolean | null,
-          pointsEarned: null as number | null,
-        };
-      }
-      return this.gradeAnswer(answer, question);
+    const refreshedAttempt = await tx.attempt.findUnique({
+      where: { id: attemptId },
+      include: { answers: true },
     });
 
+    if (!refreshedAttempt) {
+      throw new NotFoundException('Attempt not found.');
+    }
+
+    const answerMap = new Map(
+      refreshedAttempt.answers.map((answer) => [answer.questionId, answer]),
+    );
+    const graded: GradedAnswerUpdate[] = [];
+    for (const [questionId, question] of questionMap) {
+      const answer = answerMap.get(questionId);
+      if (answer) {
+        graded.push(this.gradeAnswer(answer, question));
+      } else {
+        const syntheticAnswer = {
+          id: null, // no real row — nothing to write back to
+          questionId,
+          selectedOptionId: null,
+          textAnswer: null,
+        };
+        graded.push(this.gradeAnswer(syntheticAnswer, question));
+      }
+    }
+
     const aggregate = this.aggregateFromAnswers(
-      attempt.answers,
       graded,
       questionMap,
       maxScore,
       quiz?.passingScore ?? 50,
     );
 
-    return this.persistScore(attempt, graded, aggregate);
+    return this.persistScore(attempt, graded, aggregate, true, tx);
   }
 
   async recalculateAttemptResult(
@@ -135,25 +149,36 @@ export class ScoringService {
     return Math.round((score / maxScore) * 100 * 100) / 100;
   }
 
-  private async loadQuizContext(quizId: string): Promise<
+  private async loadQuizContext(
+    quizId: string,
+    tx: PrismaOrTx = this.prisma,
+  ): Promise<
     [Map<string, QuestionMeta>, number, { passingScore: number | null } | null]
   > {
     const [allQuestions, quiz] = await Promise.all([
-      this.prisma.question.findMany({
+      tx.question.findMany({
         where: {
           quizQuestions: {
             some: { quizId },
           },
         },
-        select: { id: true, type: true, correctAnswer: true, points: true },
+        select: {
+          id: true,
+          type: true,
+          correctAnswer: true,
+          correctAnswers: true,
+          points: true,
+        },
       }),
-      this.prisma.quiz.findUnique({
+      tx.quiz.findUnique({
         where: { id: quizId },
         select: { passingScore: true },
       }),
     ]);
 
-    const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
+    const questionMap = new Map(
+      allQuestions.map((q) => [q.id, q as QuestionMeta]),
+    );
     const maxScore = allQuestions.reduce((sum, q) => sum + q.points, 0);
 
     return [questionMap, maxScore, quiz];
@@ -161,36 +186,74 @@ export class ScoringService {
 
   private gradeAnswer(
     answer: {
-      id: string;
+      id: string | null;
       questionId: string;
       selectedOptionId: string | null;
+      selectedOptionIds?: string[] | null;
       textAnswer: string | null;
+      snapshotType?: QuestionType | null;
+      snapshotCorrectAnswer?: string | null;
+      snapshotCorrectAnswers?: string[] | null;
+      snapshotPoints?: number | null;
+      snapshotOptions?: string[] | null;
     },
     question: QuestionMeta,
   ): GradedAnswerUpdate {
-    switch (question.type) {
+    // Use snapshot if available for immutability
+    const effective: QuestionMeta = {
+      ...question,
+      type: (answer as any).snapshotType ?? question.type,
+      correctAnswer:
+        (answer as any).snapshotCorrectAnswer ?? question.correctAnswer,
+      correctAnswers:
+        (answer as any).snapshotCorrectAnswers ??
+        (question as any).correctAnswers ??
+        [],
+      points: (answer as any).snapshotPoints ?? question.points,
+    };
+
+    switch (effective.type) {
+      case QuestionType.MULTI_SELECT: {
+        const selected = (answer as any).selectedOptionIds ?? [];
+        const correct = (effective as any).correctAnswers ?? [];
+        const isCorrect =
+          selected.length > 0 &&
+          selected.length === correct.length &&
+          selected.every((s: string) => correct.includes(s)) &&
+          correct.every((c: string) => selected.includes(c));
+        return {
+          answerId: answer.id,
+          questionId: answer.questionId,
+          isCorrect,
+          pointsEarned: isCorrect ? effective.points : 0,
+        };
+      }
       case QuestionType.MCQ:
       case QuestionType.TRUE_FALSE: {
         const isCorrect =
           this.compareAnswer(
             answer.selectedOptionId,
-            question.correctAnswer,
+            effective.correctAnswer,
           ) === true;
         return {
           answerId: answer.id,
+          questionId: answer.questionId,
           isCorrect,
-          pointsEarned: isCorrect ? question.points : 0,
+          pointsEarned: isCorrect ? effective.points : 0,
         };
       }
-      case QuestionType.SHORT_TEXT: {
+       case QuestionType.SHORT_TEXT:
+      case QuestionType.FILL_BLANK:
+      case QuestionType.CODE_CONTEXT: {
         const isCorrect = this.compareShortText(
           answer.textAnswer,
-          question.correctAnswer,
+          effective.correctAnswer,
         );
         return {
           answerId: answer.id,
+          questionId: answer.questionId,
           isCorrect,
-          pointsEarned: isCorrect ? question.points : 0,
+          pointsEarned: isCorrect ? effective.points : 0,
         };
       }
       case QuestionType.ESSAY: {
@@ -198,54 +261,113 @@ export class ScoringService {
         if (!hasText) {
           return {
             answerId: answer.id,
+            questionId: answer.questionId,
             isCorrect: false,
             pointsEarned: 0,
           };
         }
         return {
           answerId: answer.id,
-          isCorrect: null,
-          pointsEarned: null,
+          questionId: answer.questionId,
+          isCorrect: null, // still the "pending" signal
+          pointsEarned: null, // needs to stay null for the pending state
         };
       }
       default:
         return {
           answerId: answer.id,
+          questionId: answer.questionId,
           isCorrect: null,
           pointsEarned: null,
         };
     }
   }
 
-  private aggregateFromAnswers(
+  private async saveMissingSnapshots(
     answers: Array<{
       id: string;
       questionId: string;
-      textAnswer: string | null;
+      snapshotType: QuestionType | null;
+      snapshotCorrectAnswer: string | null;
+      snapshotCorrectAnswers: string[];
+      snapshotPoints: number | null;
     }>,
+    tx: PrismaOrTx,
+  ): Promise<void> {
+    const questionIds = answers.map((answer) => answer.questionId);
+
+    const questions = await tx.question.findMany({
+      where: {
+        id: { in: questionIds },
+      },
+      select: {
+        id: true,
+        text: true,
+        options: true,
+        type: true,
+        correctAnswer: true,
+        correctAnswers: true,
+        points: true,
+        codeSnippet: true,
+        codeLanguage: true,
+      },
+    });
+
+    const questionMap = new Map(
+      questions.map((question) => [question.id, question]),
+    );
+
+    for (const answer of answers) {
+      const question = questionMap.get(answer.questionId);
+
+      if (!question) {
+        continue;
+      }
+
+      // Never overwrite a snapshot that was already saved.
+      const hasSnapshot =
+        answer.snapshotType !== null ||
+        answer.snapshotCorrectAnswer !== null ||
+        answer.snapshotPoints !== null;
+
+      if (hasSnapshot) {
+        continue;
+      }
+
+      await tx.attemptAnswer.update({
+        where: { id: answer.id },
+        data: {
+          snapshotText: question.text,
+          snapshotOptions: question.options,
+          snapshotType: question.type,
+          snapshotCorrectAnswer: question.correctAnswer,
+          snapshotCorrectAnswers: question.correctAnswers ?? [],
+          snapshotPoints: question.points,
+           snapshotCodeSnippet: question.codeSnippet,
+          snapshotCodeLanguage: question.codeLanguage,
+        },
+      });
+    }
+  }
+
+  private aggregateFromAnswers(
     graded: GradedAnswerUpdate[],
     questionMap: Map<string, QuestionMeta>,
     maxScore: number,
     passingThreshold: number,
   ): AggregateScore {
-    const gradedById = new Map(graded.map((g) => [g.answerId, g]));
     let score = 0;
     let pendingEssayCount = 0;
 
-    for (const answer of answers) {
-      const update = gradedById.get(answer.id);
-      const question = questionMap.get(answer.questionId);
-      if (!update || !question) continue;
+    for (const item of graded) {
+      const question = questionMap.get(item.questionId);
+      if (!question) continue;
 
-      if (update.pointsEarned !== null) {
-        score += update.pointsEarned;
+      if (item.pointsEarned !== null) {
+        score += item.pointsEarned;
       }
 
-      if (
-        question.type === QuestionType.ESSAY &&
-        Boolean(answer.textAnswer?.trim()) &&
-        update.pointsEarned === null
-      ) {
+      if (question.type === QuestionType.ESSAY && item.isCorrect === null) {
         pendingEssayCount += 1;
       }
     }
@@ -274,6 +396,7 @@ export class ScoringService {
       questionId: string;
       textAnswer: string | null;
       pointsEarned: number | null;
+      isCorrect: boolean | null;
     }>,
     questionMap: Map<string, QuestionMeta>,
     maxScore: number,
@@ -293,7 +416,7 @@ export class ScoringService {
       if (
         question.type === QuestionType.ESSAY &&
         Boolean(answer.textAnswer?.trim()) &&
-        answer.pointsEarned === null
+        answer.isCorrect === null
       ) {
         pendingEssayCount += 1;
       }
@@ -327,13 +450,18 @@ export class ScoringService {
     graded: GradedAnswerUpdate[],
     aggregate: AggregateScore,
     updateAnswers = true,
+    tx: PrismaOrTx = this.prisma,
   ): Promise<AttemptResponseDto> {
     const transactions = [];
+    const answeredGraded = graded.filter(
+      (g): g is GradedAnswerUpdate & { answerId: string } =>
+        g.answerId !== null,
+    );
 
     if (updateAnswers && graded.length > 0) {
       transactions.push(
-        ...graded.map((g) =>
-          this.prisma.attemptAnswer.update({
+        ...answeredGraded.map((g) =>
+          tx.attemptAnswer.update({
             where: { id: g.answerId },
             data: {
               isCorrect: g.isCorrect,
@@ -345,11 +473,11 @@ export class ScoringService {
     }
 
     transactions.push(
-      this.prisma.attempt.update({
+      tx.attempt.update({
         where: { id: attempt.id },
         data: { score: aggregate.score, maxScore: aggregate.maxScore },
       }),
-      this.prisma.result.upsert({
+      tx.result.upsert({
         where: { attemptId: attempt.id },
         create: {
           attemptId: attempt.id,
@@ -375,18 +503,71 @@ export class ScoringService {
       }),
     );
 
-    await this.prisma.$transaction(transactions);
+    if (tx === this.prisma) {
+      // Standalone call — wrap these writes in their own transaction.
+      await this.prisma.$transaction(transactions);
+    } else {
+      // Already running inside an outer transaction — just execute directly.
+      for (const t of transactions) {
+        await t;
+      }
+    }
 
     this.logger.log(
       `Attempt ${attempt.id} scored: ${aggregate.score}/${aggregate.maxScore} (${aggregate.percentage}%) — ${aggregate.gradingStatus}${aggregate.passed === true ? ' PASSED' : aggregate.passed === false ? ' FAILED' : ' PENDING ESSAYS'}`,
     );
 
-    const scored = await this.prisma.attempt.findUnique({
+    const scored = await tx.attempt.findUnique({
       where: { id: attempt.id },
       include: { answers: true },
     });
 
     return this.toResponseDto(scored);
+  }
+
+  // ScoringService
+  async finalizeExpiredAttempt(
+    attemptId: string,
+  ): Promise<AttemptResponseDto | null> {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const claim = await tx.attempt.updateMany({
+        where: {
+          id: attemptId,
+          status: AttemptStatus.IN_PROGRESS,
+          expiresAt: { lte: new Date() },
+        },
+        data: {
+          status: AttemptStatus.TIMED_OUT,
+          submittedAt: new Date(),
+        },
+      });
+
+      if (claim.count === 0) {
+        return null; // someone else (cron, or another concurrent request) already finalized it
+      }
+
+      // snapshot + score, same as submit()'s success path
+      return this.scoreAttempt(attemptId, tx);
+    });
+
+    if (result) {
+      try {
+        analyticsEvents$.next({
+          type: 'attempt_submitted',
+          payload: {
+            quizId: result.quizId,
+            attemptId: result.id,
+            studentId: result.studentId,
+            score: result.score ?? null,
+            submittedAt: result.submittedAt ?? null,
+          },
+        });
+      } catch (e) {
+        this.logger.error('Failed to emit analytics event', e);
+      }
+    }
+
+    return result;
   }
 
   private toResponseDto(attempt: any): AttemptResponseDto {
@@ -406,6 +587,7 @@ export class ScoringService {
         attemptId: a.attemptId,
         questionId: a.questionId,
         selectedOptionId: a.selectedOptionId,
+        selectedOptionIds: a.selectedOptionIds,
         textAnswer: a.textAnswer,
         pointsEarned: a.pointsEarned,
         isCorrect: a.isCorrect,

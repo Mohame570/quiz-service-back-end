@@ -14,6 +14,9 @@ import { QuestionsModule } from './modules/questions/questions.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { StudentModule } from './modules/student/student.module';
 import { FollowUpModule } from './modules/follow-up/follow-up.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { UsersModule } from './modules/users/users.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 @Module({
   imports: [
@@ -23,6 +26,7 @@ import { FollowUpModule } from './modules/follow-up/follow-up.module';
       load: [configuration],
       validationSchema: envValidationSchema,
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     HealthModule,
     AuthModule,
@@ -34,6 +38,8 @@ import { FollowUpModule } from './modules/follow-up/follow-up.module';
     AnalyticsModule,
     StudentModule,
     FollowUpModule,
+    UsersModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}

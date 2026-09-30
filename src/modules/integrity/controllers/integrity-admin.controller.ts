@@ -44,7 +44,7 @@ export class IntegrityAdminController {
     this.assertAdmin(req);
 
     return this.integrityService.getSuspiciousAttempts(
-      query.threshold ?? 3,
+      query.threshold,
       query.quizId,
     );
   }

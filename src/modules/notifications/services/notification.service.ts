@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   EmailDeliveryLog,
   EmailDeliveryStatus,
+  InvitationStatus,
   NotificationTemplateKey,
   Prisma,
   QuizStatus,
@@ -24,15 +25,17 @@ import { SendVerificationEmailDto } from '../dto/send-verification-email.dto';
 import { renderQuizInvitationEmailTemplate } from '../templates/quiz-invitation-email.template';
 import { RenderedEmailTemplate } from '../templates/template.types';
 import { renderVerificationEmailTemplate } from '../templates/verification-email.template';
-import {
-  NotificationServiceInterface,
-} from './notification-service.interface';
+import { NotificationServiceInterface } from './notification-service.interface';
 import { MailTransportService } from './mail-transport.service';
 import {
   DeliveryStatusCountsDto,
   DeliverySummaryDto,
   InvitationStatusDto,
 } from '../dto/delivery-summary.dto';
+import { SendQuizReminderEmailDto } from '../dto/send-quiz-invitation-reminder-email';
+import { renderQuizReminderEmailTemplate } from '../templates/quiz-invitation-reminder-email.template';
+import { SendPasswordResetEmailDto } from '../dto/send-password-reset-email.dto';
+import { renderPasswordResetEmailTemplate } from '../templates/password-reset-email.template';
 
 interface StoredRenderedContent {
   html: string;
@@ -72,13 +75,46 @@ export class NotificationService implements NotificationServiceInterface {
       renderedTemplate,
       correlationId: input.correlationId,
       metadata: input.metadata,
+      invitationId: input.invitationId,
     });
   }
 
+  async sendQuizReminderEmail(
+    input: SendQuizReminderEmailDto,
+  ): Promise<NotificationDispatchResultDto> {
+    const renderedTemplate = renderQuizReminderEmailTemplate(input);
+
+    return this.dispatchEmail({
+      recipientEmail: input.recipientEmail,
+      templateKey: NotificationTemplateKey.QUIZ_REMINDER,
+      renderedTemplate,
+      correlationId: input.correlationId,
+      metadata: input.metadata,
+      invitationId: input.invitationId,
+    });
+  }
+
+  async sendPasswordResetEmail(
+    input: SendPasswordResetEmailDto,
+  ): Promise<NotificationDispatchResultDto> {
+    const renderedTemplate = renderPasswordResetEmailTemplate(input);
+
+    return this.dispatchEmail({
+      recipientEmail: input.recipientEmail,
+      templateKey: NotificationTemplateKey.PASSWORD_RESET,
+      renderedTemplate,
+      correlationId: input.correlationId,
+      metadata: input.metadata,
+    });
+  }
   async sendQuizInvitationToStudents(
     input: SendQuizInvitationAdminDto,
     invitedByName?: string,
-  ): Promise<{ sent: number; failed: number; results: NotificationDispatchResultDto[] }> {
+  ): Promise<{
+    sent: number;
+    failed: number;
+    results: NotificationDispatchResultDto[];
+  }> {
     const quiz = await this.prisma.quiz.findUnique({
       where: { id: input.quizId },
       select: { id: true, title: true, status: true },
@@ -89,7 +125,9 @@ export class NotificationService implements NotificationServiceInterface {
     }
 
     if (quiz.status !== QuizStatus.PUBLISHED) {
-      throw new BadRequestException('Can only send invitations for published quizzes.');
+      throw new BadRequestException(
+        'Can only send invitations for published quizzes.',
+      );
     }
 
     const baseUrl =
@@ -100,21 +138,69 @@ export class NotificationService implements NotificationServiceInterface {
     const results: NotificationDispatchResultDto[] = [];
 
     for (const email of input.recipientEmails) {
-      const invitationUrl = `${baseUrl}/invitation/${input.quizId}?email=${encodeURIComponent(email)}`;
-      const result = await this.sendQuizInvitationEmail({
-        recipientEmail: email,
-        quizTitle: quiz.title,
-        invitationUrl,
-        invitedByName,
-        correlationId: `invitation:${input.quizId}`,
-        metadata: { quizId: input.quizId },
+      const existing = await this.prisma.invitation.findUnique({
+        where: {
+          quizId_recipientEmail: { quizId: quiz.id, recipientEmail: email },
+        },
       });
-      results.push(result);
+      let invitation;
+      let shouldSendEmail = true;
+
+      if (!existing) {
+        invitation = await this.prisma.invitation.create({
+          data: {
+            quizId: quiz.id,
+            recipientEmail: email,
+            status: InvitationStatus.PENDING,
+          },
+        });
+      } else if (existing.status === InvitationStatus.CLAIMED) {
+        // Already joined — don't reset, don't re-email
+        invitation = existing;
+        shouldSendEmail = false;
+      } else if (existing.status === InvitationStatus.EXPIRED) {
+        // Quiz still open (we already verified status === PUBLISHED earlier) → revive
+        invitation = await this.prisma.invitation.update({
+          where: { id: existing.id },
+          data: { status: InvitationStatus.PENDING },
+        });
+      } else {
+        // Already PENDING — just resend the email (no row change)
+        invitation = existing;
+      }
+
+      const invitationUrl = `${baseUrl}/invitation/${input.quizId}?email=${encodeURIComponent(email)}`;
+      if (shouldSendEmail) {
+        const result = await this.sendQuizInvitationEmail({
+          recipientEmail: email,
+          quizTitle: quiz.title,
+          invitationUrl,
+          invitedByName,
+          invitationId: invitation.id,
+          correlationId: `invitation:${input.quizId}`,
+          metadata: { quizId: quiz.id },
+        });
+        results.push(result);
+      } else {
+        results.push({
+          deliveryLogId: '',
+          status: EmailDeliveryStatus.SKIPPED,
+          templateKey: NotificationTemplateKey.QUIZ_INVITATION,
+          subject: `Invitation: ${quiz.title}`,
+          html: '',
+          text: '',
+          errorMessage: 'Skipped: recipient already claimed invitation',
+          providerMessageId: null,
+          deliveredAt: null,
+          attemptCount: 0,
+        });
+      }
     }
 
     return {
       sent: results.filter((r) => r.status === EmailDeliveryStatus.SENT).length,
-      failed: results.filter((r) => r.status === EmailDeliveryStatus.FAILED).length,
+      failed: results.filter((r) => r.status === EmailDeliveryStatus.FAILED)
+        .length,
       results,
     };
   }
@@ -242,7 +328,14 @@ export class NotificationService implements NotificationServiceInterface {
     // Group by quiz identity
     const byQuiz = new Map<
       string,
-      { quizId: string; quizTitle?: string; total: number; sent: number; failed: number; pending: number }
+      {
+        quizId: string;
+        quizTitle?: string;
+        total: number;
+        sent: number;
+        failed: number;
+        pending: number;
+      }
     >();
 
     for (const log of logs) {
@@ -312,6 +405,7 @@ export class NotificationService implements NotificationServiceInterface {
     renderedTemplate: RenderedEmailTemplate;
     correlationId?: string;
     metadata?: Prisma.InputJsonValue;
+    invitationId?: string;
   }): Promise<NotificationDispatchResultDto> {
     const deliveryLog = await this.prisma.emailDeliveryLog.create({
       data: {
@@ -321,6 +415,7 @@ export class NotificationService implements NotificationServiceInterface {
         status: EmailDeliveryStatus.PENDING,
         attemptCount: 0,
         ...(input.correlationId ? { correlationId: input.correlationId } : {}),
+        ...(input.invitationId ? { invitationId: input.invitationId } : {}),
         metadata: this.buildMetadata(input.renderedTemplate, input.metadata),
       },
     });

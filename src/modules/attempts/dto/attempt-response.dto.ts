@@ -13,10 +13,17 @@ export class AttemptAnswerResponseDto {
   attemptId!: string;
   questionId!: string;
   selectedOptionId!: string | null;
+  selectedOptionIds!: string[] | null;
   textAnswer!: string | null;
   pointsEarned!: number | null;
   isCorrect!: boolean | null;
   answeredAt!: Date;
+  snapshotText?: string | null;
+  snapshotOptions?: string[] | null;
+  snapshotCorrectAnswer?: string | null;
+  snapshotCorrectAnswers?: string[] | null;
+  snapshotType?: string | null;
+  snapshotPoints?: number | null;
 }
 
 /// Full representation — returned by GET /attempts/:id and POST /attempts/:id/submit

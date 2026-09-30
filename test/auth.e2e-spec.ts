@@ -14,7 +14,8 @@ describe('Auth endpoints (e2e)', () => {
   const mockUser = {
     id: 'user-123',
     email: 'test@example.com',
-    passwordHash: '$2b$12$LXhNGSmcMMwxNMV2rLCLtu50MMKYkSlkAaD2JWfnJe2CqbWlV9vbK',
+    passwordHash:
+      '$2b$12$LXhNGSmcMMwxNMV2rLCLtu50MMKYkSlkAaD2JWfnJe2CqbWlV9vbK',
     name: 'Test User',
     role: 'STUDENT',
     emailVerified: false,
@@ -33,7 +34,9 @@ describe('Auth endpoints (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ transform: true, whitelist: true }),
+    );
     await app.init();
 
     prisma = app.get<PrismaService>(PrismaService);
@@ -92,7 +95,11 @@ describe('Auth endpoints (e2e)', () => {
 
     return request(app.getHttpServer())
       .post('/api/auth/register')
-      .send({ name: 'Test User', email: 'test@example.com', password: 'StrongPass123!' })
+      .send({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'StrongPass123!',
+      })
       .expect(201)
       .expect((res) => {
         expect(res.body.user).toBeDefined();
@@ -103,11 +110,17 @@ describe('Auth endpoints (e2e)', () => {
   });
 
   it('/api/auth/register (POST) - rejects duplicate email with 409', async () => {
-    jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(mockUser as any);
+    jest
+      .spyOn(prisma.user, 'findUnique')
+      .mockResolvedValueOnce(mockUser as any);
 
     return request(app.getHttpServer())
       .post('/api/auth/register')
-      .send({ name: 'Test User', email: 'test@example.com', password: 'StrongPass123!' })
+      .send({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'StrongPass123!',
+      })
       .expect(409);
   });
 
@@ -117,7 +130,11 @@ describe('Auth endpoints (e2e)', () => {
 
     return request(app.getHttpServer())
       .post('/api/auth/register')
-      .send({ name: 'Test User', email: 'test@example.com', password: 'StrongPass123!' })
+      .send({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'StrongPass123!',
+      })
       .expect(201)
       .expect((res) => {
         expect(res.body.user.role).toBe('STUDENT');
@@ -146,7 +163,9 @@ describe('Auth endpoints (e2e)', () => {
   });
 
   it('/api/auth/login (POST) - rejects wrong password with 401', async () => {
-    jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(mockUser as any);
+    jest
+      .spyOn(prisma.user, 'findUnique')
+      .mockResolvedValueOnce(mockUser as any);
 
     return request(app.getHttpServer())
       .post('/api/auth/login')
@@ -209,12 +228,36 @@ describe('Auth endpoints (e2e)', () => {
 
   it('/api/auth/verify-email (POST) - verifies a valid token successfully', async () => {
     jest.spyOn(prisma.user, 'findFirst').mockResolvedValueOnce(mockUser as any);
-    jest.spyOn(prisma.user, 'update').mockResolvedValueOnce({
-      ...mockUser,
-      emailVerified: true,
-      verificationToken: null,
-      verificationTokenExpiresAt: null,
-    } as any);
+    jest
+      .spyOn(prisma, '$transaction')
+      .mockImplementation(async (callback: any) => {
+        const tx = {
+          user: {
+            update: jest.fn().mockResolvedValue({
+              ...mockUser,
+              emailVerified: true,
+              verificationToken: null,
+              verificationTokenExpiresAt: null,
+            }),
+
+            findUnique: jest.fn().mockResolvedValue({
+              id: mockUser.id,
+              email: mockUser.email,
+            }),
+          },
+
+          invitation: {
+            findMany: jest.fn().mockResolvedValue([]),
+            update: jest.fn().mockResolvedValue({}),
+          },
+
+          studentProfile: {
+            update: jest.fn().mockResolvedValue({}),
+          },
+        };
+
+        return callback(tx);
+      });
 
     return request(app.getHttpServer())
       .post('/api/auth/verify-email')
@@ -246,7 +289,9 @@ describe('Auth endpoints (e2e)', () => {
   });
 
   it('/api/auth/resend-verification (POST) - resends successfully for unverified user', async () => {
-    jest.spyOn(prisma.user, 'findUnique').mockResolvedValueOnce(mockUser as any);
+    jest
+      .spyOn(prisma.user, 'findUnique')
+      .mockResolvedValueOnce(mockUser as any);
     jest.spyOn(prisma.user, 'update').mockResolvedValueOnce(mockUser as any);
 
     return request(app.getHttpServer())

@@ -12,6 +12,7 @@ export class StudentQuizListItemDto {
   description!: string | null;
   durationMinutes!: number | null;
   passingScore!: number | null;
+  maxAttempts!: number | null;
   startsAt!: Date | null;
   endsAt!: Date | null;
   questionCount!: number;

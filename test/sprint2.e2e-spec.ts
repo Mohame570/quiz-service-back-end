@@ -11,33 +11,52 @@
 
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AttemptStatus, CheatingEventType, QuestionType } from '../src/generated/prisma/client';
+import {
+  AttemptStatus,
+  CheatingEventType,
+  QuestionType,
+} from '../src/generated/prisma/client';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 import { ScoringService } from '../src/modules/attempts/services/scoring.service';
 import { IntegrityService } from '../src/modules/integrity/services/integrity.service';
 
 const STUDENT_ID = 'student_cuid_1';
-const QUIZ_ID    = 'quiz_cuid_1';
+const QUIZ_ID = 'quiz_cuid_1';
 const ATTEMPT_ID = 'attempt_cuid_1';
-const Q1_ID      = 'question_cuid_1';
-const Q2_ID      = 'question_cuid_2';
-const Q3_ID      = 'question_cuid_3';
+const Q1_ID = 'question_cuid_1';
+const Q2_ID = 'question_cuid_2';
+const Q3_ID = 'question_cuid_3';
 
 function makeAttempt(overrides: Partial<any> = {}): any {
   return {
-    id: ATTEMPT_ID, quizId: QUIZ_ID, studentId: STUDENT_ID,
+    id: ATTEMPT_ID,
+    quizId: QUIZ_ID,
+    studentId: STUDENT_ID,
     startedAt: new Date('2026-06-01T10:00:00Z'),
     submittedAt: new Date('2026-06-01T10:30:00Z'),
-    status: AttemptStatus.SUBMITTED, score: null, maxScore: null,
-    createdAt: new Date(), updatedAt: new Date(), answers: [],
+    status: AttemptStatus.SUBMITTED,
+    score: null,
+    maxScore: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    answers: [],
     ...overrides,
   };
 }
 
-function makeAnswer(questionId: string, selectedOptionId: string | null, overrides: Partial<any> = {}): any {
+function makeAnswer(
+  questionId: string,
+  selectedOptionId: string | null,
+  overrides: Partial<any> = {},
+): any {
   return {
-    id: `${questionId}_ans`, attemptId: ATTEMPT_ID,
-    questionId, selectedOptionId, textAnswer: null, isCorrect: null, answeredAt: new Date(),
+    id: `${questionId}_ans`,
+    attemptId: ATTEMPT_ID,
+    questionId,
+    selectedOptionId,
+    textAnswer: null,
+    isCorrect: null,
+    answeredAt: new Date(),
     ...overrides,
   };
 }
@@ -63,6 +82,7 @@ function setupRecalculateMocks(
   prisma.quiz.findUnique.mockResolvedValue({ passingScore: 50 });
   prisma.result.upsert.mockResolvedValue({});
   prisma.$transaction.mockResolvedValue([]);
+  prisma.attempt.findUnique.mockResolvedValue(scoredAttempt);
 }
 
 function setupScoreMocks(
@@ -73,12 +93,19 @@ function setupScoreMocks(
 ) {
   prisma.attempt.findUnique
     .mockResolvedValueOnce(makeAttempt({ answers }))
+    .mockResolvedValueOnce(makeAttempt({ answers }))
     .mockResolvedValueOnce(scoredAttempt);
+
   prisma.question.findMany.mockResolvedValue(questions);
   prisma.quiz.findUnique.mockResolvedValue({ passingScore: 50 });
+
   prisma.attemptAnswer.update.mockResolvedValue({});
+  prisma.attempt.update.mockResolvedValue(scoredAttempt);
   prisma.result.upsert.mockResolvedValue({});
-  prisma.$transaction.mockResolvedValue([]);
+  
+  prisma.$transaction.mockImplementation(async (operations: any) => {
+    return Promise.all(operations);
+  });
 }
 
 function makePrisma() {
@@ -144,25 +171,36 @@ describe('ScoringService', () => {
   });
 
   describe('computePercentage()', () => {
-    it('returns 100 when all correct', () => expect(service.computePercentage(5, 5)).toBe(100));
-    it('returns 0 when score is 0', () => expect(service.computePercentage(0, 5)).toBe(0));
-    it('returns 0 when maxScore is 0', () => expect(service.computePercentage(0, 0)).toBe(0));
-    it('returns 66.67 for 2/3', () => expect(service.computePercentage(2, 3)).toBe(66.67));
+    it('returns 100 when all correct', () =>
+      expect(service.computePercentage(5, 5)).toBe(100));
+    it('returns 0 when score is 0', () =>
+      expect(service.computePercentage(0, 5)).toBe(0));
+    it('returns 0 when maxScore is 0', () =>
+      expect(service.computePercentage(0, 0)).toBe(0));
+    it('returns 66.67 for 2/3', () =>
+      expect(service.computePercentage(2, 3)).toBe(66.67));
     it('is deterministic', () => {
-      expect(service.computePercentage(3, 7)).toBe(service.computePercentage(3, 7));
+      expect(service.computePercentage(3, 7)).toBe(
+        service.computePercentage(3, 7),
+      );
     });
   });
 
   describe('scoreAttempt()', () => {
     it('throws NotFoundException for unknown attempt', async () => {
       prisma.attempt.findUnique.mockResolvedValue(null);
-      await expect(service.scoreAttempt('bad_id')).rejects.toThrow(NotFoundException);
+      await expect(service.scoreAttempt('bad_id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('scores 0/0 when no answers were submitted', async () => {
+      const emptyScored = makeAttempt({ answers: [], score: 0, maxScore: 0 });
+      
       prisma.attempt.findUnique
         .mockResolvedValueOnce(makeAttempt({ answers: [] }))
-        .mockResolvedValueOnce(makeAttempt({ answers: [], score: 0, maxScore: 0 }));
+        .mockResolvedValueOnce(emptyScored);
+      
       prisma.question.findMany.mockResolvedValue([]);
       prisma.quiz.findUnique.mockResolvedValue({ passingScore: 50 });
       prisma.$transaction.mockResolvedValue([]);
@@ -173,7 +211,10 @@ describe('ScoringService', () => {
 
     it('scores all-correct answers as score == maxScore', async () => {
       const answers = [makeAnswer(Q1_ID, 'Paris'), makeAnswer(Q2_ID, 'True')];
-      const questions = [mcqQuestion(Q1_ID, 'Paris'), mcqQuestion(Q2_ID, 'True')];
+      const questions = [
+        mcqQuestion(Q1_ID, 'Paris'),
+        mcqQuestion(Q2_ID, 'True'),
+      ];
       setupScoreMocks(
         prisma,
         answers,
@@ -470,7 +511,10 @@ describe('IntegrityService', () => {
   beforeEach(async () => {
     prisma = makePrisma();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [IntegrityService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        IntegrityService,
+        { provide: PrismaService, useValue: prisma },
+      ],
     }).compile();
     service = module.get<IntegrityService>(IntegrityService);
   });

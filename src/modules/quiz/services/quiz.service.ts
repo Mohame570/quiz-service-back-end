@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateQuizDto } from '../dto/create-quiz.dto';
@@ -15,14 +16,25 @@ import {
   QuizQuestion,
   QuizStatus,
   Prisma,
+  InvitationStatus,
+  EmailDeliveryStatus,
+  NotificationTemplateKey,
 } from '../../../generated/prisma/client';
 import { QuestionsService } from '../../questions/services/questions.service';
+import { InvitationService } from '../../auth/services/invitation.service';
+import { ConfigService } from '@nestjs/config';
+import { NotificationService } from '../../notifications/services/notification.service';
 
 @Injectable()
 export class QuizService {
+  private readonly logger = new Logger(QuizService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly questionsService: QuestionsService,
+    private readonly invitationService: InvitationService,
+    private readonly configService: ConfigService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -82,10 +94,27 @@ export class QuizService {
     }
   }
 
+  private async resolveQuizDefaults(
+    dto: CreateQuizDto,
+  ): Promise<{ durationMinutes: number; passingScore: number }> {
+    let durationMinutes = dto.durationMinutes;
+    let passingScore = dto.passingScore;
+
+    if (durationMinutes === undefined || passingScore === undefined) {
+      const settings = await this.prisma.organizationSettings.findFirst({
+        where: { id: 'default' },
+      });
+      durationMinutes ??= settings?.defaultDurationMinutes ?? 60;
+      passingScore ??= settings?.defaultPassThreshold ?? 50;
+    }
+
+    return { durationMinutes, passingScore };
+  }
+
   /**
    * Create a new quiz
    */
-  async create(createQuizDto: CreateQuizDto): Promise<Quiz> {
+  async create(createQuizDto: CreateQuizDto, userId: string): Promise<Quiz> {
     if (this.isPublishing(createQuizDto.status)) {
       throw new BadRequestException(
         'A new quiz cannot be created as published because it has no questions yet',
@@ -96,6 +125,9 @@ export class QuizService {
     const endsAt = this.parseNullableDate(createQuizDto.endsAt);
     this.ensureQuizDateRangeIsValid(startsAt, endsAt);
 
+    const { durationMinutes, passingScore } =
+      await this.resolveQuizDefaults(createQuizDto);
+
     return this.prisma.quiz.create({
       data: {
         title: createQuizDto.title,
@@ -103,11 +135,13 @@ export class QuizService {
         status: createQuizDto.status
           ? this.mapStatusToEnum(createQuizDto.status)
           : QuizStatus.DRAFT,
-        durationMinutes: createQuizDto.durationMinutes,
-        passingScore: createQuizDto.passingScore,
+        durationMinutes,
+        passingScore,
+        maxAttempts: createQuizDto.maxAttempts,
+        scoreStrategy: createQuizDto.scoreStrategy,
         startsAt,
         endsAt,
-        createdById: createQuizDto.createdById,
+        createdById: userId,
       },
     });
   }
@@ -157,6 +191,12 @@ export class QuizService {
         }),
         ...(updateQuizDto.passingScore !== undefined && {
           passingScore: updateQuizDto.passingScore,
+        }),
+        ...(updateQuizDto.maxAttempts !== undefined && {
+          maxAttempts: updateQuizDto.maxAttempts,
+        }),
+        ...(updateQuizDto.scoreStrategy !== undefined && {
+          scoreStrategy: updateQuizDto.scoreStrategy,
         }),
         ...(updateQuizDto.startsAt !== undefined && {
           startsAt,
@@ -264,6 +304,162 @@ export class QuizService {
   }
 
   /**
+   * Get all invitations for a quiz with real-time status resolution.
+   */
+  async getInvitationsForQuiz(quizId: string): Promise<
+    {
+      id: string;
+      recipientEmail: string;
+      status: InvitationStatus;
+      createdAt: Date;
+      claimedAt: Date | null;
+      expiresAt: Date | null;
+    }[]
+  > {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { id: true, endsAt: true, status: true },
+    });
+    if (!quiz) {
+      throw new NotFoundException(`Quiz '${quizId}' not found.`);
+    }
+
+    const invitations = await this.prisma.invitation.findMany({
+      where: { quizId },
+      select: {
+        id: true,
+        recipientEmail: true,
+        status: true,
+        createdAt: true,
+        claimedAt: true,
+        expiresAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const now = new Date();
+    const isQuizExpired =
+      (quiz.endsAt && quiz.endsAt <= now) ||
+      quiz.status === QuizStatus.CLOSED ||
+      quiz.status === QuizStatus.ARCHIVED;
+
+    const mapped = invitations.map((inv) => {
+      let accurateStatus: InvitationStatus = inv.status;
+      if (inv.status === InvitationStatus.PENDING) {
+        if (isQuizExpired || (inv.expiresAt && inv.expiresAt <= now)) {
+          accurateStatus = InvitationStatus.EXPIRED;
+        }
+      }
+      return {
+        id: inv.id,
+        recipientEmail: inv.recipientEmail,
+        status: accurateStatus,
+        createdAt: inv.createdAt,
+        claimedAt: inv.claimedAt,
+        expiresAt: inv.expiresAt,
+      };
+    });
+
+    const statusPriority: Record<InvitationStatus, number> = {
+      [InvitationStatus.PENDING]: 0,
+      [InvitationStatus.CLAIMED]: 1,
+      [InvitationStatus.EXPIRED]: 2,
+    };
+
+    return mapped.sort(
+      (a, b) =>
+        statusPriority[a.status] - statusPriority[b.status] ||
+        b.createdAt.getTime() - a.createdAt.getTime(),
+    );
+  }
+
+  async getRemindPreview(quizId: string): Promise<{
+    quizId: string;
+    count: number;
+    recipients: string[];
+  }> {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { id: true, endsAt: true, status: true },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz '${quizId}' not found.`);
+    }
+
+    const recipients =
+      await this.invitationService.getEligibleRecipientsForQuiz(quizId);
+
+    return {
+      quizId,
+      count: recipients.length,
+      recipients: recipients.map((i) => i.recipientEmail),
+    };
+  }
+
+  async sendQuizReminders(quizId: string) {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { id: true, title: true, endsAt: true, status: true },
+    });
+    if (!quiz) {
+      throw new NotFoundException(`Quiz '${quizId}' not found.`);
+    }
+
+    if (quiz.status !== QuizStatus.PUBLISHED) {
+      throw new BadRequestException('Can only send reminders for published quizzes.');
+    }
+
+    const eligibleRecipients =
+      await this.invitationService.getEligibleRecipientsForQuiz(quizId);
+
+    const rawBase =
+      this.configService.get<string>('frontend.baseUrl') ??
+      this.configService.get<string>('FRONTEND_BASE_URL') ??
+      'http://localhost:3000';
+    const baseUrl = rawBase.replace(/\/+$/, '');
+
+    const results = [];
+    for (const recipient of eligibleRecipients) {
+      try {
+        const result = await this.notificationService.sendQuizReminderEmail({
+          recipientEmail: recipient.recipientEmail,
+          quizTitle: quiz.title,
+          availableUntil: quiz.endsAt ?? undefined,
+          invitationUrl: `${baseUrl}/invitation/${quizId}?email=${encodeURIComponent(recipient.recipientEmail)}`,
+          correlationId: `reminder:${recipient.invitationId}`,
+          metadata: { quizId },
+          invitationId: recipient.invitationId,
+        });
+        results.push(result);
+      } catch (error) {
+        this.logger.error(
+          `Failed sending reminder to ${recipient.recipientEmail}: ${error instanceof Error ? error.message : error}`,
+        );
+        results.push({
+          deliveryLogId: '',
+          status: EmailDeliveryStatus.FAILED,
+          templateKey: NotificationTemplateKey.QUIZ_REMINDER,
+          subject: `Reminder: ${quiz.title}`,
+          html: '',
+          text: '',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          providerMessageId: null,
+          deliveredAt: null,
+          attemptCount: 1,
+        });
+      }
+    }
+
+    return {
+      quizId,
+      attempted: eligibleRecipients.length,
+      sent: results.filter((r) => r.status === EmailDeliveryStatus.SENT).length,
+      failed: results.filter((r) => r.status === EmailDeliveryStatus.FAILED).length,
+      results,
+    };
+  }
+  /**
    * Unpublish an existing quiz by moving it back to draft.
    */
   async unpublish(id: string): Promise<Quiz> {
@@ -306,6 +502,8 @@ export class QuizService {
         passingScore: original.passingScore,
         startsAt: original.startsAt,
         endsAt: original.endsAt,
+        maxAttempts: original.maxAttempts,
+        scoreStrategy: original.scoreStrategy,
         createdById: original.createdById,
         quizQuestions: {
           create: original.quizQuestions.map((qq) => ({

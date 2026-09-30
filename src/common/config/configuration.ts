@@ -11,8 +11,12 @@ export default () => ({
       'postgresql://postgres:postgres@localhost:5432/quiz_service?schema=public',
   },
   frontend: {
-    baseUrl: process.env.FRONTEND_BASE_URL ?? 'http://localhost:3001',
+    baseUrl: process.env.FRONTEND_BASE_URL ?? 'http://localhost:3000',
     allowedOrigins: (process.env.FRONTEND_ALLOWED_ORIGINS ?? 'http://localhost:3001,http://localhost:3000').split(',').map((s) => s.trim()),
+  },
+  verification: {
+    resendCooldownSeconds: Number.parseInt(process.env.VERIFICATION_RESEND_COOLDOWN_SECONDS ?? '60', 10),
+    tokenExpiresHours: Number.parseInt(process.env.VERIFICATION_TOKEN_EXPIRES_HOURS ?? '24', 10),
   },
   mail: {
     host: process.env.SMTP_HOST ?? 'localhost',

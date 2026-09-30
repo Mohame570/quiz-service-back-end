@@ -7,4 +7,5 @@ export interface SendQuizInvitationEmailDto extends NotificationRequestMetadata 
   invitationUrl: string;
   invitedByName?: string;
   availableUntil?: Date;
+  invitationId?: string;
 }

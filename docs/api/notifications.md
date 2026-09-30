@@ -7,6 +7,12 @@
 - status: `active`
 - last updated: `2026-06-15`
 
+## Sprint 3 invitation behavior
+
+`POST /api/admin/notifications/send-invitation` persists a `PENDING` invitation before the recipient has an account. The invitation email is sent through Nodemailer to MailHog in local development. After the recipient registers with the invited email and verifies it, the verification transaction claims pending invitations and connects the student's profile to the quiz.
+
+Invitation and verification emails are separate messages. The invitation contains an `Open quiz invitation` link; the verification email contains the verification token link.
+
 ## Purpose
 
 Unified notification service for the whole backend:

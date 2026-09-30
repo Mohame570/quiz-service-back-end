@@ -8,6 +8,7 @@ import { AuthController } from './controllers/auth.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { EmailVerifiedGuard } from './guards/email-verified.guard';
+import { InvitationService } from './services/invitation.service';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { EmailVerifiedGuard } from './guards/email-verified.guard';
     forwardRef(() => NotificationsModule),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, EmailVerifiedGuard],
-  exports: [AuthService, JwtModule, JwtAuthGuard, EmailVerifiedGuard],
+  providers: [AuthService, JwtAuthGuard, EmailVerifiedGuard, InvitationService],
+  exports: [AuthService, JwtModule, JwtAuthGuard, EmailVerifiedGuard, InvitationService
+  ],
 })
 export class AuthModule {}

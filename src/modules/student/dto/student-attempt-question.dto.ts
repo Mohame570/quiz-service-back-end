@@ -6,4 +6,6 @@ export class StudentAttemptQuestionDto {
   text!: string;
   options!: string[];
   order!: number;
+    codeSnippet?: string | null;
+  codeLanguage?: string | null;
 }

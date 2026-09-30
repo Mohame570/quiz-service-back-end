@@ -1,9 +1,15 @@
-import { Controller, Get, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, HttpCode, HttpStatus, Patch, Param, Delete, Query,UseGuards } from '@nestjs/common';
 import { QuestionsService } from '../services/questions.service';
 import { CreateQuestionDto } from '../dto/create-question.dto';
 import { UpdateQuestionDto } from '../dto/update-question.dto';
+import { RolesGuard } from '../../auth/guards/roles.gaurd';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../../generated/prisma/enums';
 
 @Controller('questions')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
 export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}
 
@@ -12,14 +18,22 @@ export class QuestionsController {
     @Query('quizId') quizId?: string,
     @Query('unassigned') unassigned?: string,
     @Query('type') type?: string,
+    @Query('difficulty') difficulty?: string,
+    @Query('topic') topic?: string,
+    @Query('tags') tags?: string,
   ) {
+    const filter: any = {};
+    if (type) filter.type = type;
+    if (difficulty) filter.difficulty = difficulty;
+    if (topic) filter.topic = topic;
+    if (tags) filter.tags = tags.split(',').map((t) => t.trim()).filter(Boolean);
     if (quizId) {
-      return this.questionsService.findByQuiz(quizId, { type: type as any });
+      return this.questionsService.findByQuiz(quizId, filter);
     }
     if (unassigned === 'true') {
-      return this.questionsService.findAllUnassigned({ type: type as any });
+      return this.questionsService.findAllUnassigned(filter);
     }
-    return this.questionsService.getQuestions({ type: type as any });
+    return this.questionsService.getQuestions(filter);
   }
 
   @Get(':id')
@@ -34,7 +48,10 @@ export class QuestionsController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateQuestionDto: UpdateQuestionDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateQuestionDto: UpdateQuestionDto,
+  ) {
     return this.questionsService.updateQuestion(id, updateQuestionDto);
   }
 
