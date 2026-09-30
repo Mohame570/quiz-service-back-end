@@ -25,6 +25,9 @@ function makePrismaMock() {
     attempt: {
       findMany: jest.fn(),
     },
+    organizationSettings: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
   };
 }
 

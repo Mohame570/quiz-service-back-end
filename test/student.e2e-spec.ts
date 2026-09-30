@@ -418,7 +418,9 @@ describe('StudentService', () => {
       );
 
       expect(result.canStart).toBe(false);
-      expect(result.reasonIfBlocked).toBe('Quiz has not started yet.');
+      expect(result.reasonIfBlocked).toBe(
+        'Quiz opens on Thu, 01 Jan 2099 00:00:00 GMT. Come back then to start.',
+      );
     });
 
     it('returns canStart=false with reason for a closed quiz', async () => {
@@ -438,7 +440,9 @@ describe('StudentService', () => {
       );
 
       expect(result.canStart).toBe(false);
-      expect(result.reasonIfBlocked).toBe('Quiz window has closed.');
+      expect(result.reasonIfBlocked).toBe(
+        'Quiz window has closed. Your submitted attempts and results are still available in your profile.',
+      );
     });
 
     it('returns attemptId of the most recent active attempt', async () => {
