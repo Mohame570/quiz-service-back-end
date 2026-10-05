@@ -22,8 +22,11 @@ async function bootstrap(): Promise<void> {
       forbidUnknownValues: false,
     }),
   );
+  const allowAllOrigins =
+    frontendAllowedOrigins.length === 0 ||
+    frontendAllowedOrigins.includes('*');
   app.enableCors({
-    origin: frontendAllowedOrigins.length > 0 ? frontendAllowedOrigins : true,
+    origin: allowAllOrigins ? true : frontendAllowedOrigins,
     credentials: true,
   });
 
