@@ -12,7 +12,7 @@ export default () => ({
   },
   frontend: {
     baseUrl: process.env.FRONTEND_BASE_URL ?? 'http://localhost:3000',
-    allowedOrigins: (process.env.FRONTEND_ALLOWED_ORIGINS ?? 'http://localhost:3001,http://localhost:3000').split(',').map((s) => s.trim()),
+    allowedOrigins: (process.env.FRONTEND_ALLOWED_ORIGINS ?? '*').split(',').map((s) => s.trim()),
   },
   verification: {
     resendCooldownSeconds: Number.parseInt(process.env.VERIFICATION_RESEND_COOLDOWN_SECONDS ?? '60', 10),
