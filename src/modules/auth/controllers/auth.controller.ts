@@ -56,11 +56,4 @@ export class AuthController {
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
   }
-
-  // TEMPORARY bootstrap — removed after first admin is promoted.
-  @Post('bootstrap-admin')
-  @HttpCode(HttpStatus.OK)
-  bootstrapAdmin(@Body() dto: { email: string; secret: string }) {
-    return this.authService.bootstrapAdmin(dto.email, dto.secret);
-  }
 }

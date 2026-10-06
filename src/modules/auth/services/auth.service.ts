@@ -438,23 +438,4 @@ export class AuthService {
       updatedAt: user.updatedAt,
     };
   }
-
-  // TEMPORARY bootstrap — removed after first admin is promoted.
-  async bootstrapAdmin(email: string, secret: string): Promise<SafeUser> {
-    const expected =
-      this.configService.get<string>('BOOTSTRAP_ADMIN_SECRET') ??
-      'pitbootstrap-2026';
-    if (secret !== expected) {
-      throw new UnauthorizedException('Invalid bootstrap secret');
-    }
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      throw new NotFoundException('User not found — register first');
-    }
-    const updated = await this.prisma.user.update({
-      where: { email },
-      data: { role: UserRole.ADMIN, emailVerified: true },
-    });
-    return this.toSafeUser(updated);
-  }
 }
